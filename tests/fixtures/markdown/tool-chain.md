@@ -23,13 +23,13 @@ steps:
   - name: "search_files"
     tool: "search_files"
     parameters:
-      query: "input.query"
+      query: "{{query}}"
       path: "/"
     
   - name: "read_file"
     tool: "read_file"
     parameters:
-      filePath: "prev_step.output.results[0].path"
+      filePath: "{{prev_step.output.results[0].path}}"
 ```
 
 #### **Post-Processing**

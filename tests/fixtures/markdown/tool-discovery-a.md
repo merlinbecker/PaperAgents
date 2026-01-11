@@ -11,7 +11,9 @@ parameters:
 
 #### **Tool-Ausführung**
 ```yaml
-tool: "echo"
+tool: "search_files"
 parameters:
-  text: "input.a"
+  query: "{{a}}"
+  path: "/"
 ```
+

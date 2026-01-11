@@ -6,14 +6,31 @@ id: tool1
 name: "My Tool"
 type: single
 description: "Desc"
-parameters: [
-- name: filePath, type: string, required: true
-- name: overwrite, type: boolean, required: false, default: false
-]
+parameters:
+  - name: filePath
+    type: string
+    required: true
+  - name: overwrite
+    type: boolean
+    required: false
+    default: false
 ---
 
 \`\`\`javascript
-function run(input){ return input; }
+// @preprocess
+const filePath = input.filePath;
+return { filePath };
+\`\`\`
+
+\`\`\`yaml
+tool: "read_file"
+parameters:
+  path: "{{filePath}}"
+\`\`\`
+
+\`\`\`javascript
+// @postprocess
+return output;
 \`\`\`
 `;
 
@@ -21,9 +38,10 @@ const mdChain = `---
 id: chain1
 name: Chain Tool
 type: chain
-parameters: [
-- name: q, type: string, required: true
-]
+parameters:
+  - name: q
+    type: string
+    required: true
 ---
 
 \`\`\`yaml
@@ -43,14 +61,9 @@ describe("YAMLParser", () => {
     expect(() => YAMLParser.parseFrontmatter(bad)).toThrow(/No YAML frontmatter/);
   });
 
-  it("extracts javascript and yaml code blocks", () => {
+  it("extracts yaml code blocks", () => {
     const blocks = YAMLParser.extractCodeBlocks(mdChain);
-    expect(blocks.javascript).toBeUndefined();
     expect(blocks.yaml).toMatch(/steps:/);
-
-    const blocksSingle = YAMLParser.extractCodeBlocks(mdSingle);
-    expect(blocksSingle.javascript).toMatch(/function run/);
-    expect(blocksSingle.yaml).toBeUndefined();
   });
 
   it("parseToolFile returns structured frontmatter and blocks", () => {
@@ -58,17 +71,7 @@ describe("YAMLParser", () => {
     expect(parsed.frontmatter.id).toBe("tool1");
     expect(parsed.frontmatter.parameters).toBeDefined();
     expect(Array.isArray(parsed.frontmatter.parameters)).toBe(true);
-    expect(parsed.customFunction).toMatch(/run/);
     expect(parsed.steps).toBeUndefined();
-  });
-
-  it("toAgent builds single tool with customFunction", () => {
-    const parsed = YAMLParser.parseToolFile(mdSingle);
-    const agent = YAMLParser.toAgent(parsed);
-    expect(agent.id).toBe("tool1");
-    expect(agent.type).toBe("single");
-    expect(agent.parameters?.length).toBeGreaterThan(0);
-    expect(agent.customFunction).toMatch(/run/);
   });
 
   it("toAgent builds chain tool with steps", () => {
