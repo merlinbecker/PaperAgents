@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
-	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"name": "paperAgents",
+	"version": "0.0.1",
+	"description": "Paper Agents turns Obsidian into an agent sandbox: define, test, and execute workflows and tools in Markdown, with OpenRouter integration and sandboxed JavaScript.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
@@ -12,8 +12,28 @@
 		"release": "node create-release.mjs",
 		"release:beta": "node create-release.mjs --beta"
 	},
-	"keywords": [],
-	"license": "0-BSD",
+	"keywords": [
+		"obsidian",
+		"plugin",
+		"ai",
+		"agents",
+		"markdown",
+		"openrouter",
+		"workflow"
+	],
+	"license": "MIT",
+	"author": {
+		"name": "Merlin Becker",
+		"url": "https://github.com/merlinbecker/PaperAgents"
+	},
+	"homepage": "https://github.com/merlinbecker/PaperAgents#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/merlinbecker/PaperAgents.git"
+	},
+	"bugs": {
+		"url": "https://github.com/merlinbecker/PaperAgents/issues"
+	},
 	"devDependencies": {
 		"@types/node": "^16.11.6",
 		"esbuild": "0.25.5",

@@ -1,164 +1,132 @@
-# Obsidian Sample Plugin
+```markdown
+# Paper Agents
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+**Because AI agents shouldn’t require a PhD in frameworkology.**
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+---
+<a href="https://www.buymeacoffee.com/merlinbecker"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a beer&emoji=🍺&slug=merlinbecker&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" /></a>
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
 
-## First time developing plugins?
+## 🤖 The Premise
 
-Quick starting guide for new plugin devs:
+**Paper Agents** is an Obsidian plugin for people who suspect that "agentic workflows" might just be **fancy terminology for glorified note-taking with extra steps**—and want to prove it.
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+This tool lets you **design, test, and execute AI agents** using nothing but **Markdown, YAML, and the absolute minimum of JavaScript necessary to avoid looking like a caveperson**. No bloated frameworks. No vendor lock-in. Just **agents you can actually understand**, because they’re written in the same place you jot down your grocery lists.
 
-## Releasing new releases
+---
 
-This plugin supports automated release creation via GitHub Actions and npm commands, making it compatible with BRAT (Beta Reviewers Auto-update Tester) for beta testing.
+## 📜 The Manifesto (or: Why This Exists)
 
-### Automated Release Process (Recommended)
+I built Paper Agents because:
+1. **Agent hype is outpacing agent clarity.** Everyone’s talking about "autonomous agents," but nobody’s explaining how they work in terms simpler than a research paper.
+2. **Most agent tools are overengineered.** If your agent requires a 20-step setup and a cloud subscription, it’s not a tool—it’s a **hostage situation**.
+3. **The best way to understand something is to build it badly first.** Paper Agents is your **safe space for terrible ideas**, where you can prototype agents in Markdown before inflicting them on the world.
 
-#### For Production Releases:
+**Core belief:** If you can’t sketch an agent on paper, you don’t understand it. If you can’t test it in 30 seconds, it’s not a tool—it’s a **career**.
 
-1. **Update version numbers:**
-   ```bash
-   # Update minAppVersion in manifest.json if needed, then:
-   npm version patch  # for bug fixes (1.0.0 -> 1.0.1)
-   npm version minor  # for new features (1.0.0 -> 1.1.0)
-   npm version major  # for breaking changes (1.0.0 -> 2.0.0)
-   ```
-   This updates `manifest.json`, `package.json`, and `versions.json` automatically.
+---
 
-2. **Commit and push changes:**
-   ```bash
-   git push
-   ```
+## 🛠 How It Works (Or Doesn’t)
 
-3. **Create and push a release:**
-   ```bash
-   npm run release
-   ```
-   This script will:
-   - Build the plugin
-   - Create a git tag matching the version in `manifest.json`
-   - Push the tag to GitHub
-   - Trigger GitHub Actions to create the release with assets
+### 1. **Define Your Agent in Markdown**
+Use YAML frontmatter to declare what your agent does, and JavaScript snippets to handle the parts where **pure stubbornness isn’t enough**.
 
-#### For Beta Releases (BRAT compatible):
+Example:
+````markdown
+---
+tool: sarcasm_generator
+name: "Passive-Aggressive Response Bot"
+description: "Generates mildly disappointing replies to overenthusiastic emails."
+type: single
+parameters:
+  - name: input_text
+    type: string
+    description: "The text you’d rather not respond to."
+---
 
-1. **Update version to beta:**
-   - Manually update version in `manifest.json` (e.g., `1.0.1-beta.1`)
-   - Run `npm run version` to sync versions
-
-2. **Create beta release:**
-   ```bash
-   npm run release:beta
-   ```
-   This creates a prerelease that:
-   - Is marked as a beta/prerelease on GitHub
-   - Can be installed via BRAT plugin
-   - Will be automatically cleaned up (old betas beyond the last 10 are deleted)
-
-#### How it works:
-
-- Pushing a tag triggers the `.github/workflows/release.yml` workflow
-- The workflow automatically:
-  - Builds the plugin (`main.js`)
-  - Creates a GitHub release
-  - Uploads `manifest.json`, `main.js`, and `styles.css` as release assets
-  - Generates release notes from git commits
-  - Marks releases containing "beta" or "rc" as prereleases
-  - Cleans up old beta releases (keeps only the last 10)
-
-### Manual Release Process (Alternative)
-
-If you prefer manual control:
-
-1. Update `manifest.json` with your new version number and minimum Obsidian version
-2. Update `versions.json` with the new version mapping
-3. Build the plugin: `npm run build`
-4. Create a git tag: `git tag -a 1.0.1 -m "Release 1.0.1"`
-5. Push the tag: `git push origin 1.0.1`
-6. The GitHub Action will handle the rest automatically
-
-### BRAT Plugin Support
-
-This plugin is configured to work with [BRAT (Beta Reviewers Auto-update Tester)](https://tfthacker.com/BRAT):
-
-- Beta releases are automatically marked as prereleases
-- Users can install beta versions via BRAT by providing the repository URL
-- Old beta releases are automatically cleaned up to avoid clutter
-- BRAT will automatically update users to the latest beta version
-
-### Release Management
-
-- **View releases:** Check https://github.com/merlinbecker/PaperAgents/releases
-- **Monitor builds:** Check https://github.com/merlinbecker/PaperAgents/actions
-- **Delete a release:** Use GitHub UI or `gh release delete <tag>`
-- **Beta cleanup:** Automatic - keeps only the last 10 beta releases
-
-## Adding your plugin to the community plugin list
-
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
-
-## How to use
-
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
-
-## Manually installing the plugin
-
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
-
-## Improve code quality with eslint
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
-
-## Funding URL
-
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
+```javascript
+// Pre-processing: Add eye-roll emoji
+function prepareParams(params) {
+  return { text: params.input_text + " 🙄" };
 }
 ```
 
-If you have multiple URLs, you can also do:
-
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
+```text
+// System Prompt
+You are a world-weary assistant. Respond to the following text with the minimum enthusiasm legally required:
+{{input_text}}
 ```
+````
 
-## API Documentation
+### 2. **Test It Before You Regret It**
+Click **"Test Tool"** to see if your agent works—or if it’s just **another overpromised AI disappointment**.
 
-See https://docs.obsidian.md
+### 3. **Connect to the Outside World (If You Must)**
+- **OpenRouter integration**: Because even minimalists need LLMs sometimes.
+- **REST API calls**: For when you absolutely, positively have to talk to a server.
+- **File operations**: Read/write notes, with **human confirmation** so you don’t accidentally delete your life’s work.
+
+### 4. **Run It Offline (Because the Cloud Is Overrated)**
+- **Local JS execution**: For tasks so simple, they don’t deserve an API call.
+- **Offline audio processing**: Transcribe your rants without uploading them to **Some Corporation™**.
+
+---
+
+## 🔧 Features (Or: Things That Might Work)
+
+| Feature               | Reality Check                                  |
+|-----------------------|------------------------------------------------|
+| **YAML tool definitions** | Yes, you’re writing config files. No, you don’t get a trophy. |
+| **Sandboxed JavaScript** | Your code runs in a cage, like it should.      |
+| **Human-in-the-loop**    | Because automation is great until it’s not.   |
+| **Markdown-native**      | Design agents where you already pretend to organize your life. |
+| **Chain tools**         | Combine steps like a **Rube Goldberg machine**, but with less charm. |
+
+---
+
+## 🚀 Example: An Agent That Does Your Homework (Poorly)
+
+1. **Task**: "Summarize this 50-page PDF."
+2. **Agent**:
+   - Reads the PDF (if you’ve enabled file access).
+   - Extracts key sentences (or hallucinates them).
+   - Outputs a summary (or a **vague approximation of one**).
+3. **Result**: A draft that’s **80% correct and 100% your problem now**.
+
+---
+
+## 📦 Installation (Or: How to Acquire Regrets)
+
+1. Install from **Obsidian Community Plugins**.
+2. Add your **OpenRouter API key** (if you’re feeling brave).
+3. Start writing agents in Markdown.
+4. **Realize you’ve just reinvented the wheel**—but at least it’s *your* wheel.
+
+---
+
+## 💡 Philosophy
+
+> *"If you can’t explain your agent to a tired intern, you’ve already lost."*
+
+Paper Agents is for:
+- **Developers who miss the days when code was just text files.**
+- **Obsidian users who suspect their notes could be doing more (but not *too* much more).**
+- **People who like their tools like their coffee: strong, simple, and **without surprise subscriptions**."*
+
+---
+
+## 🛣 Roadmap (Or: Future Disappointments)
+
+- [ ] **Agent memory**: Because forgetting things is **your job**, not the computer’s.
+- [ ] **Debugging tools**: For when your agent inevitably **misinterprets everything**.
+- [ ] **Community templates**: Share your **questionable life choices** with others.
+
+---
+
+## 📌 License
+
+MIT © [Merlin Becker](https://github.com/merlinbecker)
+
+---
+*"Paper Agents: Proving that AI doesn’t have to be complicated—just **mildly frustrating** in new ways."*
+```
