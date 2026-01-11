@@ -1,18 +1,18 @@
 import {App, PluginSettingTab, Setting} from "obsidian";
-import MyPlugin from "./main";
+import PaperAgents from "./main";
 
-export interface MyPluginSettings {
+export interface PaperAgentsSettings {
 	mySetting: string;
 }
 
-export const DEFAULT_SETTINGS: MyPluginSettings = {
+export const DEFAULT_SETTINGS: PaperAgentsSettings = {
 	mySetting: 'default'
 }
 
 export class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+	plugin: PaperAgents;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: PaperAgents) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
