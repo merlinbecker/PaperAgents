@@ -1,8 +1,406 @@
-/*
+/* Paper Agents - UI Styles */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+/* ============================================================================
+   SIDEBAR STYLES
+   ============================================================================ */
 
-If your plugin does not need CSS, delete this file.
+.paper-agents-sidebar {
+  padding: 10px;
+  height: 100%;
+  overflow-y: auto;
+}
 
-*/
+.pa-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.pa-title {
+  margin: 0;
+  font-size: 1.2em;
+}
+
+.pa-refresh-btn {
+  padding: 5px 10px;
+  cursor: pointer;
+  background: var(--interactive-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  font-size: 1.2em;
+}
+
+.pa-refresh-btn:hover {
+  background: var(--interactive-hover);
+}
+
+/* Tool Categories */
+.pa-tool-category {
+  margin-bottom: 20px;
+}
+
+.pa-category-header {
+  font-size: 0.9em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+/* Tool Items */
+.pa-tool-item {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pa-tool-item:hover,
+.pa-tool-item-hover {
+  background: var(--background-modifier-hover);
+  border-color: var(--interactive-accent);
+  transform: translateX(2px);
+}
+
+.pa-tool-icon {
+  font-size: 1.5em;
+  margin-right: 10px;
+  min-width: 30px;
+  text-align: center;
+}
+
+.pa-tool-content {
+  flex: 1;
+}
+
+.pa-tool-name {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.pa-tool-description {
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.pa-tool-badge {
+  font-size: 0.75em;
+  padding: 2px 6px;
+  background: var(--interactive-accent);
+  color: white;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+/* Status */
+.pa-status {
+  margin-top: 20px;
+  padding: 10px;
+  background: var(--background-primary-alt);
+  border-radius: 4px;
+  border-left: 3px solid var(--interactive-accent);
+}
+
+.pa-status-text {
+  font-size: 0.9em;
+  color: var(--text-normal);
+}
+
+/* ============================================================================
+   FORM MODAL STYLES
+   ============================================================================ */
+
+.paper-agents-form {
+  padding: 20px;
+}
+
+.pa-form-container {
+  margin: 20px 0;
+}
+
+.pa-form-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.pa-btn-cancel,
+.pa-btn-submit {
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.pa-btn-cancel {
+  background: var(--background-secondary);
+  color: var(--text-normal);
+}
+
+.pa-btn-cancel:hover {
+  background: var(--background-modifier-hover);
+}
+
+.pa-btn-submit {
+  background: var(--interactive-accent);
+  color: white;
+  border-color: var(--interactive-accent);
+}
+
+.pa-btn-submit:hover {
+  background: var(--interactive-accent-hover);
+}
+
+.pa-form-errors {
+  margin: 15px 0;
+  padding: 12px;
+  background: var(--background-modifier-error);
+  border-left: 3px solid #e74c3c;
+  border-radius: 4px;
+}
+
+.pa-error-title {
+  margin: 0 0 10px 0;
+  color: #e74c3c;
+  font-size: 1em;
+}
+
+.pa-form-errors ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.pa-form-errors li {
+  color: var(--text-normal);
+  margin-bottom: 5px;
+}
+
+/* Quick Form */
+.pa-quick-form {
+  margin: 15px 0;
+  padding: 15px;
+  background: var(--background-secondary-alt);
+  border-radius: 6px;
+}
+
+.pa-quick-form-title {
+  margin: 0 0 15px 0;
+  font-size: 1em;
+}
+
+.pa-quick-field {
+  margin-bottom: 12px;
+}
+
+.pa-quick-label {
+  display: block;
+  font-size: 0.9em;
+  font-weight: 500;
+  margin-bottom: 5px;
+}
+
+.pa-quick-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.pa-quick-submit {
+  width: 100%;
+  padding: 8px;
+  background: var(--interactive-accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.pa-quick-submit:hover {
+  background: var(--interactive-accent-hover);
+}
+
+/* ============================================================================
+   HITL MODAL STYLES
+   ============================================================================ */
+
+.paper-agents-hitl {
+  padding: 20px;
+  max-width: 500px;
+}
+
+.pa-hitl-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.pa-hitl-icon {
+  font-size: 2em;
+}
+
+.pa-hitl-title {
+  margin: 0;
+  font-size: 1.3em;
+}
+
+.pa-hitl-info {
+  margin-bottom: 20px;
+}
+
+.pa-hitl-tool-name,
+.pa-hitl-step-name {
+  margin-bottom: 8px;
+  font-size: 0.95em;
+}
+
+.pa-hitl-parameters {
+  margin: 20px 0;
+  padding: 15px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+}
+
+.pa-hitl-parameters h3 {
+  margin: 0 0 12px 0;
+  font-size: 1em;
+}
+
+.pa-params-list {
+  font-family: var(--font-monospace);
+  font-size: 0.9em;
+}
+
+.pa-param-item {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.pa-param-item:last-child {
+  border-bottom: none;
+}
+
+.pa-param-key {
+  font-weight: 600;
+  min-width: 100px;
+  color: var(--text-accent);
+}
+
+.pa-param-value {
+  flex: 1;
+  word-wrap: break-word;
+  color: var(--text-normal);
+}
+
+.pa-hitl-warning {
+  margin: 20px 0;
+  padding: 15px;
+  background: #fff3cd;
+  border-left: 4px solid #ffc107;
+  border-radius: 4px;
+}
+
+.pa-hitl-warning h3 {
+  margin: 0 0 8px 0;
+  font-size: 1em;
+  color: #856404;
+}
+
+.pa-warning-text {
+  margin: 0;
+  color: #856404;
+  font-size: 0.9em;
+}
+
+.pa-hitl-buttons {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 25px;
+}
+
+.pa-btn-reject,
+.pa-btn-approve {
+  flex: 1;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  border: 1px solid var(--background-modifier-border);
+  font-size: 1em;
+}
+
+.pa-btn-reject {
+  background: var(--background-secondary);
+  color: var(--text-normal);
+}
+
+.pa-btn-reject:hover {
+  background: #e74c3c;
+  color: white;
+  border-color: #e74c3c;
+}
+
+.pa-btn-approve {
+  background: #27ae60;
+  color: white;
+  border-color: #27ae60;
+}
+
+.pa-btn-approve:hover {
+  background: #229954;
+  border-color: #229954;
+}
+
+/* ============================================================================
+   RESPONSIVE & DARK MODE
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .pa-tool-item {
+    padding: 8px;
+  }
+
+  .pa-tool-icon {
+    font-size: 1.2em;
+    min-width: 25px;
+  }
+
+  .pa-hitl-buttons {
+    flex-direction: column;
+  }
+
+  .pa-btn-reject,
+  .pa-btn-approve {
+    width: 100%;
+  }
+}
+
+.theme-dark .pa-hitl-warning {
+  background: #3d3d00;
+  border-left-color: #ffc107;
+}
+
+.theme-dark .pa-hitl-warning h3,
+.theme-dark .pa-warning-text {
+  color: #ffc107;
+}
