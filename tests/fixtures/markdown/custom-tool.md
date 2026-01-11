@@ -7,11 +7,32 @@ parameters:
   - name: filePath
     type: string
     required: true
+description: "Read a file from disk"
 ---
 
+#### **Pre-Processing**
 ```javascript
-function run(ctx) {
-  return { success: true, data: { echo: ctx.parameters.filePath }, log: [] };
+// @preprocess
+if (!input.filePath.startsWith("/")) {
+  input.filePath = "/" + input.filePath;
 }
-return run(context);
+return input;
+```
+
+#### **Tool-Ausführung**
+```yaml
+tool: "read_file"
+parameters:
+  path: "input.filePath"
+```
+
+#### **Post-Processing**
+```javascript
+// @postprocess
+return {
+  path: output.filePath,
+  content: output.content,
+  size: output.size,
+  log: []
+};
 ```

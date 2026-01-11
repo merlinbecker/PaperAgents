@@ -7,13 +7,28 @@ parameters:
   - name: input
     type: string
     required: true
-preprocess: "trim"
-postprocess: "uppercase"
+description: "Echo tool with trim and uppercase using read_file"
 ---
 
+#### **Pre-Processing**
 ```javascript
-function run(ctx) {
-  return { success: true, data: { echoed: ctx.parameters.input }, log: [] };
-}
-return run(context);
+// @preprocess
+input.filePath = input.input.trim() + ".md";
+return input;
+```
+
+#### **Tool-Ausführung**
+```yaml
+tool: "read_file"
+parameters:
+  filePath: "{{filePath}}"
+```
+
+#### **Post-Processing**
+```javascript
+// @postprocess
+return {
+  echoed: typeof output === 'string' ? output.toUpperCase() : JSON.stringify(output),
+  log: []
+};
 ```

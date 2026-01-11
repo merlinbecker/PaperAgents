@@ -9,6 +9,9 @@ parameters:
     required: true
 ---
 
-```javascript
-return { success: true, data: { a: context.parameters.a }, log: [] };
+#### **Tool-Ausführung**
+```yaml
+tool: "echo"
+parameters:
+  text: "input.a"
 ```

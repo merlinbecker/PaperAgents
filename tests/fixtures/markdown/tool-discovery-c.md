@@ -7,9 +7,14 @@ parameters:
   - name: x
     type: string
     required: true
+---
+
+#### **Steps**
+```yaml
 steps:
   - name: "search_files"
+    tool: "file_search"
     parameters:
-      query: "{{x}}"
+      query: "input.x"
       path: "/notes"
----
+```
