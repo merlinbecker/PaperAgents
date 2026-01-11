@@ -41,7 +41,7 @@ Options:
 	const name = manifest.name;
 
 	// If no tag specified, use version from manifest
-	if (!tag || tag === "--beta") {
+	if (!tag) {
 		tag = version;
 		if (isBeta) {
 			tag += "-beta";

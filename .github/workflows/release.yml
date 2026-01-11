@@ -63,13 +63,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Get all beta releases sorted by creation date
-          BETA_RELEASES=$(gh release list --limit 100 | grep -i beta | awk '{print $3}' || true)
+          # Get all beta releases using JSON format for reliable parsing
+          BETA_RELEASES=$(gh release list --limit 100 --json tagName,isPrerelease --jq '.[] | select(.isPrerelease==true and (.tagName | contains("beta"))) | .tagName')
           
           # Count beta releases
           COUNT=$(echo "$BETA_RELEASES" | grep -v '^$' | wc -l)
           
           # If more than 10 beta releases, delete the oldest ones
+          # gh release list returns newest first, so keep first 10 and delete the rest
           if [ "$COUNT" -gt 10 ]; then
             RELEASES_TO_DELETE=$(echo "$BETA_RELEASES" | tail -n +11)
             for release in $RELEASES_TO_DELETE; do
