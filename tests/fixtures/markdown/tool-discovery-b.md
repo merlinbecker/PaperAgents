@@ -7,8 +7,12 @@ parameters:
   - name: b
     type: number
     required: false
+    default: 0
 ---
 
-```javascript
-return { success: true, data: { b: context.parameters.b ?? 0 }, log: [] };
+#### **Tool-Ausführung**
+```yaml
+tool: "echo"
+parameters:
+  number: "input.b"
 ```

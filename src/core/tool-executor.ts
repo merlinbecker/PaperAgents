@@ -5,7 +5,7 @@
 
 import { IExecutableTool, ExecutionContext, ExecutionResult, Agent, Step } from "../types";
 import { globalLogger } from "../utils/logger";
-import { customJSExecutor } from "./sandbox";
+import { QuickJSSandbox } from "./sandbox";
 import PlaceholderReplacer from "../parser/placeholder";
 
 interface PlaceholderContext {
@@ -33,7 +33,6 @@ export interface HITLDecision {
  */
 export class ToolExecutor {
   private hitlCallbacks: Map<string, (decision: HITLDecision) => Promise<void>> = new Map();
-  private customJsInitialized = false;
 
   /**
    * Registriert HITL-Callback für externe Bestätigung
@@ -72,18 +71,16 @@ export class ToolExecutor {
         throw new Error(`Parameter validation failed: ${validationErrors.join(", ")}`);
       }
 
-      // Single-Tool mit Custom-JS direkt ausfuehren
-      if (agent.type === "single" && agent.customFunction) {
-        const context = this.buildSingleExecutionContext(userParameters);
-        const singleResult = await this.executeCustomSingle(agent, context);
+      // ===== SINGLE-TOOL: 3-Phasen-Execution =====
+      if (agent.type === "single") {
+        const result = await this.executeSingleTool(agent, userParameters, toolRegistry);
         const duration = Date.now() - startTime;
-        const normalizedOutput = this.unwrapExecutionData(singleResult.data);
 
-        if (singleResult.success) {
+        if (result.success) {
           globalLogger.info(`Agent execution completed: ${agent.name}`, {
             executionId,
             duration,
-            steps: 0,
+            steps: 1,
           });
 
           return {
@@ -91,22 +88,22 @@ export class ToolExecutor {
             data: {
               executionId,
               agent: agent.name,
-              steps: 0,
-              output: normalizedOutput,
+              steps: 1,
+              output: result.data,
               duration,
             },
-            log: singleResult.log || [],
+            log: result.log || [],
           };
         }
 
         return {
           success: false,
-          error: singleResult.error || "Custom tool execution failed",
-          log: singleResult.log || [],
+          error: result.error || "Single tool execution failed",
+          log: result.log || [],
         };
       }
 
-      // Führe jeden Step sequenziell aus
+      // ===== CHAIN-TOOL: Sequenzielle Step-Execution =====
       const steps = agent.steps || [];
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
@@ -350,50 +347,156 @@ export class ToolExecutor {
   }
 
   /**
-   * Baut Execution-Context fuer Single-Tools (ohne Steps)
+   * 3-Phasen-Execution für Single-Tools
+   * Phase 1: Pre-Processing (optional)
+   * Phase 2: Tool-Execution (optional)
+   * Phase 3: Post-Processing (optional)
    */
-  private buildSingleExecutionContext(
-    userParameters: Record<string, any>
-  ): ExecutionContext {
-    const placeholderCtx: PlaceholderContext = PlaceholderReplacer.createContext(
-      userParameters,
-      {}
-    );
+  private async executeSingleTool(
+    agent: Agent,
+    userParameters: Record<string, any>,
+    toolRegistry: any
+  ): Promise<ExecutionResult> {
+    const log: any[] = [];
+    let currentData: any = userParameters;
 
-    const processedParameters = PlaceholderReplacer.replacePlaceholdersInObject(
-      userParameters,
-      placeholderCtx
-    ) as Record<string, any>;
+    try {
+      // ===== PHASE 1: Pre-Processing =====
+      if (agent.preprocess) {
+        globalLogger.debug("Executing pre-processing", { agent: agent.name });
+        try {
+          const sandbox = new QuickJSSandbox();
+          await sandbox.initialize();
+          currentData = await sandbox.executePreprocess(agent.preprocess, currentData);
+          log.push({
+            phase: "preprocess",
+            success: true,
+            timestamp: Date.now(),
+          });
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : "Pre-processing failed";
+          globalLogger.error("Pre-processing failed", { agent: agent.name, error: errorMsg });
+          return {
+            success: false,
+            error: `Pre-processing failed: ${errorMsg}`,
+            log,
+          };
+        }
+      }
 
-    return {
-      parameters: processedParameters,
-      previousStepOutputs: {},
-      date: new Date().toISOString().split('T')[0] || "",
-      time: (new Date().toISOString().split('T')[1]?.split('.')[0]) || "",
-      randomId: Math.random().toString(36).substring(7) || "",
-    };
-  }
+      // ===== PHASE 2: Tool-Execution (Optional) =====
+      if (agent.toolDefinition) {
+        globalLogger.debug("Executing tool", { 
+          agent: agent.name, 
+          toolId: agent.toolDefinition.toolId 
+        });
 
-  /**
-   * Custom-JS Single-Tool Ausfuehrung ueber Sandbox
-   */
-  private async executeCustomSingle(agent: Agent, ctx: ExecutionContext): Promise<ExecutionResult> {
-    if (!this.customJsInitialized) {
-      await customJSExecutor.initialize();
-      this.customJsInitialized = true;
+        try {
+          // Hole Tool aus Registry
+          const tool = toolRegistry.getTool(agent.toolDefinition.toolId);
+          if (!tool) {
+            throw new Error(`Tool not found: ${agent.toolDefinition.toolId}`);
+          }
+
+          // Baue Execution-Context mit Placeholder-Replacement
+          const placeholderCtx = PlaceholderReplacer.createContext(currentData, {});
+          const processedParameters = PlaceholderReplacer.replacePlaceholdersInObject(
+            agent.toolDefinition.parameters,
+            placeholderCtx
+          ) as Record<string, any>;
+
+          const context: ExecutionContext = {
+            parameters: processedParameters,
+            previousStepOutputs: {},
+            date: placeholderCtx.date,
+            time: placeholderCtx.time,
+            randomId: placeholderCtx.randomId,
+          };
+
+          // HITL-Check
+          if (tool.shouldRequireHITL(context.parameters)) {
+            const decision = await this.requestHITLApproval(
+              "tool_execution",
+              agent.toolDefinition.toolId,
+              context.parameters
+            );
+
+            if (!decision.approved) {
+              return {
+                success: false,
+                error: decision.reason || "User rejected tool execution",
+                log,
+              };
+            }
+          }
+
+          // Führe Tool aus
+          const toolResult = await tool.execute(context);
+          
+          if (!toolResult.success) {
+            return {
+              success: false,
+              error: `Tool execution failed: ${toolResult.error || "Unknown error"}`,
+              log: [...log, ...(toolResult.log || [])],
+            };
+          }
+
+          currentData = toolResult.data;
+          log.push({
+            phase: "tool_execution",
+            toolId: agent.toolDefinition.toolId,
+            success: true,
+            timestamp: Date.now(),
+          });
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : "Tool execution failed";
+          globalLogger.error("Tool execution failed", { agent: agent.name, error: errorMsg });
+          return {
+            success: false,
+            error: `Tool execution failed: ${errorMsg}`,
+            log,
+          };
+        }
+      }
+
+      // ===== PHASE 3: Post-Processing =====
+      if (agent.postprocess) {
+        globalLogger.debug("Executing post-processing", { agent: agent.name });
+        try {
+          const sandbox = new QuickJSSandbox();
+          await sandbox.initialize();
+          currentData = await sandbox.executePostprocess(agent.postprocess, currentData);
+          log.push({
+            phase: "postprocess",
+            success: true,
+            timestamp: Date.now(),
+          });
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : "Post-processing failed";
+          globalLogger.error("Post-processing failed", { agent: agent.name, error: errorMsg });
+          return {
+            success: false,
+            error: `Post-processing failed: ${errorMsg}`,
+            log,
+          };
+        }
+      }
+
+      // Success
+      return {
+        success: true,
+        data: currentData,
+        log,
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      globalLogger.error("Single tool execution failed", { agent: agent.name, error: errorMsg });
+      return {
+        success: false,
+        error: errorMsg,
+        log,
+      };
     }
-
-    return customJSExecutor.executeCustomTool(agent.customFunction || "", ctx);
-  }
-
-  /**
-   * Entpackt verschachtelte ExecutionResult-Daten
-   */
-  private unwrapExecutionData(data: any): any {
-    if (data && typeof data === "object" && "data" in (data as any) && "success" in (data as any)) {
-      return (data as any).data;
-    }
-    return data;
   }
 }
 

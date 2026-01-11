@@ -102,10 +102,112 @@ export class QuickJSSandbox {
       }
     }
 
+    // Prüfe auf return-Statement
+    if (!code.includes("return")) {
+      errors.push("Code must contain a 'return' statement");
+    }
+
     return {
       valid: errors.length === 0,
       errors,
     };
+  }
+
+  /**
+   * Führt Pre-Processing Code aus
+   * Erwartet: input-Object im Context, return-Statement mit modifiziertem input
+   * @param code JavaScript Code mit // @preprocess Marker
+   * @param inputParams User-Parameter
+   * @returns Transformierte Parameter
+   */
+  async executePreprocess(code: string, inputParams: Record<string, any>): Promise<Record<string, any>> {
+    const validation = this.validateCode(code);
+    if (!validation.valid) {
+      throw new Error(`Pre-processing validation failed: ${validation.errors.join(", ")}`);
+    }
+
+    try {
+      // Wrapped code that provides 'input' variable
+      const wrappedCode = `
+        const input = context.input;
+        ${code}
+      `;
+
+      // Minimal ExecutionContext
+      const execContext: ExecutionContext = {
+        parameters: { input: inputParams },
+        previousStepOutputs: {},
+        date: new Date().toISOString().split('T')[0] || "",
+        time: new Date().toISOString().split('T')[1]?.split('.')[0] || "",
+        randomId: Math.random().toString(36).substring(7),
+      };
+
+      // Add input to context for script access
+      const scriptContext = {
+        ...this.buildScriptContext(execContext),
+        input: inputParams,
+      };
+
+      // Execute with custom context
+      const runner = new Function("context", `"use strict";\n${wrappedCode}`);
+      const result = runner(scriptContext);
+      
+      // Result sollte modifiziertes input-Object sein
+      if (typeof result !== "object" || result === null) {
+        throw new Error("Pre-processing must return an object");
+      }
+
+      return result as Record<string, any>;
+    } catch (error) {
+      globalLogger.error("Pre-processing execution failed", { error, code });
+      throw new Error(`Pre-processing failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+
+  /**
+   * Führt Post-Processing Code aus
+   * Erwartet: output-Object im Context, return-Statement mit transformiertem output
+   * @param code JavaScript Code mit // @postprocess Marker
+   * @param toolOutput Rohausgabe des Tools
+   * @returns Transformierte Ausgabe
+   */
+  async executePostprocess(code: string, toolOutput: any): Promise<any> {
+    const validation = this.validateCode(code);
+    if (!validation.valid) {
+      throw new Error(`Post-processing validation failed: ${validation.errors.join(", ")}`);
+    }
+
+    try {
+      // Wrapped code that provides 'output' variable
+      const wrappedCode = `
+        const output = context.output;
+        ${code}
+      `;
+
+      // Minimal ExecutionContext
+      const execContext: ExecutionContext = {
+        parameters: { output: toolOutput },
+        previousStepOutputs: {},
+        date: new Date().toISOString().split('T')[0] || "",
+        time: new Date().toISOString().split('T')[1]?.split('.')[0] || "",
+        randomId: Math.random().toString(36).substring(7),
+      };
+
+      // Add output to context for script access
+      const scriptContext = {
+        ...this.buildScriptContext(execContext),
+        output: toolOutput,
+      };
+
+      // Execute with custom context
+      const runner = new Function("context", `"use strict";\n${wrappedCode}`);
+      const result = runner(scriptContext);
+      
+      return result;
+    } catch (error) {
+      globalLogger.error("Post-processing execution failed", { error, code });
+      throw new Error(`Post-processing failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
   }
 
   /**

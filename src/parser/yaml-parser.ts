@@ -287,21 +287,34 @@ export class YAMLParser {
   }
 
   /**
-   * Extrahiert Code-Blöcke (JavaScript oder YAML)
+   * Extrahiert Code-Blöcke mit neuer Notation
+   * - `// @preprocess` Marker für Pre-Processing
+   * - `// @postprocess` Marker für Post-Processing
+   * - ```yaml``` für Tool-Definition oder Steps
+   * 
+   * Neue Notation erlaubt mehrere JavaScript-Blöcke mit verschiedenen Markern.
    */
   static extractCodeBlocks(content: string): {
-    javascript?: string;
     yaml?: string;
+    preprocess?: string;
+    postprocess?: string;
   } {
-    const result: { javascript?: string; yaml?: string } = {};
+    const result: { yaml?: string; preprocess?: string; postprocess?: string } = {};
 
-    // Extrahiere JavaScript-Block
-    const jsMatch = content.match(/```javascript\n([\s\S]*?)\n```/);
-    if (jsMatch) {
-      result.javascript = jsMatch[1];
+    // Extrahiere @preprocess Block
+    // Pattern: ```javascript\n// @preprocess\n...\n```
+    const preprocessMatch = content.match(/\/\/\s*@preprocess\n([\s\S]*?)\n```/);
+    if (preprocessMatch) {
+      result.preprocess = preprocessMatch[1];
     }
 
-    // Extrahiere YAML-Block
+    // Extrahiere @postprocess Block
+    const postprocessMatch = content.match(/\/\/\s*@postprocess\n([\s\S]*?)\n```/);
+    if (postprocessMatch) {
+      result.postprocess = postprocessMatch[1];
+    }
+
+    // Extrahiere YAML-Block (Tool-Definition oder Steps)
     const yamlMatch = content.match(/```yaml\n([\s\S]*?)\n```/);
     if (yamlMatch) {
       result.yaml = yamlMatch[1];
@@ -317,10 +330,15 @@ export class YAMLParser {
     const frontmatter = this.parseFrontmatter(content);
     const blocks = this.extractCodeBlocks(content);
 
+    // YAML-Block wird unterschiedlich verwendet:
+    // - Bei type: "single" → Tool-Definition (tool: "id", parameters: {...})
+    // - Bei type: "chain" → Steps-Definition
     return {
       frontmatter,
-      customFunction: blocks.javascript,
-      steps: blocks.yaml,
+      toolBlock: frontmatter.type === "single" ? blocks.yaml : undefined,
+      steps: frontmatter.type === "chain" ? blocks.yaml : undefined,
+      preprocess: blocks.preprocess,
+      postprocess: blocks.postprocess,
       rawContent: content,
     };
   }
@@ -343,10 +361,20 @@ export class YAMLParser {
       parameters: this.parseParameters(frontmatter.parameters || []),
     };
 
-    if (frontmatter.type === "single" && parsed.customFunction) {
-      agent.customFunction = parsed.customFunction;
+    // Pre- und Post-Processing hinzufügen (beide für single und chain)
+    if (parsed.preprocess) {
+      agent.preprocess = parsed.preprocess;
+    }
+    if (parsed.postprocess) {
+      agent.postprocess = parsed.postprocess;
     }
 
+    // Single-Tool: Parse Tool-Definition aus YAML-Block
+    if (frontmatter.type === "single" && parsed.toolBlock) {
+      agent.toolDefinition = this.parseToolDefinition(parsed.toolBlock);
+    }
+
+    // Chain-Tool: Parse Steps
     if (frontmatter.type === "chain") {
       // Steps werden direkt aus dem Frontmatter geparst (als Array von Objects)
       if (Array.isArray(frontmatter.steps) && frontmatter.steps.length > 0) {
@@ -354,13 +382,54 @@ export class YAMLParser {
           name: String(step.name || ""),
           parameters: step.parameters || {},
         }));
-      } else if (typeof frontmatter.steps === "string") {
-        // Fallback: Wenn Steps als String vorhanden (alt. YAML Block-Format)
-        agent.steps = this.parseSteps(frontmatter.steps);
+      } else if (parsed.steps) {
+        // Fallback: Wenn Steps als YAML-String vorhanden
+        agent.steps = this.parseSteps(parsed.steps);
       }
     }
 
     return agent;
+  }
+
+  /**
+   * Parst Tool-Definition aus YAML-Block
+   * Format:
+   * ```yaml
+   * tool: "read_file"
+   * parameters:
+   *   filePath: "input.path"
+   * ```
+   */
+  private static parseToolDefinition(yamlBlock: string): { toolId: string; parameters: Record<string, any> } {
+    const lines = yamlBlock.split("\n").filter((line) => line.trim() && !line.trim().startsWith("#"));
+    
+    let toolId = "";
+    const parameters: Record<string, any> = {};
+    let inParameters = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      if (trimmed.startsWith("tool:")) {
+        const match = trimmed.match(/tool:\s*['"](.*?)['"]/) || trimmed.match(/tool:\s*(\S+)/);
+        if (match) {
+          toolId = match[1];
+        }
+      } else if (trimmed.startsWith("parameters:")) {
+        inParameters = true;
+      } else if (inParameters && trimmed.match(/^\w+:/)) {
+        const [key, value] = this.parseKeyValue(trimmed);
+        if (key) {
+          parameters[key] = value;
+        }
+      }
+    }
+
+    if (!toolId) {
+      throw new Error("Tool-Definition muss 'tool: \"<id>\"' enthalten");
+    }
+
+    return { toolId, parameters };
   }
 
   /**

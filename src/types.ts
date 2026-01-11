@@ -27,8 +27,15 @@ export interface Agent {
   description?: string;
   type: "single" | "chain";
   parameters: Parameter[];
-  customFunction?: string; // Nur bei type: "single"
+  toolDefinition?: ToolDefinition; // Nur bei type: "single" - Tool-Ausführung optional
   steps?: Step[]; // Nur bei type: "chain"
+  preprocess?: string; // JavaScript code mit // @preprocess Marker
+  postprocess?: string; // JavaScript code mit // @postprocess Marker
+}
+
+export interface ToolDefinition {
+  toolId: string; // ID des Predefined Tools (z.B. "read_file")
+  parameters: Record<string, any>; // Tool-Parameter
 }
 
 export interface Step {
@@ -133,8 +140,10 @@ export interface YAMLFrontmatter {
 
 export interface ParsedToolFile {
   frontmatter: YAMLFrontmatter;
-  customFunction?: string; // Extracted JavaScript code block
-  steps?: string; // Extracted YAML/steps block
+  toolBlock?: string; // Extracted YAML tool execution block (für Single-Tools)
+  steps?: string; // Extracted YAML/steps block (für Chain-Tools)
+  preprocess?: string; // JavaScript code mit // @preprocess Marker
+  postprocess?: string; // JavaScript code mit // @postprocess Marker
   rawContent: string;
 }
 
