@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 import { readFileSync } from "fs";
 import { createInterface } from "readline";
 
@@ -52,9 +52,10 @@ Options:
 
 	// Check if git is clean
 	try {
-		const status = execSync("git status --porcelain", {
+		const result = spawnSync("git", ["status", "--porcelain"], {
 			encoding: "utf8",
-		}).trim();
+		});
+		const status = result.stdout.trim();
 		if (status) {
 			console.warn(
 				"Warning: You have uncommitted changes. Consider committing them first."
@@ -87,27 +88,41 @@ Options:
 function createRelease(tag, version, name, isBeta) {
 	// Build the plugin
 	console.log("Building plugin...");
-	try {
-		execSync("npm run build", { stdio: "inherit" });
-	} catch (error) {
-		console.error("Build failed:", error.message);
+	const buildResult = spawnSync("npm", ["run", "build"], {
+		stdio: "inherit",
+		shell: false,
+	});
+	if (buildResult.status !== 0) {
+		console.error("Build failed");
 		process.exit(1);
 	}
 
 	// Create and push tag
 	console.log(`Creating tag ${tag}...`);
-	try {
-		execSync(`git tag -a "${tag}" -m "Release ${version}"`, {
+	const tagResult = spawnSync(
+		"git",
+		["tag", "-a", tag, "-m", `Release ${version}`],
+		{
 			stdio: "inherit",
-		});
-		console.log(`Pushing tag ${tag}...`);
-		execSync(`git push origin "${tag}"`, { stdio: "inherit" });
-	} catch (error) {
-		console.error("Failed to create/push tag:", error.message);
+			shell: false,
+		}
+	);
+	if (tagResult.status !== 0) {
+		console.error("Failed to create tag:", tagResult.error?.message);
 		console.log(
 			"If the tag already exists, delete it first with: git tag -d " +
 				tag
 		);
+		process.exit(1);
+	}
+
+	console.log(`Pushing tag ${tag}...`);
+	const pushResult = spawnSync("git", ["push", "origin", tag], {
+		stdio: "inherit",
+		shell: false,
+	});
+	if (pushResult.status !== 0) {
+		console.error("Failed to push tag:", pushResult.error?.message);
 		process.exit(1);
 	}
 
