@@ -36,6 +36,9 @@ export class PlaceholderReplacer {
     }
 
     const first = parts[0];
+    if (!first) {
+      return null;
+    }
 
     // simple specials
     if (first === "date") return context.date;
@@ -52,8 +55,9 @@ export class PlaceholderReplacer {
     if (first === "prev_step") {
       let current: any = (context.previousStepOutputs as any).prev_step || (context.previousStepOutputs as any).__last;
       for (let i = 1; i < parts.length; i++) {
-        if (current === null || current === undefined) return null;
-        current = current[parts[i]];
+        const part = parts[i];
+        if (current === null || current === undefined || !part) return null;
+        current = current[part];
       }
       return current;
     }
@@ -62,8 +66,9 @@ export class PlaceholderReplacer {
     let current: any = (context.previousStepOutputs as any)[first];
     if (current !== undefined) {
       for (let i = 1; i < parts.length; i++) {
-        if (current === null || current === undefined) return null;
-        current = current[parts[i]];
+        const part = parts[i];
+        if (current === null || current === undefined || !part) return null;
+        current = current[part];
       }
       return current;
     }

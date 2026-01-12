@@ -90,7 +90,7 @@ export interface IExecutableTool {
 export interface IToolFactory {
   name: string;
   description: string;
-  create(): IExecutableTool;
+  create(app?: any): IExecutableTool;
 }
 
 // ============================================================================

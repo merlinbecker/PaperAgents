@@ -7,14 +7,26 @@
 import { Agent, IExecutableTool, ToolMetadata, IToolFactory } from "../types";
 import { PREDEFINED_TOOL_IDS, TOOL_CATEGORIES, TOOL_ICONS } from "../utils/constants";
 import { globalLogger } from "../utils/logger";
+import type { App } from "obsidian";
 
 export class ToolRegistry {
   private predefinedTools: Map<string, IToolFactory> = new Map();
   private customTools: Map<string, Agent> = new Map();
   private executableTools: Map<string, IExecutableTool> = new Map();
+  private app: App | null = null;
 
-  constructor() {
+  constructor(app?: App) {
+    if (app) {
+      this.app = app;
+    }
     globalLogger.info("ToolRegistry initialized");
+  }
+
+  /**
+   * Set the App instance (for cases where it's not available at construction)
+   */
+  setApp(app: App): void {
+    this.app = app;
   }
 
   /**
@@ -67,7 +79,7 @@ export class ToolRegistry {
     const predefinedFactory = this.predefinedTools.get(id);
     if (predefinedFactory) {
       try {
-        const tool = predefinedFactory.create();
+        const tool = predefinedFactory.create(this.app || undefined);
         this.executableTools.set(id, tool);
         return tool;
       } catch (error) {
