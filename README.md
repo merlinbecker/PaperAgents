@@ -28,14 +28,88 @@ Quick starting guide for new plugin devs:
 
 ## Releasing new releases
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+This plugin supports automated release creation via GitHub Actions and npm commands, making it compatible with BRAT (Beta Reviewers Auto-update Tester) for beta testing.
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+### Automated Release Process (Recommended)
+
+#### For Production Releases:
+
+1. **Update version numbers:**
+   ```bash
+   # Update minAppVersion in manifest.json if needed, then:
+   npm version patch  # for bug fixes (1.0.0 -> 1.0.1)
+   npm version minor  # for new features (1.0.0 -> 1.1.0)
+   npm version major  # for breaking changes (1.0.0 -> 2.0.0)
+   ```
+   This updates `manifest.json`, `package.json`, and `versions.json` automatically.
+
+2. **Commit and push changes:**
+   ```bash
+   git push
+   ```
+
+3. **Create and push a release:**
+   ```bash
+   npm run release
+   ```
+   This script will:
+   - Build the plugin
+   - Create a git tag matching the version in `manifest.json`
+   - Push the tag to GitHub
+   - Trigger GitHub Actions to create the release with assets
+
+#### For Beta Releases (BRAT compatible):
+
+1. **Update version to beta:**
+   - Manually update version in `manifest.json` (e.g., `1.0.1-beta.1`)
+   - Run `npm run version` to sync versions
+
+2. **Create beta release:**
+   ```bash
+   npm run release:beta
+   ```
+   This creates a prerelease that:
+   - Is marked as a beta/prerelease on GitHub
+   - Can be installed via BRAT plugin
+   - Will be automatically cleaned up (old betas beyond the last 10 are deleted)
+
+#### How it works:
+
+- Pushing a tag triggers the `.github/workflows/release.yml` workflow
+- The workflow automatically:
+  - Builds the plugin (`main.js`)
+  - Creates a GitHub release
+  - Uploads `manifest.json`, `main.js`, and `styles.css` as release assets
+  - Generates release notes from git commits
+  - Marks releases containing "beta" or "rc" as prereleases
+  - Cleans up old beta releases (keeps only the last 10)
+
+### Manual Release Process (Alternative)
+
+If you prefer manual control:
+
+1. Update `manifest.json` with your new version number and minimum Obsidian version
+2. Update `versions.json` with the new version mapping
+3. Build the plugin: `npm run build`
+4. Create a git tag: `git tag -a 1.0.1 -m "Release 1.0.1"`
+5. Push the tag: `git push origin 1.0.1`
+6. The GitHub Action will handle the rest automatically
+
+### BRAT Plugin Support
+
+This plugin is configured to work with [BRAT (Beta Reviewers Auto-update Tester)](https://tfthacker.com/BRAT):
+
+- Beta releases are automatically marked as prereleases
+- Users can install beta versions via BRAT by providing the repository URL
+- Old beta releases are automatically cleaned up to avoid clutter
+- BRAT will automatically update users to the latest beta version
+
+### Release Management
+
+- **View releases:** Check https://github.com/merlinbecker/PaperAgents/releases
+- **Monitor builds:** Check https://github.com/merlinbecker/PaperAgents/actions
+- **Delete a release:** Use GitHub UI or `gh release delete <tag>`
+- **Beta cleanup:** Automatic - keeps only the last 10 beta releases
 
 ## Adding your plugin to the community plugin list
 

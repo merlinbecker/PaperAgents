@@ -1,0 +1,83 @@
+name: Release Obsidian Plugin
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          
+          # Extract version info from manifest
+          VERSION=$(node -p "require('./manifest.json').version")
+          NAME=$(node -p "require('./manifest.json').name")
+          
+          # Generate release notes
+          if git describe --tags --abbrev=0 HEAD^ >/dev/null 2>&1; then
+            PREV_TAG=$(git describe --tags --abbrev=0 HEAD^)
+            RELEASE_NOTES=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges)
+          else
+            RELEASE_NOTES="Initial release"
+          fi
+          
+          # Determine if this is a beta release
+          if [[ "$tag" == *"beta"* ]] || [[ "$tag" == *"rc"* ]]; then
+            PRERELEASE="--prerelease"
+          else
+            PRERELEASE=""
+          fi
+          
+          # Create release using GitHub CLI
+          gh release create "$tag" \
+            --title "${NAME} ${VERSION}" \
+            --notes "${RELEASE_NOTES}" \
+            ${PRERELEASE} \
+            main.js \
+            manifest.json \
+            styles.css
+
+      - name: Cleanup old beta releases
+        if: contains(github.ref, 'beta')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get all beta releases using JSON format for reliable parsing
+          BETA_RELEASES=$(gh release list --limit 100 --json tagName,isPrerelease --jq '.[] | select(.isPrerelease==true and (.tagName | contains("beta"))) | .tagName')
+          
+          # Count beta releases
+          COUNT=$(echo "$BETA_RELEASES" | grep -v '^$' | wc -l)
+          
+          # If more than 10 beta releases, delete the oldest ones
+          # gh release list returns newest first, so keep first 10 and delete the rest
+          if [ "$COUNT" -gt 10 ]; then
+            RELEASES_TO_DELETE=$(echo "$BETA_RELEASES" | tail -n +11)
+            for release in $RELEASES_TO_DELETE; do
+              echo "Deleting old beta release: $release"
+              gh release delete "$release" --yes || true
+            done
+          fi
