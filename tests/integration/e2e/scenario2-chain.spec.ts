@@ -23,7 +23,7 @@ describe("E2E Scenario 2 - Markdown Toolchain", () => {
     const agent = YAMLParser.toAgent(parsed);
 
     // Registry with predefined tools
-    const registry = new ToolRegistry();
+    const registry = new ToolRegistry(app as any);
     registry.registerPredefined(PredefinedToolsFactory.searchFiles);
     registry.registerPredefined(PredefinedToolsFactory.readFile);
 

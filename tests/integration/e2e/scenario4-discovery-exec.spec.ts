@@ -30,7 +30,7 @@ describe("E2E Scenario 4 - Discovery and execution of 4 tools", () => {
     await v.create("/notes/a.md", "alpha note");
 
     const loader = new CustomToolLoader(app as any);
-    const registry = new ToolRegistry();
+    const registry = new ToolRegistry(app as any);
     registry.registerPredefined(PredefinedToolsFactory.searchFiles);
     registry.registerPredefined(PredefinedToolsFactory.readFile);
 

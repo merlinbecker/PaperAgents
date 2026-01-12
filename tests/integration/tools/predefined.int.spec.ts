@@ -16,7 +16,7 @@ describe("Predefined tools integration (mocked vault)", () => {
   });
 
   it("search_files filters by path and query", async () => {
-    const tool = SearchFilesFactory.create();
+    const tool = SearchFilesFactory.create(app);
     const res = await tool.execute({ parameters: { query: "a", path: "/notes" } } as any);
     expect(res.success).toBe(true);
     expect((res.data as any).count).toBe(1);
@@ -24,7 +24,7 @@ describe("Predefined tools integration (mocked vault)", () => {
   });
 
   it("read_file returns content and metadata", async () => {
-    const tool = ReadFileFactory.create();
+    const tool = ReadFileFactory.create(app);
     const res = await tool.execute({ parameters: { filePath: "/notes/a.md" } } as any);
     expect(res.success).toBe(true);
     expect((res.data as any).content).toBe("alpha");
@@ -32,7 +32,7 @@ describe("Predefined tools integration (mocked vault)", () => {
   });
 
   it("write_file prevents overwrite unless flag set", async () => {
-    const tool = WriteFileFactory.create();
+    const tool = WriteFileFactory.create(app);
     const fail = await tool.execute({ parameters: { filePath: "/notes/a.md", content: "x", overwrite: false } } as any);
     expect(fail.success).toBe(false);
     expect(fail.error).toMatch(/already exists/);
@@ -45,7 +45,7 @@ describe("Predefined tools integration (mocked vault)", () => {
 
   it("rest_request uses mocked requestUrl", async () => {
     const spy = vi.spyOn(Obsidian, "requestUrl").mockResolvedValue({ status: 201, statusText: "Created", text: "done" });
-    const tool = RestRequestFactory.create();
+    const tool = RestRequestFactory.create(app);
     const res = await tool.execute({ parameters: { url: "https://api", method: "POST", body: "{}" } } as any);
     expect(res.success).toBe(true);
     expect((res.data as any).status).toBe(201);

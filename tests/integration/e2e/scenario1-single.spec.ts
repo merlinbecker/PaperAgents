@@ -19,7 +19,7 @@ describe("E2E Scenario 1 - Markdown Tool Single", () => {
     await v.create("hello.md", "test content");
 
     const loader = new CustomToolLoader(app as any);
-    const registry = new ToolRegistry();
+    const registry = new ToolRegistry(app as any);
     
     // Register predefined tools
     registry.registerPredefined(PredefinedToolsFactory.readFile);

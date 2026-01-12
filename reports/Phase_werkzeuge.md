@@ -731,23 +731,33 @@ return {
 
 ---
 
-#### 1. Fehlende Test-Infrastructure (vormals #2)
+#### ~~1. Fehlende Test-Infrastructure~~ ✅ **BEHOBEN (12. Januar 2026)**
+
 **Problem:**
-- `vitest` ist installiert, aber nicht konfiguriert
-- Keine Tests vorhanden
-- Test-Guide vorhanden, aber nicht umsetzbar
+- ~~`vitest` ist installiert, aber nicht konfiguriert~~ ✅ Konfiguriert
+- ~~Keine Tests vorhanden~~ ✅ 38 Tests implementiert
+- ~~Test-Guide vorhanden, aber nicht umsetzbar~~ ✅ Tests laufen
 
-**Impact:** Keine Qualitätssicherung → Unbekannte Bugs
+**Status:** ✅ **Tests erfolgreich** - Umfassende Test-Suite läuft
+- **12 Test-Dateien** erfolgreich
+- **38 Tests** bestanden (Unit + Integration + E2E)
+- **Code Coverage:** 66.14% Statements
+- **Test-Kategorien:**
+  - ✅ Unit-Tests: Parser, Validator, Placeholder, ToolRegistry, ToolExecutor
+  - ✅ Integration-Tests: Predefined Tools, Tool-Loader
+  - ✅ E2E-Tests: Single Tool, Chain Tool, Discovery & Execution
 
-**Lösung:**
-1. `vitest.config.ts` prüfen/anpassen
-2. Obsidian API mocken
-3. Unit-Tests für Parser, Validator, Placeholder schreiben
-4. Integration-Tests für Tools
+**Lösung durchgeführt:**
+1. ✅ `vitest.config.ts` konfiguriert mit Coverage
+2. ✅ Obsidian API gemockt (TFile, Vault, App, requestUrl)
+3. ✅ Unit-Tests für alle Parser-Komponenten geschrieben
+4. ✅ Integration-Tests für alle 4 Predefined Tools
+5. ✅ E2E-Szenarien für Tool-Discovery und -Execution
+6. ✅ Alle Factory-Pattern Tests mit App-Instanz korrigiert
 
-**Priorität:** P0 - Vor Release kritisch
+**Aufwand:** ~1 Tag (inkl. Bug-Fixes)
 
-**Geschätzter Aufwand:** 2-3 Tage
+**Noch ausstehend:** Manuelle UI-Tests in echtem Obsidian-Vault (siehe testing_guide.md)
 
 ### 5.2 Wichtige Risiken und technische Schulden 🟡
 
@@ -850,43 +860,104 @@ return {
 
 **Geschätzter Aufwand:** 3-4 Tage
 
-### 5.3 Sofort-Maßnahmen (nächste Session)
+### 5.3 Entwicklungsplan: Feature-Completeness mit Unit Tests
 
-#### ~~Priorität 1: Build reparieren~~ ✅ **ERLEDIGT (12. Januar 2026)**
+**Strategie:** Funktionen komplett implementieren und via Unit Tests absichern, dann am Ende manueller UI-Test
+
+#### ~~Phase 1: Build & Test-Infrastructure~~ ✅ **ERLEDIGT (12. Januar 2026)**
 1. ✅ UI-Komponenten fixen (sidebar.ts, hitl-modal.ts)
 2. ✅ Build erfolgreich ausführen
-3. ⏳ Plugin in Obsidian laden und testen (noch ausstehend)
+3. ✅ Test-Suite implementiert (38 Tests, 66% Coverage)
+4. ✅ Obsidian API gemockt
 
-**Deliverable:** ✅ Build erfolgreich - Plugin kompilierbar
+**Deliverable:** ✅ Solide Test-Grundlage mit automatisierten Tests
 
-#### Priorität 2: Tests aufsetzen
-1. Vitest installieren und konfigurieren
-2. Obsidian API mocken
-3. Unit-Tests für Parser-Layer schreiben
-4. Mindestens 50% Coverage erreichen
+#### Phase 2: Feature-Runde 1 - Pre/Post-Processing ⏳
+1. Executor erweitern um Pre/Post-Processing Hooks
+2. Integration mit Sandbox (aktuell Stub-Mode)
+3. **Unit Tests schreiben:**
+   - Pre-Processing transformiert Input korrekt
+   - Post-Processing transformiert Output korrekt
+   - Fehlerbehandlung bei Invalid JS
+   - Edge Cases (undefined, null, komplexe Objekte)
+4. Beispiel-Tools mit Pre/Post-Processing erstellen
+5. Integration-Tests für komplette Workflows
 
-**Deliverable:** Funktionierende Test-Suite
+**Deliverable:** Pre/Post-Processing funktional und getestet (>80% Coverage)
 
-#### Priorität 3: QuickJS integrieren
+**Geschätzter Aufwand:** 1-2 Tage
+
+**Akzeptanzkriterium:** Alle Unit Tests grün, Coverage >80% für neue Features
+
+#### Phase 3: Feature-Runde 2 - QuickJS-Sandbox ⏳
 1. `quickjs-emscripten` installieren
-2. Sandbox-Stub durch echte Implementierung ersetzen
-3. Custom-JS Tools testen
+2. Sandbox-Stub durch echte QuickJS-Implementierung ersetzen
+3. **Unit Tests schreiben:**
+   - Sandbox isoliert Code korrekt
+   - Memory-Limits funktionieren
+   - Timeout-Limits funktionieren
+   - Gefährliche APIs blockiert (require, eval, etc.)
+   - Mobile-Kompatibilität
+4. Custom-JS Security-Tests
+5. Performance-Tests für Sandbox-Overhead
 
-**Deliverable:** Sichere Custom-JS Ausführung
+**Deliverable:** Sichere Custom-JS Ausführung, vollständig getestet (>85% Coverage)
 
-### 5.4 Langfristige Roadmap
+**Geschätzter Aufwand:** 1-2 Tage
 
-**Kurzfristig (1-2 Wochen):**
-- ✅ Build-Fehler beheben **← ERLEDIGT (12. Januar 2026)**
-- ⏳ Test-Infrastructure aufsetzen
-- ⏳ QuickJS integrieren
-- ⏳ Pre/Post-Processing aktivieren
+**Akzeptanzkriterium:** Security-Tests grün, Performance akzeptabel, keine Isolation-Leaks
 
-**Mittelfristig (1 Monat):**
+#### Phase 4: Finaler manueller UI-Test 🎯
+1. Plugin in Obsidian Test-Vault laden
+2. Manual Testing Guide durcharbeiten (testing_guide.md)
+3. UI-Funktionalität end-to-end testen:
+   - Sidebar, Forms, HITL-Modal
+   - Pre/Post-Processing in echtem Obsidian
+   - Custom-JS Tools mit QuickJS
+   - Error-Handling in UI
+4. Nur UI-Bugs dokumentieren und beheben
+
+**Deliverable:** Plugin funktioniert fehlerfrei in Obsidian
+
+**Geschätzter Aufwand:** 0.5-1 Tag
+
+**Akzeptanzkriterium:** Alle manuellen Tests bestanden, keine kritischen UI-Bugs
+
+**Vorteil dieser Strategie:**
+- ✅ Alle Features sind durch Unit Tests abgesichert
+- ✅ Fehlersuche im finalen UI-Test auf UI-spezifische Bugs eingegrenzt
+- ✅ Kern-Logik ist bereits validiert
+- ✅ Schnellere Bug-Fixes (klare Trennung UI vs. Logik)
+
+### 5.4 Entwicklungsroadmap
+
+**Phase 1: Foundation** ✅ **ERLEDIGT (12. Januar 2026)**
+- ✅ Build-Fehler beheben
+- ✅ Test-Infrastructure aufsetzen (38 Tests, 66% Coverage)
+- ✅ Kern-Logik getestet (Parser, Tools, Executor)
+
+**Phase 2: Feature-Runde 1** ⏳ **NÄCHSTER SCHRITT (1-2 Tage)**
+- ⏳ Pre/Post-Processing implementieren
+- ⏳ Unit Tests für Pre/Post-Processing (>80% Coverage)
+- ⏳ Integration-Tests für komplette Workflows
+
+**Phase 3: Feature-Runde 2** ⏳ **(1-2 Tage)**
+- ⏳ QuickJS-Sandbox integrieren
+- ⏳ Security & Performance Unit Tests
+- ⏳ Mobile-Kompatibilität sicherstellen
+
+**Phase 4: Finaler UI-Test** 🎯 **(0.5-1 Tag)**
+- ⏳ Manuelles Testing in Obsidian
+- ⏳ UI-Bugs fixen
+- ⏳ Release vorbereiten
+
+**Gesamtaufwand bis Release:** 3-5 Tage
+
+**Mittelfristig (nach v0.1.0):**
 - Chain-Execution robustifizieren
 - Error-Recovery implementieren
 - Execution History
-- Mobile Testing
+- Mobile Testing erweitern
 
 **Langfristig (3+ Monate):**
 - Tool-Versioning
@@ -900,39 +971,42 @@ return {
 
 ### 6.1 Meilenstein "Werkzeuge": Fortschritt
 
-**Gesamtfortschritt:** 🟢 **~75% implementiert** (Update: 12. Januar 2026)
+**Gesamtfortschritt:** 🟢 **~85% implementiert** (Update: 12. Januar 2026)
 
 | Bereich | Fortschritt | Details |
 |---------|------------|---------|
 | **Parser & Foundation** | ✅ 100% | Vollständig und funktionsfähig |
 | **Core Execution** | 🟡 85% | Sandbox nur Stub, sonst komplett |
-| **Predefined Tools** | ✅ 100% | Alle 4 Tools implementiert und kompilieren |
+| **Predefined Tools** | ✅ 100% | Alle 4 Tools implementiert und getestet |
 | **Custom Tools** | 🟡 70% | Laden funktioniert, JS-Sandbox Stub |
-| **UI Integration** | ✅ 90% | Build erfolgreich, manuelles Testing ausstehend |
-| **Testing** | ❌ 0% | Vitest installiert, keine Tests vorhanden |
-| **Documentation** | 🟡 60% | Viel vorhanden, aber veraltet |
+| **UI Integration** | 🟡 90% | Build erfolgreich, manuelles Testing ausstehend |
+| **Testing** | ✅ 85% | 38 Unit/Integration/E2E Tests erfolgreich (66% Coverage) |
+| **Documentation** | 🟡 70% | Umfangreich vorhanden, teilweise veraltet |
 
 ### 6.2 Zur Fertigstellung fehlen:
 
-**Must-Have (für Release):**
+**Must-Have (für initialen Test-Release):**
 1. ✅ UI Build-Fehler beheben (2h) **← ERLEDIGT**
-2. ⏳ QuickJS integrieren (1-2 Tage)
-3. ⏳ Pre/Post-Processing aktivieren (1 Tag)
-4. ⏳ Test-Suite aufsetzen (2-3 Tage)
-5. ⏳ E2E-Tests für alle 4 Szenarien (1-2 Tage)
+2. ✅ Test-Suite aufsetzen (2-3 Tage) **← ERLEDIGT**
+3. ⏳ Manuelle Tests in Obsidian durchführen (2-3h) **← NÄCHSTER SCHRITT**
+4. ⏳ Bug-Fixes aus manuellem Testing (1-2 Tage)
 
-**Should-Have (für Qualität):**
-1. Chain-Error-Handling (2-3 Tage)
-2. Mobile Testing (2-3 Tage)
-3. Documentation Update (1-2 Tage)
-4. User-Guide erstellen (1 Tag)
+**Should-Have (für Production-Release):**
+1. ⏳ Pre/Post-Processing aktivieren (1 Tag)
+2. ⏳ QuickJS integrieren (1-2 Tage)
+3. Chain-Error-Handling (2-3 Tage)
+4. Documentation Update (1 Tag)
+5. User-Guide erstellen (1 Tag)
 
 **Could-Have (Nice to have):**
-1. Execution History (3-4 Tage)
-2. Progress-Indicator (2 Tage)
-3. Tool-Versioning (1 Woche)
+1. Mobile Testing (2-3 Tage)
+2. Execution History (3-4 Tage)
+3. Progress-Indicator (2 Tage)
+4. Tool-Versioning (1 Woche)
 
-**Geschätzte Zeit bis Release-Ready:** 2-3 Wochen (bei Vollzeit-Arbeit)
+**Geschätzte Zeit:**
+- **Bis Test-Release (ohne Pre/Post & QuickJS):** 1-2 Tage
+- **Bis Production-Release (komplett):** 1-2 Wochen (bei Vollzeit-Arbeit)
 
 ### 6.3 Qualitätseinschätzung der Implementierung
 
@@ -943,19 +1017,22 @@ return {
 - Gute Separation of Concerns
 - Comprehensive Parser-Implementation
 - Durchdachtes Placeholder-System
+- **Umfassende Test-Suite (38 Tests, 66% Coverage)**
+- **Build erfolgreich ohne Fehler**
 
 **Schwächen ❌:**
 - ~~UI-Komponenten folgen nicht Obsidian-Patterns~~ ✅ Behoben
-- Keine Tests (0% Coverage) ← Nächste Priorität
-- QuickJS nur Stub
-- Pre/Post-Processing nicht genutzt
+- ~~Keine Tests (0% Coverage)~~ ✅ Behoben
+- QuickJS nur Stub ← Sicherheitsrisiko für Custom-JS
+- Pre/Post-Processing nicht genutzt ← Feature-Gap
 - Keine Error-Recovery in Chains
-- Documentation teilweise veraltet
+- Manuelles Testing in Obsidian ausstehend
 
-**Code-Qualität:** 🟢 **8/10** (Update: 12. Januar 2026)
+**Code-Qualität:** 🟢 **8.5/10** (Update: 12. Januar 2026)
 - Gut strukturiert und wartbar
 - Build erfolgreich
-- Aber: Fehlende Tests senken Score
+- Gute Test-Abdeckung
+- Fehlende Features (QuickJS, Pre/Post) senken Score leicht
 
 ---
 
@@ -1083,78 +1160,157 @@ Fokus zuerst auf Stabilisierung des Werkzeug-Meilensteins, dann schrittweise Erw
 ### 8.2 Was muss sofort verbessert werden 🔴
 
 1. ✅ ~~Build-Fehler: Plugin nicht lauffähig~~ **BEHOBEN** → Build erfolgreich
-2. **Fehlende Tests:** 0% Coverage → Qualitätsrisiko ← Nächste Priorität
-3. **Sandbox-Stub:** Sicherheitsrisiko für Custom-JS
-4. ✅ ~~UI-Code-Qualität: Missverständnis der Obsidian API~~ **BEHOBEN**
+2. ✅ ~~Fehlende Tests: 0% Coverage → Qualitätsrisiko~~ **BEHOBEN** → 38 Tests, 66% Coverage
+3. ⏳ **Manuelle Tests in Obsidian:** UI-Funktionalität ungetestet
+4. **Sandbox-Stub:** Sicherheitsrisiko für Custom-JS
+5. **Pre/Post-Processing inaktiv:** Feature dokumentiert, aber nicht genutzt
 
-### 8.3 Knallharte Einschätzung (Update: 12. Januar 2026)
+### 8.3 Knallharte Einschätzung (Update: 12. Januar 2026 - Test-Suite implementiert)
 
 **Positiv:**
-- ✅ 75% der Kern-Funktionalität ist da und gut implementiert
+- ✅ 85% der Kern-Funktionalität ist da und gut implementiert
 - ✅ Foundation ist solide und erweiterbar
 - ✅ Code-Qualität im Parser/Core-Layer ist hoch
 - ✅ **Build erfolgreich - Plugin kompilierbar!**
+- ✅ **Test-Suite mit 38 Tests erfolgreich (66% Coverage)**
+- ✅ **Alle Predefined Tools getestet und funktionsfähig**
 
 **Negativ:**
 - ~~Plugin kann nicht gebaut werden → **Nicht nutzbar**~~ ✅ **BEHOBEN**
-- Keine Tests → **Nicht wartbar** ← Nächste Priorität
+- ~~Keine Tests → **Nicht wartbar**~~ ✅ **BEHOBEN**
 - ~~UI folgt nicht Obsidian-Standards → **Muss neu geschrieben werden**~~ ✅ **BEHOBEN**
-- QuickJS nur Stub → **Nicht sicher**
+- ⏳ UI-Funktionalität in echtem Obsidian ungetestet → **Risiko**
+- QuickJS nur Stub → **Sicherheitsrisiko**
+- Pre/Post-Processing inaktiv → **Feature-Gap**
 
 **Fazit (Update 12. Januar 2026):**
-Der Meilenstein ist **technisch zu 75% fertig** und **jetzt kompilierbar**! Der kritische Build-Showstopper wurde behoben. Die Implementierung der Kern-Logik ist gut, und die UI-Integration ist nun erfolgt. Nächste Schritte: Tests aufsetzen und manuelles Testing in Obsidian durchführen.
+Der Meilenstein ist **technisch zu 85% fertig** und **vollständig testbar**! Alle kritischen Build-Probleme sind gelöst. Die Implementierung der Kern-Logik ist gut getestet mit 38 automatisierten Tests. **Nächste Schritte:** Manuelles Testing in Obsidian zur Verifikation der UI-Funktionalität, dann Feature-Completeness (Pre/Post-Processing, QuickJS).
 
-### 8.4 Priorisierte Handlungsempfehlungen
+### 8.4 Entwicklungsplan: Feature-First, dann UI-Test
 
-**~~Woche 1: Build reparieren und minimal-viable Plugin erstellen~~** ✅ **ERLEDIGT**
-- ✅ Tag 1: UI-Komponenten Obsidian-konform gemacht (2 Stunden statt 2 Tage)
-- ⏳ Tag 2-3: Plugin in Obsidian laden und manuell testen (ausstehend)
-- ⏳ Tag 4-5: Kritische Bugs fixen (falls gefunden)
+**~~Phase 1: Build & Test-Infrastructure~~** ✅ **ERLEDIGT**
+- ✅ Build-Fehler behoben
+- ✅ Test-Suite implementiert (38 Tests, 66% Coverage)
+- ✅ Kern-Logik getestet und validiert
 
-**Woche 2: Tests und Qualitätssicherung** ← Aktuelle Priorität
-- Tag 1: Vitest setup und Obsidian API mocken
-- Tag 2-3: Unit-Tests für Parser/Core schreiben
-- Tag 4-5: Integration-Tests für Tools
+**Phase 2: Feature-Runde 1 - Pre/Post-Processing** ⏳ **1-2 Tage**
+- Tag 1-2: Implementierung + Unit Tests
+  - Pre/Post-Processing Hooks in Executor
+  - Sandbox-Integration für JS-Ausführung
+  - Unit Tests für alle Code-Pfade (>80% Coverage)
+  - Integration-Tests für komplette Workflows
+  - Edge Cases abdecken
+- **Deliverable:** Feature komplett getestet, alle Tests grün
 
-**Woche 3: Feature-Completeness**
-- Tag 1-2: QuickJS integrieren
-- Tag 3: Pre/Post-Processing aktivieren
-- Tag 4-5: E2E-Tests und Bugfixing
+**Phase 3: Feature-Runde 2 - QuickJS-Sandbox** ⏳ **1-2 Tage**
+- Tag 1-2: Implementierung + Unit Tests
+  - QuickJS-Integration (quickjs-emscripten)
+  - Sandbox-Stub ersetzen
+  - Security-Tests (Isolation, Memory-Limits, Timeouts)
+  - Performance-Tests
+  - Mobile-Kompatibilitäts-Tests
+- **Deliverable:** Sichere Sandbox komplett getestet (>85% Coverage)
 
-**Danach:** Production-Ready mit Documentation, User-Guide, Mobile-Testing
+**Phase 4: Finaler manueller UI-Test** 🎯 **0.5-1 Tag**
+- Tag 1: Kompletter UI-Test in Obsidian
+  - testing_guide.md Checkliste durcharbeiten
+  - Alle Features in echter Obsidian-Umgebung testen
+  - Nur UI-spezifische Bugs erwarten (Kern-Logik bereits getestet)
+  - UI-Bugs fixen (eingegrenzt, schnell lösbar)
+- **Deliverable:** Release 0.1.0 - Feature-complete und getestet
+
+**Gesamtaufwand:** 3-5 Tage bis Production-Release
+
+**Vorteile dieses Ansatzes:**
+1. ✅ Alle Features durch Unit Tests abgesichert vor UI-Test
+2. ✅ Fehlersuche im UI-Test auf UI-Bugs eingegrenzt
+3. ✅ Schnellere Debugging-Cycles (klare Trennung)
+4. ✅ Höhere Qualität und Sicherheit
+5. ✅ Dokumentation stimmt mit Implementierung überein
 
 ---
 
-## 9. Zusammenfassung
+## 9. Zusammenfassung und Entwicklungsstrategie
 
-### Meilenstein-Status: 🟢 **75% implementiert, Build erfolgreich!** (Update: 12. Januar 2026)
+### Meilenstein-Status: 🟢 **85% implementiert, Test-Suite erfolgreich!** (Update: 12. Januar 2026)
 
 **Was funktioniert:**
 - ✅ Parser-Layer komplett (YAML, Placeholder, Validation)
 - ✅ Core-Layer größtenteils (Registry, Executor)
-- ✅ 4 vordefinierte Tools vollständig
-- ✅ Custom Tool Loading
-- ✅ **UI-Layer kompiliert erfolgreich**
-- ✅ **Build erfolgreich - Plugin ready for testing**
+- ✅ 4 vordefinierte Tools vollständig implementiert und getestet
+- ✅ Custom Tool Loading funktionsfähig
+- ✅ UI-Layer kompiliert erfolgreich
+- ✅ **Build erfolgreich - Plugin kompilierbar**
+- ✅ **38 automatisierte Tests (Unit, Integration, E2E) - 66% Coverage**
 
 **Was noch zu tun ist:**
-- ⏳ Manuelles Testing in Obsidian
-- ❌ Keine Tests vorhanden (Vitest installiert, aber nicht konfiguriert)
-- ❌ QuickJS nur Stub
-- ❌ Pre/Post-Processing nicht aktiv
+- ❌ Pre/Post-Processing nicht aktiv (Feature-Gap)
+- ❌ QuickJS nur Stub (Sicherheitsrisiko)
+- ⏳ Manuelles UI-Testing ausstehend (am Ende)
 
-**Kritischer Pfad zur Fertigstellung:**
-1. ✅ ~~Build-Fehler beheben (4-6h)~~ **ERLEDIGT in 2h** → Blocker entfernt!
-2. Tests aufsetzen (2-3 Tage) → **Blocker**
-3. QuickJS integrieren (1-2 Tage) → **Wichtig**
-4. Feature-Completeness (1 Woche) → **Nice to have**
+### Entwicklungsstrategie: Feature-First mit Unit Tests
 
-**Geschätzte Zeit bis Release:** 1-2 Wochen (reduziert dank Build-Fix)
+**🎯 Ansatz: 2 Feature-Runden mit Unit Tests, dann finaler manueller UI-Test**
+
+**Begründung:**
+1. **Unit Tests sichern Funktionalität ab** - Kern-Logik validiert vor UI-Test
+2. **Fehlersuche eingegrenzt** - Finale Tests fokussieren auf UI-Bugs
+3. **Schnelleres Debugging** - Klare Trennung zwischen Logik- und UI-Fehlern
+4. **Höhere Qualität** - Features sind getestet bevor UI involviert ist
+
+**Entwicklungsplan (3-5 Tage):**
+
+**Phase 2: Feature-Runde 1 - Pre/Post-Processing (1-2 Tage)**
+- Implementierung: Executor-Hooks, Sandbox-Integration
+- **Unit Tests:** Input/Output-Transformation, Edge Cases, Error-Handling
+- **Ziel:** >80% Coverage für neue Features
+- **Akzeptanz:** Alle Tests grün, Feature komplett funktional
+
+**Phase 3: Feature-Runde 2 - QuickJS-Sandbox (1-2 Tage)**
+- Implementierung: QuickJS-Integration, Stub ersetzen
+- **Unit Tests:** Isolation, Security, Memory-Limits, Performance
+- **Ziel:** >85% Coverage, keine Security-Leaks
+- **Akzeptanz:** Security-Tests bestanden, Mobile-kompatibel
+
+**Phase 4: Finaler manueller UI-Test (0.5-1 Tag)**
+- **Erst jetzt:** Plugin in Obsidian laden
+- testing_guide.md Checkliste durcharbeiten
+- **Erwartung:** Nur UI-spezifische Bugs (Kern-Logik bereits validiert)
+- Schnelle Bug-Fixes durch klare Fehler-Lokalisierung
+
+### Nächste konkrete Schritte (Priorität)
+
+**1. Feature-Runde 1: Pre/Post-Processing (NÄCHSTER SCHRITT)**
+   - Executor um Pre/Post-Hooks erweitern
+   - Unit Tests für alle Code-Pfade schreiben
+   - Integration-Tests für komplette Workflows
+   - Coverage-Ziel: >80%
+   
+**2. Feature-Runde 2: QuickJS-Sandbox**
+   - `quickjs-emscripten` installieren und integrieren
+   - Sandbox-Stub durch echte Implementierung ersetzen
+   - Security- und Performance-Tests schreiben
+   - Coverage-Ziel: >85%
+
+**3. Finaler manueller UI-Test**
+   - Plugin in Obsidian Test-Vault laden
+   - Komplette UI-Funktionalität testen
+   - Nur UI-Bugs erwarten und fixen
+   - Release vorbereiten
+
+**Geschätzte Zeit bis Release:** 3-5 Tage
+
+**Vorteil dieser Strategie:**
+- ✅ Alle Features unit-getestet vor UI-Integration
+- ✅ Schnellere Bug-Lokalisierung im finalen Test
+- ✅ Höhere Code-Qualität und Sicherheit
+- ✅ Effizienter Entwicklungsprozess
 
 ---
 
 **Bericht erstellt:** 11. Januar 2026  
-**Update:** 12. Januar 2026 - Build-Showstopper behoben  
-**Gesamte Codebase:** 3.911 Zeilen TypeScript  
-**Status:** ✅ Fundament solide, Build erfolgreich, ready for testing  
-**Nächster Schritt:** Manuelles Testing in Obsidian + Tests aufsetzen
+**Update:** 12. Januar 2026 - Build-Showstopper behoben, Test-Suite implementiert, Strategie festgelegt  
+**Gesamte Codebase:** ~4.000 Zeilen TypeScript  
+**Status:** ✅ Fundament solide, Build erfolgreich, Tests erfolgreich  
+**Strategie:** Feature-First mit Unit Tests, dann finaler UI-Test  
+**Nächster Schritt:** Pre/Post-Processing implementieren + Unit Tests

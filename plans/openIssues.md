@@ -1,4 +1,85 @@
-# Offene Issues & Nächste Schritte
+# Offene Issues & Entwicklungsplan
+
+**Updated:** January 12, 2026
+
+## Entwicklungsstrategie: Feature-First mit Unit Tests
+
+**Ansatz:** 2 Feature-Runden mit umfassenden Unit Tests, dann finaler manueller UI-Test
+
+### ✅ Phase 1: Foundation (ERLEDIGT)
+- ✅ Build erfolgreich
+- ✅ Test-Infrastructure (38 Tests, 66% Coverage)
+- ✅ Kern-Logik getestet
+
+### ⏳ Phase 2: Feature-Runde 1 - Pre/Post-Processing (NÄCHSTER SCHRITT)
+
+**Priorität:** P0 - Kritisches Feature
+
+**Implementierung:**
+- Executor um Pre/Post-Processing Hooks erweitern
+- Integration mit Sandbox (Stub-Mode)
+- Beispiel-Tools mit Pre/Post erstellen
+
+**Unit Tests (parallel zur Implementierung):**
+- Pre-Processing transformiert Input korrekt
+- Post-Processing transformiert Output korrekt
+- Error-Handling bei Invalid JS
+- Edge Cases (undefined, null, komplexe Objekte)
+- Integration-Tests für komplette Workflows
+
+**Akzeptanz:** Alle Tests grün, >80% Coverage für neue Features
+
+**Aufwand:** 1-2 Tage
+
+---
+
+### ⏳ Phase 3: Feature-Runde 2 - QuickJS-Sandbox
+
+**Priorität:** P0 - Security-kritisch
+
+**Implementierung:**
+- `quickjs-emscripten` installieren
+- Sandbox-Stub durch echte QuickJS ersetzen
+- Memory- und Timeout-Limits konfigurieren
+- Mobile-Kompatibilität sicherstellen
+
+**Unit Tests (parallel zur Implementierung):**
+- Sandbox isoliert Code korrekt
+- Memory-Limits funktionieren
+- Timeout-Limits funktionieren
+- Gefährliche APIs blockiert (require, eval, etc.)
+- Performance-Tests (Overhead)
+- Mobile-Kompatibilitäts-Tests
+
+**Akzeptanz:** Security-Tests grün, >85% Coverage, keine Isolation-Leaks
+
+**Aufwand:** 1-2 Tage
+
+---
+
+### 🎯 Phase 4: Finaler manueller UI-Test
+
+**Priorität:** P0 - Release-Blocker
+
+**Vorbereitung:**
+- Alle Features durch Unit Tests validiert
+- Kern-Logik funktionsfähig
+
+**Testing:**
+- Plugin in Obsidian Test-Vault laden
+- testing_guide.md Checkliste durcharbeiten
+- End-to-End Workflows in echter Umgebung
+- **Erwartung:** Nur UI-spezifische Bugs (Logik bereits getestet)
+
+**Bug-Fixes:**
+- UI-Bugs lokalisieren und fixen
+- Schnelle Iteration (Logik nicht betroffen)
+
+**Akzeptanz:** Alle manuellen Tests bestanden, Release 0.1.0 bereit
+
+**Aufwand:** 0.5-1 Tag
+
+---
 
 ## Priorität 1: Notation & Frontmatter-Design
 
@@ -12,9 +93,9 @@
   - Optional: Strikte Validierung für unerwartete Kombinationen (z.B. `type: single` mit `steps`)
 
 ### 1.2 Parameter-Syntax
-- **Status**: Funktioniert, aber ergänzungsbedürftig
-- **Zu tun**:
-  - `preprocess` / `postprocess` Hooks implementieren (aktuell ignoriert)
+- **Status:** Funktioniert
+- **Nächste Schritte:**
+  - ⏳ **Phase 2:** `preprocess` / `postprocess` Hooks implementieren + Unit Tests
   - Dokumentation für Validierungstypen erweitern
   - Optional: Conditional Parameters unterstützen
 
@@ -25,58 +106,62 @@
   - Dokumentation mit Beispielen erweitern
   - Type-Hints für IDE-Support (TS-Typen für Placeholders)
 
-## Priorität 2: Custom-JS & Sandbox
+## Priorität 2: Custom-JS & Sandbox (In Entwicklung)
 
-### 2.1 QuickJS Integration (real vs. stub)
-- **Status**: Stub-Mode aktiv (Node Function-Wrapper)
-- **Problem**: Keine echte Isolation, keine Mobile-Unterstützung
-- **Zu tun**:
-  - `quickjs-emscripten` installieren und integrieren
-  - Echte Runtime initialisieren
-  - Error-Handling für Code-Validierungsfehler verbessern
-  - Desktop vs. Mobile Runtime-Unterschiede behandeln
+### 2.1 QuickJS Integration
+- **Status:** ⏳ Phase 3 - Wird nach Pre/Post-Processing implementiert
+- **Aktuell:** Stub-Mode aktiv (Node Function-Wrapper)
+- **Nächste Schritte:**
+  - ⏳ **Phase 3:** `quickjs-emscripten` installieren und integrieren
+  - ⏳ Echte Runtime initialisieren
+  - ⏳ **Unit Tests:** Isolation, Memory-Limits, Timeouts, Security
+  - ⏳ Error-Handling für Code-Validierungsfehler verbessern
+  - ⏳ Desktop vs. Mobile Runtime-Unterschiede behandeln
+
+**Aufwand:** 1-2 Tage mit umfassenden Tests
 
 ### 2.2 Custom-JS Policy & Security
-- **Status**: Basis-Validierung vorhanden (gefährliche Patterns)
-- **Zu tun**:
-  - Erweiterte Validierungsregeln definieren
-  - User-Bestätigung für Custom-JS Ausführung prüfen (HITL-Integration)
-  - Timeout & Memory-Limits für Sandboxed Code
+- **Status:** Basis-Validierung vorhanden
+- **Nächste Schritte:**
+  - ⏳ **Phase 3:** Erweiterte Validierungsregeln mit Tests
+  - ⏳ Security-Tests für alle blockierten Patterns
+  - ⏳ User-Bestätigung für Custom-JS Ausführung (HITL-Integration)
+  - ⏳ Timeout & Memory-Limits mit Performance-Tests
 
-## Priorität 3: HITL & User Interaction
+## Priorität 3: HITL & User Interaction (Nach Feature-Completeness)
 
 ### 3.1 HITL-Modal & Sidebar Integration
-- **Status**: Executor unterstützt HITL-Callbacks, UI fehlt
-- **Zu tun**:
-  - Modal für Bestätigung implementieren
-  - Sidebar-Panel für Langzeit-Workflows
-  - Approval/Rejection Flow mit Grund-Text
-  - UI-Tests schreiben
+- **Status:** Executor unterstützt HITL-Callbacks, UI kompiliert
+- **Nächste Schritte:**
+  - 🎯 **Phase 4:** Modal in echtem Obsidian testen
+  - 🎯 Sidebar-Panel für Workflows testen
+  - 🎯 Approval/Rejection Flow verifizieren
+  - Nur UI-Bugs erwarten (Logik bereits getestet)
 
 ### 3.2 Execution-Logs & Feedback
-- **Status**: Logs werden gesammelt
-- **Zu tun**:
-  - Bessere Log-Formatierung für UI
-  - Real-time Output-Streaming
-  - Error-Details mit Stack-Traces
+- **Status:** Logs werden gesammelt
+- **Nächste Schritte:**
+  - 🎯 **Phase 4:** Log-Formatierung in UI testen
+  - Optional: Real-time Output-Streaming
+  - Optional: Error-Details mit Stack-Traces
 
-## Priorität 4: Test-Abdeckung & Qualität
+## Priorität 4: Test-Abdeckung & Qualität (In Arbeit)
 
 ### 4.1 Coverage-Ziele
-- **Status**: ~60% Coverage aktuell
-- **Ziel**: >80% für Kern-Module
-- **Zu tun**:
-  - `placeholder_new.ts` entfernen (Zero-Coverage)
-  - Debug-Logs in Tests aufräumen
-  - Edge-Cases für Parser & Executor testen
-  - Snapshot-Tests für komplexe Outputs
+- **Status:** ✅ 66% Coverage (38 Tests)
+- **Ziel:** >80% nach Feature-Runden
+- **Nächste Schritte:**
+  - ⏳ **Phase 2:** Pre/Post-Processing Tests (>80% Coverage)
+  - ⏳ **Phase 3:** QuickJS Security-Tests (>85% Coverage)
+  - Optional: `placeholder_new.ts` entfernen (Zero-Coverage)
+  - Optional: Snapshot-Tests für komplexe Outputs
 
 ### 4.2 Performance-Tests
-- **Status**: Keine
-- **Zu tun**:
-  - Benchmark für Parser mit großen Dateien
-  - Executor-Performance unter Last
-  - Memory-Leaks für lange laufende Agents testen
+- **Status:** Keine
+- **Nächste Schritte:**
+  - ⏳ **Phase 3:** Sandbox-Overhead Benchmarks
+  - Optional: Parser mit großen Dateien
+  - Optional: Memory-Leaks für lange laufende Agents testen
 
 ## Priorität 5: Documentation & Examples
 
@@ -112,14 +197,38 @@
 - OpenTelemetry Integration
 - Metrics & Tracing
 
-## Nächste Session
+## Nächste Session: Feature-Runde 1 - Pre/Post-Processing
 
-**Fokus**: Notation-Refinement
-1. Frontmatter-Struktur finalisieren
-2. Best-Practice-Beispiele aktualisieren
-3. Strikte Validierung implementieren
-4. Dokumentation überarbeiten
+**Fokus:** Implementierung + Unit Tests (1-2 Tage)
+
+### Implementierungs-Tasks
+1. Executor erweitern um Pre/Post-Processing Hooks
+2. Sandbox-Integration für JavaScript-Ausführung
+3. Beispiel-Tools mit Pre/Post-Processing erstellen
+4. Fehlerbehandlung und Edge Cases
+
+### Test-Tasks (parallel)
+1. Unit Tests für Pre-Processing:
+   - Input-Transformation korrekt
+   - Error-Handling bei Invalid JS
+   - Edge Cases (undefined, null, komplexe Objekte)
+   
+2. Unit Tests für Post-Processing:
+   - Output-Transformation korrekt
+   - Verschiedene Output-Typen
+   - Fehlerbehandlung
+   
+3. Integration-Tests:
+   - Komplette Workflows mit Pre/Post
+   - Placeholder-System mit verarbeitetem Output
+   - Chain-Execution mit Pre/Post
+
+### Akzeptanzkriterium
+- ✅ Alle Tests grün
+- ✅ >80% Coverage für neue Features
+- ✅ Feature funktional und dokumentiert
 
 ---
-**Aktualisiert**: 2026-01-11  
-**Status**: Alle E2E-Szenarien grün ✅
+**Aktualisiert**: 2026-01-12  
+**Status**: Phase 1 abgeschlossen ✅, Phase 2 steht bevor ⏳  
+**Strategie**: Feature-First mit Unit Tests, dann UI-Test am Ende

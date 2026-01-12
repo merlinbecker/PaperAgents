@@ -1,19 +1,52 @@
 # Paper Agents - Manual Testing Guide
 
 **Phase 4: Testing Checklist**  
-**Date:** January 11, 2026
+**Date:** January 11, 2026  
+**Updated:** January 12, 2026
+
+---
+
+## Status Update (January 12, 2026)
+
+✅ **Automated Tests:** 38 Tests erfolgreich (Unit, Integration, E2E) - 66% Coverage  
+⏳ **Manual Tests:** Wird NACH Feature-Completeness durchgeführt  
+✅ **Build:** Erfolgreich - Plugin kompilierbar  
+
+## ⚠️ WICHTIG: Timing dieses Guides
+
+**Dieser manuelle UI-Test wird NICHT sofort durchgeführt!**
+
+**Entwicklungsstrategie:**
+1. ✅ Phase 1: Build & Test-Suite (ERLEDIGT)
+2. ⏳ Phase 2: Feature-Runde 1 - Pre/Post-Processing (1-2 Tage)
+3. ⏳ Phase 3: Feature-Runde 2 - QuickJS-Sandbox (1-2 Tage)
+4. 🎯 **Phase 4: DANN dieser manuelle UI-Test (0.5-1 Tag)**
+
+**Warum diese Reihenfolge?**
+- Alle Features werden erst via **Unit Tests** abgesichert
+- Kern-Logik ist validiert, bevor UI getestet wird
+- Finaler UI-Test fokussiert auf **UI-spezifische Bugs**
+- Schnellere Bug-Lokalisierung durch klare Trennung
+
+**Was getestet wird wenn dieser Guide zum Einsatz kommt:**
+- ✅ Pre/Post-Processing (durch Unit Tests bereits validiert)
+- ✅ QuickJS-Sandbox (durch Security-Tests bereits validiert)
+- ⏳ UI-Integration all dieser Features in echtem Obsidian
+- ⏳ End-to-End Workflows in echter Vault-Umgebung
 
 ---
 
 ## Prerequisites
 
 1. Obsidian installed (v0.15.0+)
-2. Plugin built: `npm run build`
+2. Plugin built: `npm run build` ✅ (erfolgreich)
 3. Plugin files in Vault: `.obsidian/plugins/paper-agents/`
-   - `main.js`
-   - `manifest.json`
-   - `styles.css`
+   - `main.js` ✅ (generiert)
+   - `manifest.json` ✅ (vorhanden)
+   - `styles.css` ✅ (vorhanden)
 4. Plugin enabled in Settings → Community plugins
+5. **⚠️ Pre/Post-Processing implementiert und getestet**
+6. **⚠️ QuickJS-Sandbox implementiert und getestet**
 
 ---
 
