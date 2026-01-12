@@ -54,6 +54,9 @@ export class PlaceholderReplacer {
     }
 
     const firstPart = parts[0];
+    if (!firstPart) {
+      return null;
+    }
 
     // Spezielle Kontexte
     if (firstPart === "date") {
@@ -80,6 +83,9 @@ export class PlaceholderReplacer {
           return null;
         }
         const part = parts[i];
+        if (!part) {
+          return null;
+        }
         current = current[part];
       }
       return current;
