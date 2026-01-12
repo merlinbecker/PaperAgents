@@ -4,7 +4,7 @@
  * Unterstützt Desktop + Mobile (QuickJS läuft überall)
  */
 
-import { getQuickJS, QuickJSContext, QuickJSRuntime, QuickJSHandle } from "quickjs-emscripten";
+import { getQuickJS, QuickJSContext, QuickJSRuntime } from "quickjs-emscripten";
 import { ExecutionContext, ExecutionResult } from "../types";
 import { globalLogger } from "../utils/logger";
 
@@ -61,29 +61,13 @@ export class QuickJSSandbox {
     }
 
     try {
-      // Baue Kontext für Script
-      const scriptContext = this.buildScriptContext(ctx);
-
-      // Set context in QuickJS global scope as a JSON object
-      const contextJson = JSON.stringify(scriptContext);
-      const contextHandle = this.context.unwrapResult(
-        this.context.evalCode(`(${contextJson})`)
-      );
-      this.context.setProp(this.context.global, "context", contextHandle);
-      contextHandle.dispose();
+      const startTime = Date.now();
+      
+      // Set context in QuickJS global scope
+      this.setGlobalVariable("context", this.buildScriptContext(ctx));
 
       // Execute code
-      const startTime = Date.now();
-      const result = this.context.evalCode(code, "user-script.js");
-
-      if (result.error) {
-        const errorMsg = this.context.dump(result.error);
-        result.error.dispose();
-        throw new Error(`Execution error: ${errorMsg}`);
-      }
-
-      const returnValue = this.context.dump(result.value);
-      result.value.dispose();
+      const returnValue = this.executeCode(code, "user-script.js");
 
       globalLogger.debug("Custom-JS executed", { 
         code: code.substring(0, 50),
@@ -109,6 +93,56 @@ export class QuickJSSandbox {
       time: ctx.time,
       randomId: ctx.randomId,
     };
+  }
+
+  /**
+   * Erstellt einen minimalen ExecutionContext für Pre/Post-Processing
+   */
+  private createMinimalContext(data: Record<string, any>): ExecutionContext {
+    return {
+      parameters: data,
+      previousStepOutputs: {},
+      date: new Date().toISOString().split('T')[0] || "",
+      time: new Date().toISOString().split('T')[1]?.split('.')[0] || "",
+      randomId: Math.random().toString(36).substring(7),
+    };
+  }
+
+  /**
+   * Setzt eine globale Variable im QuickJS Context via JSON
+   */
+  private setGlobalVariable(name: string, value: any): void {
+    if (!this.context) {
+      throw new Error("QuickJS not initialized");
+    }
+
+    const json = JSON.stringify(value);
+    const handle = this.context.unwrapResult(
+      this.context.evalCode(`(${json})`)
+    );
+    this.context.setProp(this.context.global, name, handle);
+    handle.dispose();
+  }
+
+  /**
+   * Führt Code aus und gibt das Ergebnis zurück
+   */
+  private executeCode(code: string, filename: string): any {
+    if (!this.context) {
+      throw new Error("QuickJS not initialized");
+    }
+
+    const result = this.context.evalCode(code, filename);
+
+    if (result.error) {
+      const errorMsg = this.context.dump(result.error);
+      result.error.dispose();
+      throw new Error(errorMsg);
+    }
+
+    const returnValue = this.context.dump(result.value);
+    result.value.dispose();
+    return returnValue;
   }
 
   /**
@@ -162,42 +196,14 @@ export class QuickJSSandbox {
     }
 
     try {
-      // Set input in global scope using JSON
-      const inputJson = JSON.stringify(inputParams);
-      const inputHandle = this.context.unwrapResult(
-        this.context.evalCode(`(${inputJson})`)
-      );
-      this.context.setProp(this.context.global, "input", inputHandle);
-      inputHandle.dispose();
-
-      // Build context object
-      const execContext: ExecutionContext = {
-        parameters: { input: inputParams },
-        previousStepOutputs: {},
-        date: new Date().toISOString().split('T')[0] || "",
-        time: new Date().toISOString().split('T')[1]?.split('.')[0] || "",
-        randomId: Math.random().toString(36).substring(7),
-      };
-
-      const contextJson = JSON.stringify(this.buildScriptContext(execContext));
-      const contextHandle = this.context.unwrapResult(
-        this.context.evalCode(`(${contextJson})`)
-      );
-      this.context.setProp(this.context.global, "context", contextHandle);
-      contextHandle.dispose();
+      // Set input and context in global scope
+      this.setGlobalVariable("input", inputParams);
+      this.setGlobalVariable("context", this.buildScriptContext(
+        this.createMinimalContext({ input: inputParams })
+      ));
 
       // Execute code
-      const startTime = Date.now();
-      const result = this.context.evalCode(code, "preprocess.js");
-
-      if (result.error) {
-        const errorMsg = this.context.dump(result.error);
-        result.error.dispose();
-        throw new Error(`Pre-processing execution failed: ${errorMsg}`);
-      }
-
-      const returnValue = this.context.dump(result.value);
-      result.value.dispose();
+      const returnValue = this.executeCode(code, "preprocess.js");
       
       // Result sollte modifiziertes input-Object sein
       if (typeof returnValue !== "object" || returnValue === null) {
@@ -229,44 +235,14 @@ export class QuickJSSandbox {
     }
 
     try {
-      // Set output in global scope using JSON
-      const outputJson = JSON.stringify(toolOutput);
-      const outputHandle = this.context.unwrapResult(
-        this.context.evalCode(`(${outputJson})`)
-      );
-      this.context.setProp(this.context.global, "output", outputHandle);
-      outputHandle.dispose();
-
-      // Build context object
-      const execContext: ExecutionContext = {
-        parameters: { output: toolOutput },
-        previousStepOutputs: {},
-        date: new Date().toISOString().split('T')[0] || "",
-        time: new Date().toISOString().split('T')[1]?.split('.')[0] || "",
-        randomId: Math.random().toString(36).substring(7),
-      };
-
-      const contextJson = JSON.stringify(this.buildScriptContext(execContext));
-      const contextHandle = this.context.unwrapResult(
-        this.context.evalCode(`(${contextJson})`)
-      );
-      this.context.setProp(this.context.global, "context", contextHandle);
-      contextHandle.dispose();
+      // Set output and context in global scope
+      this.setGlobalVariable("output", toolOutput);
+      this.setGlobalVariable("context", this.buildScriptContext(
+        this.createMinimalContext({ output: toolOutput })
+      ));
 
       // Execute code
-      const startTime = Date.now();
-      const result = this.context.evalCode(code, "postprocess.js");
-
-      if (result.error) {
-        const errorMsg = this.context.dump(result.error);
-        result.error.dispose();
-        throw new Error(`Post-processing execution failed: ${errorMsg}`);
-      }
-
-      const returnValue = this.context.dump(result.value);
-      result.value.dispose();
-      
-      return returnValue;
+      return this.executeCode(code, "postprocess.js");
     } catch (error) {
       globalLogger.error("Post-processing execution failed", { error, code });
       throw new Error(`Post-processing failed: ${error instanceof Error ? error.message : "Unknown error"}`);
