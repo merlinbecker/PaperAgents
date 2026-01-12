@@ -51,6 +51,7 @@
 		"vitest": "^1.6.0"
 	},
 	"dependencies": {
-		"obsidian": "latest"
+		"obsidian": "latest",
+		"quickjs-emscripten": "^0.31.0"
 	}
 }
