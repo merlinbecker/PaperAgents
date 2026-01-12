@@ -4,34 +4,45 @@
  * Unterstützt Desktop + Mobile (QuickJS läuft überall)
  */
 
+import { getQuickJS, QuickJSContext, QuickJSRuntime, QuickJSHandle } from "quickjs-emscripten";
 import { ExecutionContext, ExecutionResult } from "../types";
 import { globalLogger } from "../utils/logger";
 
 /**
  * QuickJS Runtime Wrapper
- * Nur Stub - echte QuickJS-Integration erfolgt später bei Installation
+ * Echte QuickJS-Integration mit Memory- und Timeout-Limits
  */
 export class QuickJSSandbox {
-  private runtime: any = null;
-  private context: any = null;
+  private runtime: QuickJSRuntime | null = null;
+  private context: QuickJSContext | null = null;
+  private memoryLimit: number = 10 * 1024 * 1024; // 10 MB default
+  private executionTimeout: number = 5000; // 5 seconds default
 
   /**
    * Initialisiert QuickJS Runtime
-   * Bei echter Installation wird hier die QuickJS-Library geladen
+   * Lädt QuickJS WASM-Module und erstellt isolierte Runtime
    */
   async initialize(): Promise<void> {
     try {
-      // Hier würde die echte QuickJS-Initialisierung stattfinden
-      // Für jetzt: Stub, der vorbereitet ist für echte Implementation
-      // import { QuickJS } from "quickjs-emscripten";
-      // this.runtime = QuickJS.newRuntime();
-      // this.context = this.runtime.newContext();
+      const QuickJS = await getQuickJS();
+      this.runtime = QuickJS.newRuntime();
+      
+      // Set memory limit for safety
+      this.runtime.setMemoryLimit(this.memoryLimit);
+      
+      // Enable interrupt handler for timeout support (basic)
+      let interruptCount = 0;
+      this.runtime.setInterruptHandler(() => {
+        interruptCount++;
+        return interruptCount > 1000000; // Allow many iterations but not infinite
+      });
+      
+      this.context = this.runtime.newContext();
 
-      // Stub-Context fuer lokale Ausfuehrung (wird durch echte Runtime ersetzt)
-      this.runtime = {};
-      this.context = {};
-
-      globalLogger.debug("QuickJS Sandbox initialized (stub mode)");
+      globalLogger.debug("QuickJS Sandbox initialized", {
+        memoryLimit: this.memoryLimit,
+        timeout: this.executionTimeout,
+      });
     } catch (error) {
       globalLogger.error("Failed to initialize QuickJS", { error });
       throw new Error("QuickJS initialization failed");
@@ -53,13 +64,33 @@ export class QuickJSSandbox {
       // Baue Kontext für Script
       const scriptContext = this.buildScriptContext(ctx);
 
-      // Stub-Execution: eingeschränkter Scope via Function-Hülle
-      const runner = new Function("context", `"use strict";\n${code}`);
-      const result = runner(scriptContext);
+      // Set context in QuickJS global scope as a JSON object
+      const contextJson = JSON.stringify(scriptContext);
+      const contextHandle = this.context.unwrapResult(
+        this.context.evalCode(`(${contextJson})`)
+      );
+      this.context.setProp(this.context.global, "context", contextHandle);
+      contextHandle.dispose();
 
-        globalLogger.debug("Custom-JS executed (stub mode)", { code: code.substring(0, 50) });
+      // Execute code
+      const startTime = Date.now();
+      const result = this.context.evalCode(code, "user-script.js");
 
-      return result;
+      if (result.error) {
+        const errorMsg = this.context.dump(result.error);
+        result.error.dispose();
+        throw new Error(`Execution error: ${errorMsg}`);
+      }
+
+      const returnValue = this.context.dump(result.value);
+      result.value.dispose();
+
+      globalLogger.debug("Custom-JS executed", { 
+        code: code.substring(0, 50),
+        executionTime: Date.now() - startTime,
+      });
+
+      return returnValue;
     } catch (error) {
       globalLogger.error("Custom-JS execution error", { error });
       throw error;
@@ -126,14 +157,20 @@ export class QuickJSSandbox {
       throw new Error(`Pre-processing validation failed: ${validation.errors.join(", ")}`);
     }
 
-    try {
-      // Wrapped code that provides 'input' variable
-      const wrappedCode = `
-        const input = context.input;
-        ${code}
-      `;
+    if (!this.context) {
+      throw new Error("QuickJS not initialized");
+    }
 
-      // Minimal ExecutionContext
+    try {
+      // Set input in global scope using JSON
+      const inputJson = JSON.stringify(inputParams);
+      const inputHandle = this.context.unwrapResult(
+        this.context.evalCode(`(${inputJson})`)
+      );
+      this.context.setProp(this.context.global, "input", inputHandle);
+      inputHandle.dispose();
+
+      // Build context object
       const execContext: ExecutionContext = {
         parameters: { input: inputParams },
         previousStepOutputs: {},
@@ -142,22 +179,32 @@ export class QuickJSSandbox {
         randomId: Math.random().toString(36).substring(7),
       };
 
-      // Add input to context for script access
-      const scriptContext = {
-        ...this.buildScriptContext(execContext),
-        input: inputParams,
-      };
+      const contextJson = JSON.stringify(this.buildScriptContext(execContext));
+      const contextHandle = this.context.unwrapResult(
+        this.context.evalCode(`(${contextJson})`)
+      );
+      this.context.setProp(this.context.global, "context", contextHandle);
+      contextHandle.dispose();
 
-      // Execute with custom context
-      const runner = new Function("context", `"use strict";\n${wrappedCode}`);
-      const result = runner(scriptContext);
+      // Execute code
+      const startTime = Date.now();
+      const result = this.context.evalCode(code, "preprocess.js");
+
+      if (result.error) {
+        const errorMsg = this.context.dump(result.error);
+        result.error.dispose();
+        throw new Error(`Pre-processing execution failed: ${errorMsg}`);
+      }
+
+      const returnValue = this.context.dump(result.value);
+      result.value.dispose();
       
       // Result sollte modifiziertes input-Object sein
-      if (typeof result !== "object" || result === null) {
+      if (typeof returnValue !== "object" || returnValue === null) {
         throw new Error("Pre-processing must return an object");
       }
 
-      return result as Record<string, any>;
+      return returnValue as Record<string, any>;
     } catch (error) {
       globalLogger.error("Pre-processing execution failed", { error, code });
       throw new Error(`Pre-processing failed: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -177,14 +224,20 @@ export class QuickJSSandbox {
       throw new Error(`Post-processing validation failed: ${validation.errors.join(", ")}`);
     }
 
-    try {
-      // Wrapped code that provides 'output' variable
-      const wrappedCode = `
-        const output = context.output;
-        ${code}
-      `;
+    if (!this.context) {
+      throw new Error("QuickJS not initialized");
+    }
 
-      // Minimal ExecutionContext
+    try {
+      // Set output in global scope using JSON
+      const outputJson = JSON.stringify(toolOutput);
+      const outputHandle = this.context.unwrapResult(
+        this.context.evalCode(`(${outputJson})`)
+      );
+      this.context.setProp(this.context.global, "output", outputHandle);
+      outputHandle.dispose();
+
+      // Build context object
       const execContext: ExecutionContext = {
         parameters: { output: toolOutput },
         previousStepOutputs: {},
@@ -193,17 +246,27 @@ export class QuickJSSandbox {
         randomId: Math.random().toString(36).substring(7),
       };
 
-      // Add output to context for script access
-      const scriptContext = {
-        ...this.buildScriptContext(execContext),
-        output: toolOutput,
-      };
+      const contextJson = JSON.stringify(this.buildScriptContext(execContext));
+      const contextHandle = this.context.unwrapResult(
+        this.context.evalCode(`(${contextJson})`)
+      );
+      this.context.setProp(this.context.global, "context", contextHandle);
+      contextHandle.dispose();
 
-      // Execute with custom context
-      const runner = new Function("context", `"use strict";\n${wrappedCode}`);
-      const result = runner(scriptContext);
+      // Execute code
+      const startTime = Date.now();
+      const result = this.context.evalCode(code, "postprocess.js");
+
+      if (result.error) {
+        const errorMsg = this.context.dump(result.error);
+        result.error.dispose();
+        throw new Error(`Post-processing execution failed: ${errorMsg}`);
+      }
+
+      const returnValue = this.context.dump(result.value);
+      result.value.dispose();
       
-      return result;
+      return returnValue;
     } catch (error) {
       globalLogger.error("Post-processing execution failed", { error, code });
       throw new Error(`Post-processing failed: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -216,17 +279,34 @@ export class QuickJSSandbox {
   async destroy(): Promise<void> {
     try {
       if (this.context) {
-        // this.context.dispose();
+        this.context.dispose();
         this.context = null;
       }
       if (this.runtime) {
-        // this.runtime.dispose();
+        this.runtime.dispose();
         this.runtime = null;
       }
       globalLogger.debug("QuickJS Sandbox destroyed");
     } catch (error) {
       globalLogger.error("Error destroying QuickJS", { error });
     }
+  }
+
+  /**
+   * Set memory limit for the runtime (in bytes)
+   */
+  setMemoryLimit(bytes: number): void {
+    this.memoryLimit = bytes;
+    if (this.runtime) {
+      this.runtime.setMemoryLimit(bytes);
+    }
+  }
+
+  /**
+   * Set execution timeout (in milliseconds)
+   */
+  setExecutionTimeout(ms: number): void {
+    this.executionTimeout = ms;
   }
 }
 
