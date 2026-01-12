@@ -13,6 +13,30 @@ import { createInterface } from "readline";
  *   npm run release:beta      # Creates beta release
  */
 
+// Use absolute paths for commands to avoid PATH manipulation vulnerabilities
+const GIT_PATH = "/usr/bin/git";
+const NPM_PATH = "/usr/local/bin/npm";
+
+/**
+ * Verify that a command exists at the expected path
+ */
+function verifyCommand(path, name) {
+	try {
+		const result = spawnSync(path, ["--version"], {
+			encoding: "utf8",
+			shell: false,
+		});
+		if (result.status !== 0) {
+			console.error(`Warning: ${name} not found at ${path}`);
+			return false;
+		}
+		return true;
+	} catch (error) {
+		console.error(`Warning: ${name} not accessible at ${path}:`, error.message);
+		return false;
+	}
+}
+
 function main() {
 	const args = process.argv.slice(2);
 	let tag = args[0];
@@ -52,8 +76,9 @@ Options:
 
 	// Check if git is clean
 	try {
-		const result = spawnSync("git", ["status", "--porcelain"], {
+		const result = spawnSync(GIT_PATH, ["status", "--porcelain"], {
 			encoding: "utf8",
+			shell: false,
 		});
 		const status = result.stdout.trim();
 		if (status) {
@@ -86,9 +111,19 @@ Options:
 }
 
 function createRelease(tag, version, name, isBeta) {
+	// Verify commands are available
+	if (!verifyCommand(GIT_PATH, "git")) {
+		console.error("Git is required but not found at expected path.");
+		process.exit(1);
+	}
+	if (!verifyCommand(NPM_PATH, "npm")) {
+		console.error("npm is required but not found at expected path.");
+		process.exit(1);
+	}
+
 	// Build the plugin
 	console.log("Building plugin...");
-	const buildResult = spawnSync("npm", ["run", "build"], {
+	const buildResult = spawnSync(NPM_PATH, ["run", "build"], {
 		stdio: "inherit",
 		shell: false,
 	});
@@ -100,7 +135,7 @@ function createRelease(tag, version, name, isBeta) {
 	// Create and push tag
 	console.log(`Creating tag ${tag}...`);
 	const tagResult = spawnSync(
-		"git",
+		GIT_PATH,
 		["tag", "-a", tag, "-m", `Release ${version}`],
 		{
 			stdio: "inherit",
@@ -117,7 +152,7 @@ function createRelease(tag, version, name, isBeta) {
 	}
 
 	console.log(`Pushing tag ${tag}...`);
-	const pushResult = spawnSync("git", ["push", "origin", tag], {
+	const pushResult = spawnSync(GIT_PATH, ["push", "origin", tag], {
 		stdio: "inherit",
 		shell: false,
 	});
