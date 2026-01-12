@@ -81,6 +81,9 @@ export class YAMLParser {
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      if (!line) {
+        continue;
+      }
       const trimmed = line.trim();
 
       if (!trimmed || trimmed.startsWith("#")) {
@@ -97,6 +100,7 @@ export class YAMLParser {
       if (trimmed.startsWith("-")) {
         if (!currentKey) {
           raise("List item without a parent array key", i, line);
+          continue; // Skip this line if no currentKey
         }
 
         if (!inArray) {
@@ -183,7 +187,7 @@ export class YAMLParser {
 
       // Array abschliessen, wenn neuer Top-Level Key beginnt
       const arrayKeyMatch = trimmed.match(/^(\w+):\s*$/);
-      if (arrayKeyMatch) {
+      if (arrayKeyMatch && arrayKeyMatch[1]) {
         if (inArray && currentKey) {
           if (nestedObjectKey && nestedObject && currentItem) {
             currentItem[nestedObjectKey] = nestedObject;
@@ -412,7 +416,7 @@ export class YAMLParser {
 
       if (trimmed.startsWith("tool:")) {
         const match = trimmed.match(/tool:\s*['"](.*?)['"]/) || trimmed.match(/tool:\s*(\S+)/);
-        if (match) {
+        if (match && match[1]) {
           toolId = match[1];
         }
       } else if (trimmed.startsWith("parameters:")) {

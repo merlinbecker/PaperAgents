@@ -3,7 +3,7 @@
  * search_files, read_file, write_file, rest_request
  */
 
-import { App, TFile, app as obsidianApp, requestUrl as obsidianRequestUrl } from "obsidian";
+import { App, TFile, requestUrl } from "obsidian";
 import { IExecutableTool, IToolFactory, Parameter, ExecutionContext, ExecutionResult } from "../types";
 import { PREDEFINED_TOOL_IDS } from "../utils/constants";
 import { globalLogger } from "../utils/logger";
@@ -95,7 +95,12 @@ class SearchFilesTool implements IExecutableTool {
 export const SearchFilesFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.SEARCH_FILES,
   description: "Search files in vault by name or path",
-  create: () => new SearchFilesTool(obsidianApp),
+  create: (app?: any) => {
+    if (!app) {
+      throw new Error("SearchFilesTool requires App instance");
+    }
+    return new SearchFilesTool(app);
+  },
 };
 
 // ============================================================================
@@ -168,7 +173,12 @@ class ReadFileTool implements IExecutableTool {
 export const ReadFileFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.READ_FILE,
   description: "Read file content from vault",
-  create: () => new ReadFileTool(obsidianApp),
+  create: (app?: any) => {
+    if (!app) {
+      throw new Error("ReadFileTool requires App instance");
+    }
+    return new ReadFileTool(app);
+  },
 };
 
 // ============================================================================
@@ -258,7 +268,12 @@ class WriteFileTool implements IExecutableTool {
 export const WriteFileFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.WRITE_FILE,
   description: "Write or modify file in vault",
-  create: () => new WriteFileTool(obsidianApp),
+  create: (app?: any) => {
+    if (!app) {
+      throw new Error("WriteFileTool requires App instance");
+    }
+    return new WriteFileTool(app);
+  },
 };
 
 // ============================================================================
@@ -306,7 +321,7 @@ class RestRequestTool implements IExecutableTool {
       const body = ctx.parameters.body as string | undefined;
 
       // Use Obsidian's requestUrl API
-      const response = await obsidianRequestUrl({
+      const response = await requestUrl({
         url,
         method,
         headers,
@@ -317,7 +332,6 @@ class RestRequestTool implements IExecutableTool {
         success: true,
         data: {
           status: response.status,
-          statusText: response.statusText,
           body: response.text,
         },
         log: [
@@ -356,7 +370,12 @@ class RestRequestTool implements IExecutableTool {
 export const RestRequestFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.REST_REQUEST,
   description: "Make HTTP requests to APIs",
-  create: () => new RestRequestTool(obsidianApp),
+  create: (app?: any) => {
+    if (!app) {
+      throw new Error("RestRequestTool requires App instance");
+    }
+    return new RestRequestTool(app);
+  },
 };
 
 // ============================================================================

@@ -38,7 +38,7 @@ export default class PaperAgents extends Plugin {
     await this.loadSettings();
 
     // Initialize Registry
-    this.toolRegistry = new ToolRegistry();
+    this.toolRegistry = new ToolRegistry(this.app);
 
     // Register Predefined Tools
     this.registerPredefinedTools();
