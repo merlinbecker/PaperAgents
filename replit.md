@@ -41,10 +41,14 @@ manuals/              # Tool-Notation-Referenz
 - ✅ Pre-/Post-Processing in QuickJS-Sandbox
 - ✅ Human-in-the-Loop für kritische Operationen
 
-**Phase 4 in Arbeit:**
-- ⏳ Agenten-Notation und Parser
-- ⏳ Konversationslogik
-- ⏳ OpenRouter-Integration
+**Phase 4.1 abgeschlossen:**
+- ✅ AgentDefinition, MemoryConfig, Conversation-Typen
+- ✅ agent-parser.ts mit 94.49% Coverage
+- ✅ 3 Beispiel-Agenten (Research, Writing, API Helper)
+
+**Phase 4.2-4.3 ausstehend:**
+- ⏳ Konversationslogik (conversation.ts)
+- ⏳ OpenRouter-Integration (API-Client)
 
 ## Dokumentation
 - **[README.md](README.md)** - Hauptdokumentation
