@@ -355,6 +355,8 @@ Paper Agents
 
 ## 🧪 Entwicklung
 
+**Für detaillierte Entwicklungsanweisungen, siehe [DEVELOPMENT.md](DEVELOPMENT.md)**
+
 ### Build from Source
 
 ```bash
@@ -424,10 +426,17 @@ src/tools         |   84.43 |    62.85 |    87.5 |   84.43
 
 ## 📝 Dokumentation
 
+### Für Nutzer
+
 - **[Tool Notation Manual](manuals/tools.md)**: Umfassende Referenz für Tool-Definitionen
 - **[Examples](examples/)**: 4 Beispiel-Tools mit Best Practices
+
+### Für Entwickler
+
+- **[Development Guide](DEVELOPMENT.md)**: Entwicklungsanweisungen, Testing, und Contributing
 - **[Release Process](RELEASE.md)**: Anleitung für Beta- und Production-Releases
 - **[Phase Report](Reports/PhaseWerkzeuge.md)**: Detaillierter Bericht über Phase 1-3
+- **[Agent Guidelines](AGENTS.md)**: Richtlinien für AI-Agenten, die am Code arbeiten
 
 ---
 
