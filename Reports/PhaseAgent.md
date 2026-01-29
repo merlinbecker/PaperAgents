@@ -252,3 +252,72 @@ src/parser         |   79.56% |   69.91% |   82.00% |   79.56%
 
 *Erstellt: 29. Januar 2026*  
 *Phase: 4.1 - Agenten-Notation*
+
+---
+
+# Phase 4.2: Konversationslogik - Implementierungsbericht
+
+**Datum:** 29. Januar 2026  
+**Status:** ✅ **PHASE ABGESCHLOSSEN**
+
+---
+
+## Implementierte Funktionalität
+
+### ConversationManager (`src/core/conversation.ts`)
+
+**Coverage:** 97.47%
+
+| Methode | Beschreibung |
+|---------|--------------|
+| `createConversation(agentId, id?)` | Neue Konversation erstellen |
+| `getConversation(id)` | Konversation abrufen |
+| `deleteConversation(id)` | Konversation löschen |
+| `listConversations(agentId?)` | Alle Konversationen auflisten |
+| `addMessage(convId, role, content, toolCall?)` | Nachricht hinzufügen |
+| `getMessages(convId)` | Nachrichten abrufen |
+| `clearMessages(convId)` | Nachrichten löschen |
+| `estimateTokens(text)` | Token-Schätzung (4 chars/token) |
+| `estimateConversationTokens(convId)` | Konversations-Token-Summe |
+| `getMessagesForContext(convId, memoryConfig, systemPrompt?)` | Context-limitierte Nachrichten |
+| `shouldTruncate(convId, memoryConfig)` | Prüft ob Truncation nötig |
+| `shouldSummarize(convId, memoryConfig)` | Prüft ob Summary nötig |
+| `buildContext(agent, convId)` | Konversationskontext bauen |
+| `formatMessagesForLLM(messages, systemPrompt)` | Für LLM-API formatieren |
+| `toMarkdown(convId)` | Export zu Markdown |
+| `parseMarkdown(markdown)` | Import von Markdown |
+| `exportConversation(convId)` | JSON-Export |
+| `importConversation(json)` | JSON-Import |
+
+### Markdown-Format
+
+Das Konversationsformat ist round-trip-fähig:
+
+```markdown
+### User (2026-01-29T10:30:00.000Z)
+Hello!
+
+### Assistant (2026-01-29T10:30:05.000Z)
+Hi there!
+
+### System (2026-01-29T10:30:10.000Z)
+Context updated.
+
+### Tool (2026-01-29T10:30:15.000Z)
+<!-- tool:read_file -->
+<!-- params:{"path":"/test.md"} -->
+Result: "file content"
+```
+
+### Test-Coverage
+
+| Test-Datei | Tests | Coverage |
+|------------|-------|----------|
+| `tests/unit/core/conversation.spec.ts` | 50 | 97.47% |
+
+**Gesamt:** 146 Tests bestanden
+
+---
+
+*Aktualisiert: 29. Januar 2026*  
+*Phase: 4.2 - Konversationslogik*

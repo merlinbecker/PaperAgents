@@ -46,8 +46,13 @@ manuals/              # Tool-Notation-Referenz
 - ✅ agent-parser.ts mit 94.49% Coverage
 - ✅ 3 Beispiel-Agenten (Research, Writing, API Helper)
 
-**Phase 4.2-4.3 ausstehend:**
-- ⏳ Konversationslogik (conversation.ts)
+**Phase 4.2 abgeschlossen:**
+- ✅ ConversationManager mit 97.47% Coverage
+- ✅ Token-Counting (approximativ, 4 chars/token)
+- ✅ Memory-Management (Truncation, Summary-Placeholder)
+- ✅ Round-trip-fähiges Markdown-Format mit ISO 8601 Timestamps
+
+**Phase 4.3 ausstehend:**
 - ⏳ OpenRouter-Integration (API-Client)
 
 ## Dokumentation
