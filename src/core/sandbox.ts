@@ -126,18 +126,25 @@ export class QuickJSSandbox {
 
   /**
    * Führt Code aus und gibt das Ergebnis zurück
+   * Wraps code in IIFE to support return statements
    */
   private executeCode(code: string, filename: string): any {
     if (!this.context) {
       throw new Error("QuickJS not initialized");
     }
 
-    const result = this.context.evalCode(code, filename);
+    // Wrap code in an IIFE to support return statements
+    const wrappedCode = `(function() {\n${code}\n})()`;
+    const result = this.context.evalCode(wrappedCode, filename);
 
     if (result.error) {
       const errorMsg = this.context.dump(result.error);
       result.error.dispose();
-      throw new Error(errorMsg);
+      // Convert error to string properly
+      const errorStr = typeof errorMsg === 'string' ? errorMsg : 
+                       (errorMsg && typeof errorMsg === 'object' && 'message' in errorMsg) ? 
+                       errorMsg.message : JSON.stringify(errorMsg);
+      throw new Error(errorStr);
     }
 
     const returnValue = this.context.dump(result.value);
