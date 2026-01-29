@@ -1,10 +1,13 @@
-# Obsidian community plugin
+# Paper Agents - Developer Guide
+
+> **Note**: This document contains guidelines for AI agents working on this codebase. For general project information, see [README.md](README.md).
 
 ## Project overview
 
-- Target: Obsidian Community Plugin (TypeScript → bundled JavaScript).
-- Entry point: `main.ts` compiled to `main.js` and loaded by Obsidian.
-- Required release artifacts: `main.js`, `manifest.json`, and optional `styles.css`.
+- **Target**: Obsidian Community Plugin (TypeScript → bundled JavaScript)
+- **Entry point**: `main.ts` compiled to `main.js` and loaded by Obsidian
+- **Required release artifacts**: `main.js`, `manifest.json`, and optional `styles.css`
+- **Current Status**: Phase 3 completed, Phase 4 (Agents & Conversation) in progress
 
 ## Environment & tooling
 
@@ -244,6 +247,10 @@ this.registerInterval(window.setInterval(() => { /* ... */ }, 1000));
 
 ## References
 
+- **Paper Agents Project Documentation**: See [README.md](README.md) for project overview, features, and roadmap
+- **Tool Notation Manual**: See [manuals/tools.md](manuals/tools.md) for comprehensive tool definition reference
+- **Examples**: See [examples/](examples/) for working tool examples and best practices
+- **Phase Reports**: See [Reports/PhaseWerkzeuge.md](Reports/PhaseWerkzeuge.md) for detailed implementation status
 - Obsidian sample plugin: https://github.com/obsidianmd/obsidian-sample-plugin
 - API documentation: https://docs.obsidian.md
 - Developer policies: https://docs.obsidian.md/Developer+policies
