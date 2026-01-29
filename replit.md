@@ -58,11 +58,16 @@ manuals/              # Tool-Notation-Referenz
 ## Dokumentation
 - **[README.md](README.md)** - Hauptdokumentation
 - **[PROJEKT_STATUS.md](PROJEKT_STATUS.md)** - Roadmap und nächste Schritte
+- **[WEITERARBEIT.md](WEITERARBEIT.md)** - Hinweise zur Weiterarbeit an Phase 4.3
+- **[Reports/PhaseAgent.md](Reports/PhaseAgent.md)** - Implementierungsberichte Phase 4.1/4.2
 - **[DEVELOPMENT.md](DEVELOPMENT.md)** - Entwickler-Guide
 - **[manuals/tools.md](manuals/tools.md)** - Tool-Notation-Referenz
 
 ## Letzte Änderungen
-- 2026-01-29: Projekt aufgeräumt, redundante Dateien entfernt (DOCUMENTATION_GUIDE.md, placeholder_new.ts)
+- 2026-01-29: Phase 4.2 abgeschlossen (ConversationManager, 146 Tests)
+- 2026-01-29: WEITERARBEIT.md erstellt mit Hinweisen zu Phase 4.3
+- 2026-01-29: Dokumentation konsolidiert, PROJEKT_STATUS.md aktualisiert
+- 2026-01-29: Phase 4.1 implementiert (agent-parser.ts, 3 Beispiel-Agenten)
 - 2026-01-29: Initial import nach Replit, Development-Workflow konfiguriert
 
 ## Hinweise
