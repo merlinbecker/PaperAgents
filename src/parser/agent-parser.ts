@@ -193,7 +193,7 @@ export class AgentParser {
       if (contextMatchEn && contextMatchEn[1]) {
         contextTemplate = contextMatchEn[1].trim();
       }
-    } else if (contextMatch[1]) {
+    } else if (contextMatch && contextMatch[1]) {
       contextTemplate = contextMatch[1].trim();
     }
 

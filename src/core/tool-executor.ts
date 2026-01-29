@@ -134,15 +134,10 @@ export class ToolExecutor {
         if (result.success) {
           stepOutputs.set(step.name, result.data);
         } else {
-        // Bei Fehler abbrechen (continueOnError noch nicht implementiert)
-        if (true) {
-            throw new Error(
-              `Step ${step?.name} failed: ${result.error || "Unknown error"}`
-            );
-          }
-          globalLogger.warn(`Step ${step?.name} failed, continuing...`, {
-            error: result.error,
-          });
+          // Bei Fehler abbrechen (continueOnError noch nicht implementiert)
+          throw new Error(
+            `Step ${step?.name} failed: ${result.error || "Unknown error"}`
+          );
         }
       }
 
