@@ -182,3 +182,98 @@ export interface LoadToolsResult {
     error: string;
   }[];
 }
+
+// ============================================================================
+// AGENT DEFINITION (Phase 4 - LLM-basierte Agenten)
+// ============================================================================
+
+export type MemoryType = "conversation" | "summary" | "none";
+
+export interface MemoryConfig {
+  type: MemoryType;
+  maxMessages?: number;
+  maxTokens?: number;
+  summarizeAfter?: number;
+}
+
+export interface AgentDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  model?: string;
+  tools: string[];
+  memory: MemoryConfig;
+  systemPrompt: string;
+  contextTemplate?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+export interface AgentFrontmatter {
+  agent: boolean;
+  id: string;
+  name: string;
+  description?: string;
+  model?: string;
+  tools?: string[];
+  memory?: MemoryConfig | Partial<MemoryConfig>;
+  temperature?: number;
+  maxTokens?: number;
+  [key: string]: any;
+}
+
+export interface ParsedAgentFile {
+  frontmatter: AgentFrontmatter;
+  systemPrompt: string;
+  contextTemplate?: string;
+  rawContent: string;
+}
+
+// ============================================================================
+// CONVERSATION & MESSAGES
+// ============================================================================
+
+export type MessageRole = "user" | "assistant" | "system" | "tool";
+
+export interface Message {
+  role: MessageRole;
+  content: string;
+  timestamp?: number;
+  toolCall?: ToolCallInfo;
+}
+
+export interface ToolCallInfo {
+  toolId: string;
+  parameters: Record<string, any>;
+  result?: any;
+  error?: string;
+}
+
+export interface Conversation {
+  id: string;
+  agentId: string;
+  messages: Message[];
+  createdAt: number;
+  updatedAt: number;
+  metadata?: Record<string, any>;
+}
+
+export interface ConversationContext {
+  agent: AgentDefinition;
+  conversation: Conversation;
+  vaultPath?: string;
+  currentDate: string;
+  currentTime: string;
+}
+
+// ============================================================================
+// AGENT LOADER
+// ============================================================================
+
+export interface LoadAgentsResult {
+  successful: AgentDefinition[];
+  failed: {
+    file: string;
+    error: string;
+  }[];
+}
