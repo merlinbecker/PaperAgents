@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
-	"version": "1.0.0",
+	"id": "paperAgents",
+	"name": "Paper Agents",
+	"version": "0.0.1",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Paper Agents turns Obsidian into an agent sandbox: define, test, and execute workflows and tools in Markdown, with OpenRouter integration and sandboxed JavaScript.",
+	"author": "merlinbecker",
+	"authorUrl": "https://github.com/merlinbecker/PaperAgents",
+	"fundingUrl": "https://buymeacoffee.com/merlinbecker",
 	"isDesktopOnly": false
 }

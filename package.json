@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
-	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"name": "paperAgents",
+	"version": "0.0.1",
+	"description": "Paper Agents turns Obsidian into an agent sandbox: define, test, and execute workflows and tools in Markdown, with OpenRouter integration and sandboxed JavaScript.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
@@ -10,22 +10,48 @@
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"lint": "eslint .",
 		"release": "node create-release.mjs",
-		"release:beta": "node create-release.mjs --beta"
+		"release:beta": "node create-release.mjs --beta",
+		"test": "vitest --coverage",
+		"test:watch": "vitest"
 	},
-	"keywords": [],
-	"license": "0-BSD",
+	"keywords": [
+		"obsidian",
+		"plugin",
+		"ai",
+		"agents",
+		"markdown",
+		"openrouter",
+		"workflow"
+	],
+	"license": "MIT",
+	"author": {
+		"name": "Merlin Becker",
+		"url": "https://github.com/merlinbecker/PaperAgents"
+	},
+	"homepage": "https://github.com/merlinbecker/PaperAgents#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/merlinbecker/PaperAgents.git"
+	},
+	"bugs": {
+		"url": "https://github.com/merlinbecker/PaperAgents/issues"
+	},
 	"devDependencies": {
-		"@types/node": "^16.11.6",
+		"@eslint/js": "9.30.1",
+		"@types/node": "^20.11.30",
+		"@vitest/coverage-v8": "^1.6.1",
+		"c8": "^9.1.0",
 		"esbuild": "0.25.5",
 		"eslint-plugin-obsidianmd": "0.1.9",
 		"globals": "14.0.0",
+		"jiti": "2.6.1",
 		"tslib": "2.4.0",
 		"typescript": "^5.8.3",
 		"typescript-eslint": "8.35.1",
-		"@eslint/js": "9.30.1",
-		"jiti": "2.6.1"
+		"vitest": "^1.6.0"
 	},
 	"dependencies": {
-		"obsidian": "latest"
+		"obsidian": "latest",
+		"quickjs-emscripten": "^0.31.0"
 	}
 }
