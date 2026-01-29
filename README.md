@@ -27,6 +27,8 @@
 
 Paper Agents verfolgt einen **pragmatischen Ansatz** ohne komplexe Frameworks. Der Fokus liegt auf **Experimentation** – nicht auf Produktivsystemen.
 
+> 📊 **Für eine detaillierte Analyse des Projektstatus, Vergleich von Anforderungen vs. Implementierung, und konkrete nächste Schritte, siehe [PROJEKT_STATUS.md](PROJEKT_STATUS.md)**
+
 ---
 
 ## ✨ Features
@@ -431,8 +433,9 @@ src/tools         |   84.43 |    62.85 |    87.5 |   84.43
 - **[Tool Notation Manual](manuals/tools.md)**: Umfassende Referenz für Tool-Definitionen
 - **[Examples](examples/)**: 4 Beispiel-Tools mit Best Practices
 
-### Für Entwickler
+### Für Entwickler & Projektmanagement
 
+- **[Projektstatus & Roadmap](PROJEKT_STATUS.md)**: Detaillierte Analyse, Anforderungsvergleich, nächste Schritte
 - **[Development Guide](DEVELOPMENT.md)**: Entwicklungsanweisungen, Testing, und Contributing
 - **[Release Process](RELEASE.md)**: Anleitung für Beta- und Production-Releases
 - **[Phase Report](Reports/PhaseWerkzeuge.md)**: Detaillierter Bericht über Phase 1-3
