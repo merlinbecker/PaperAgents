@@ -428,6 +428,17 @@ src/tools         |   84.43 |    62.85 |    87.5 |   84.43
 
 ## 📝 Dokumentation
 
+### Quick Reference
+
+| Ich will... | Gehe zu... |
+|-------------|------------|
+| Das Projekt verstehen | [README.md](README.md) |
+| Ein Custom Tool erstellen | [manuals/tools.md](manuals/tools.md) |
+| Beispiele sehen | [examples/](examples/) |
+| Entwickeln starten | [DEVELOPMENT.md](DEVELOPMENT.md) |
+| Projektstatus prüfen | [PROJEKT_STATUS.md](PROJEKT_STATUS.md) |
+| Ein Release machen | [RELEASE.md](RELEASE.md) |
+
 ### Für Nutzer
 
 - **[Tool Notation Manual](manuals/tools.md)**: Umfassende Referenz für Tool-Definitionen

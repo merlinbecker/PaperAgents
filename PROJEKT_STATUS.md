@@ -2,7 +2,7 @@
 
 **Datum:** 29. Januar 2026  
 **Version:** 0.0.1  
-**Status:** Phase 3 abgeschlossen, Phase 4 in Arbeit
+**Status:** Phase 4.2 abgeschlossen, Phase 4.3 ausstehend
 
 ---
 
@@ -37,9 +37,9 @@ Dieses Dokument konsolidiert den aktuellen Projektstand, vergleicht die Anforder
 - ✅ **Tool-Notation**: YAML/Markdown-Blöcke für Parameter und Abhängigkeiten
 
 #### C. Agenten-Definition & Interaktion
-- ⏳ **Agenten-Notation**: System-Prompt, Tools, Kontext, Memory in Markdown (geplant)
-- ⏳ **Konversationsablauf**: Automatische Nachrichtenverarbeitung (geplant)
-- ⏳ **OpenRouter-Integration**: API-Kommunikation (geplant)
+- ✅ **Agenten-Notation**: System-Prompt, Tools, Kontext, Memory in Markdown
+- ✅ **Konversationslogik**: ConversationManager mit Memory-Management
+- ⏳ **OpenRouter-Integration**: API-Kommunikation (ausstehend)
 
 #### D. Sicherheits- & Validierungsmechanismen
 - ✅ **Human-in-the-Loop**: Bestätigung für kritische Aktionen (write_file, POST/PUT/DELETE)
@@ -114,38 +114,40 @@ Dieses Dokument konsolidiert den aktuellen Projektstand, vergleicht die Anforder
 - Sandbox Coverage: 69.26%
 - 30 spezifische Pre/Post-Processing Tests
 
-### ⏳ Phase 4: Agenten & Konversation (IN ARBEIT)
+### ✅ Phase 4.1: Agenten-Notation (ABGESCHLOSSEN)
+
+**Implementiert:**
+- **agent-parser.ts**: Vollständiger Markdown-Parser (94.49% Coverage)
+- **Typen**: AgentDefinition, MemoryConfig, Message, Conversation
+- **3 Beispiel-Agenten**: Research Assistant, Writing Helper, API Helper
+- **20 Unit-Tests**
+
+### ✅ Phase 4.2: Konversationslogik (ABGESCHLOSSEN)
+
+**Implementiert:**
+- **ConversationManager** (`src/core/conversation.ts`, 97.47% Coverage)
+- **Token-Counting**: Approximativ (4 chars/token)
+- **Memory-Management**: Truncation, Summary-Placeholder
+- **Markdown-Format**: Round-trip-fähig mit ISO 8601 Timestamps
+- **50 Unit-Tests**
+
+### ⏳ Phase 4.3: OpenRouter-Integration (AUSSTEHEND)
 
 **Geplant:**
-1. **Agenten-Notation finalisieren**
-   - Markdown-Format für System-Prompts
-   - Tool-Referenzen und Kontext
-   - Memory-Management
-   - Beispiel-Templates
-
-2. **Konversationslogik implementieren**
-   - Markdown-Nachrichten erkennen
-   - Trigger-Mechanismus für neue Nachrichten
-   - Automatisches Rückschreiben der Antworten
-
-3. **OpenRouter-Integration**
-   - API-Key-Verwaltung (UI bereits vorhanden)
-   - Request/Response-Handling
-   - LLM-Auswahl und Konfiguration
+1. **API-Client erstellen**
+   - HTTP-Requests an OpenRouter
+   - Streaming-Support (SSE)
    - Error-Handling und Rate-Limiting
 
-4. **Testing & Iteration**
+2. **Tool-Calling-Protokoll**
+   - OpenRouter Tool-Format
+   - Tool-Ergebnisse zurück an LLM
+
+3. **Testing & Iteration**
    - Manuelle Tests der Agenten
-   - Tool-Ketten validieren
    - Performance-Profiling
 
-**Herausforderungen:**
-- **Markdown-Parsing**: Sicherstellung, dass Nutzer Notation nicht zerstören
-  - *Lösung*: Plugin-Validierung + LLM-Feedback
-- **Kontext-Management**: Memory bei langen Konversationen
-  - *Lösung*: Token-Limits + Zusammenfassung alter Nachrichten
-- **Sandbox-Kompatibilität**: QuickJS-Beschränkungen
-  - *Status*: Gelöst durch JSON-Datenaustausch
+**Siehe:** `WEITERARBEIT.md` für detaillierte Hinweise
 
 ---
 
@@ -173,8 +175,13 @@ Dieses Dokument konsolidiert den aktuellen Projektstand, vergleicht die Anforder
 | Anforderung | Status | Fehlend |
 |-------------|--------|---------|
 | OpenRouter-Integration | ⏳ | API-Key-UI vorhanden, Request-Logik fehlt |
-| Agenten-Notation | ⏳ | Tool-Notation fertig, Agenten-Format fehlt |
-| Konversationsablauf | ⏳ | Komplett fehlend |
+
+### Kürzlich Abgeschlossen ✅
+
+| Anforderung | Status | Notizen |
+|-------------|--------|---------|
+| Agenten-Notation | ✅ | agent-parser.ts, 94.49% Coverage |
+| Konversationslogik | ✅ | ConversationManager, 97.47% Coverage |
 
 ### Nicht Erfüllt ❌ (Nicht Release-Blocker)
 
