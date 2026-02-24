@@ -27,7 +27,7 @@
 
 Paper Agents verfolgt einen **pragmatischen Ansatz** ohne komplexe Frameworks. Der Fokus liegt auf **Experimentation** – nicht auf Produktivsystemen.
 
-> 📊 **Für eine detaillierte Analyse des Projektstatus, Vergleich von Anforderungen vs. Implementierung, und konkrete nächste Schritte, siehe [PROJEKT_STATUS.md](PROJEKT_STATUS.md)**
+> 📊 **Umfassende Architekturdokumentation, Bausteinsicht, Qualitätsanforderungen und Roadmap: siehe [arc42/arc42.md](arc42/arc42.md)**
 
 ---
 
@@ -433,11 +433,11 @@ src/tools         |   84.43 |    62.85 |    87.5 |   84.43
 | Ich will... | Gehe zu... |
 |-------------|------------|
 | Das Projekt verstehen | [README.md](README.md) |
+| Architektur & Roadmap | [arc42/arc42.md](arc42/arc42.md) |
 | Ein Custom Tool erstellen | [manuals/tools.md](manuals/tools.md) |
 | Beispiele sehen | [examples/](examples/) |
-| Entwickeln starten | [DEVELOPMENT.md](DEVELOPMENT.md) |
-| Projektstatus prüfen | [PROJEKT_STATUS.md](PROJEKT_STATUS.md) |
 | Ein Release machen | [RELEASE.md](RELEASE.md) |
+| AI-Agent-Richtlinien | [AGENTS.md](AGENTS.md) |
 
 ### Für Nutzer
 
@@ -446,10 +446,8 @@ src/tools         |   84.43 |    62.85 |    87.5 |   84.43
 
 ### Für Entwickler & Projektmanagement
 
-- **[Projektstatus & Roadmap](PROJEKT_STATUS.md)**: Detaillierte Analyse, Anforderungsvergleich, nächste Schritte
-- **[Development Guide](DEVELOPMENT.md)**: Entwicklungsanweisungen, Testing, und Contributing
+- **[Architekturdokumentation (arc42)](arc42/arc42.md)**: Single Source of Truth – Architektur, Entscheidungen, Qualität, Roadmap, technische Schulden
 - **[Release Process](RELEASE.md)**: Anleitung für Beta- und Production-Releases
-- **[Phase Report](Reports/PhaseWerkzeuge.md)**: Detaillierter Bericht über Phase 1-3
 - **[Agent Guidelines](AGENTS.md)**: Richtlinien für AI-Agenten, die am Code arbeiten
 
 ---
@@ -499,15 +497,19 @@ MIT © [Merlin Becker](https://github.com/merlinbecker)
 
 **Aktuelle Version:** 0.0.1  
 **Status:** Beta (Phase 3 abgeschlossen, Phase 4 in Arbeit)  
-**Letzte Aktualisierung:** 29. Januar 2026
+**Letzte Aktualisierung:** 24. Februar 2026
 
 **Abgeschlossene Phasen:**
 - ✅ Phase 1: Plugin-Grundgerüst
 - ✅ Phase 2: Tool-Engine
 - ✅ Phase 3: Sandbox & Security
+- ✅ Phase 4.1: Agenten-Notation
+- ✅ Phase 4.2: Konversationslogik
 
 **Aktuelle Phase:**
-- ⏳ Phase 4: Agenten & Konversation
+- ⏳ Phase 4.3: OpenRouter-Integration
+
+> Siehe [arc42/arc42.md](arc42/arc42.md) für die vollständige Architekturdokumentation.
 
 ---
 
