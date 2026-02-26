@@ -7,7 +7,7 @@
 - **Target**: Obsidian Community Plugin (TypeScript → bundled JavaScript)
 - **Entry point**: `main.ts` compiled to `main.js` and loaded by Obsidian
 - **Required release artifacts**: `main.js`, `manifest.json`, and optional `styles.css`
-- **Current Status**: Phase 3 completed, Phase 4 (Agents & Conversation) in progress
+- **Current Status**: Phase 4.2 completed (Agents & Conversation), Phase 4.3 (OpenRouter) pending
 
 ## Environment & tooling
 
@@ -248,9 +248,9 @@ this.registerInterval(window.setInterval(() => { /* ... */ }, 1000));
 ## References
 
 - **Paper Agents Project Documentation**: See [README.md](README.md) for project overview, features, and roadmap
+- **Architecture Documentation (arc42)**: See [arc42/chapters/INDEX.md](arc42/chapters/INDEX.md) for comprehensive architecture docs
 - **Tool Notation Manual**: See [manuals/tools.md](manuals/tools.md) for comprehensive tool definition reference
 - **Examples**: See [examples/](examples/) for working tool examples and best practices
-- **Phase Reports**: See [Reports/PhaseWerkzeuge.md](Reports/PhaseWerkzeuge.md) for detailed implementation status
 - Obsidian sample plugin: https://github.com/obsidianmd/obsidian-sample-plugin
 - API documentation: https://docs.obsidian.md
 - Developer policies: https://docs.obsidian.md/Developer+policies

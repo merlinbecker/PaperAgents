@@ -27,7 +27,7 @@
 
 Paper Agents verfolgt einen **pragmatischen Ansatz** ohne komplexe Frameworks. Der Fokus liegt auf **Experimentation** – nicht auf Produktivsystemen.
 
-> 📊 **Umfassende Architekturdokumentation, Bausteinsicht, Qualitätsanforderungen und Roadmap: siehe [arc42/arc42.md](arc42/arc42.md)**
+> 📊 **Umfassende Architekturdokumentation, Bausteinsicht, Qualitätsanforderungen und Roadmap: siehe [arc42/chapters/INDEX.md](arc42/chapters/INDEX.md)**
 
 ---
 
@@ -45,11 +45,16 @@ Paper Agents verfolgt einen **pragmatischen Ansatz** ohne komplexe Frameworks. D
 - ✅ **Mobile-Kompatibel**: Funktioniert auf Desktop, iOS und Android
 - ✅ **UI-Integration**: Sidebar, dynamische Formulare, HITL-Modal
 
+### Kürzlich Implementiert (Phase 4.1 & 4.2)
+
+- ✅ **Agenten-Notation**: System-Prompts, Tools, Memory und Kontext in Markdown (agent-parser.ts, 94.49% Coverage)
+- ✅ **Konversationslogik**: State-Management, Token-Counting, Memory-Management (conversation.ts, 97.47% Coverage)
+- ✅ **Markdown-Export/Import**: Round-trip-fähiges Konversationsformat mit ISO 8601 Timestamps
+- ✅ **3 Beispiel-Agenten**: Research Assistant, Writing Helper, API Helper
+
 ### In Planung
 
-- ⏳ **Agenten-Definition**: System-Prompts, Tools, Kontext und Memory in Markdown
-- ⏳ **Konversationsablauf**: Automatische Nachrichtenverarbeitung und Antwortgenerierung
-- ⏳ **OpenRouter-Integration**: API-Key-Konfiguration und LLM-Kommunikation
+- ⏳ **OpenRouter-Integration**: API-Key-Konfiguration und LLM-Kommunikation (Phase 4.3)
 - ⏳ **Execution History**: Log-Persistierung und History-Panel
 - ⏳ **Advanced Chain-Features**: Conditional Steps, Loops, Retry-Logik
 - ⏳ **Template Library**: Community-geteilte Tool- und Agenten-Templates
@@ -68,7 +73,7 @@ Paper Agents verfolgt einen **pragmatischen Ansatz** ohne komplexe Frameworks. D
 ### Manuelle Installation
 
 1. Lade das neueste Release von [GitHub Releases](https://github.com/merlinbecker/PaperAgents/releases) herunter
-2. Extrahiere nach `.obsidian/plugins/paper-agents/`
+2. Extrahiere nach `.obsidian/plugins/paperAgents/`
 3. Aktiviere das Plugin in Obsidian Settings
 
 ### Installation via BRAT (Beta Testing)
@@ -264,28 +269,32 @@ Zugriff via **Settings → Community plugins → Paper Agents**:
 ```
 Paper Agents
 ├── Types & Parser (Phase 1) ✅
-│   ├── types.ts         - Zentrale Typ-Definitionen
-│   ├── yaml-parser.ts   - YAML Frontmatter-Parsing
-│   ├── placeholder.ts   - Platzhalter-Ersetzung
-│   ├── validator.ts     - Parameter-Validierung
-│   └── tool-loader.ts   - Custom Tool-Loading
+│   ├── types.ts         - Zentrale Typ-Definitionen (279 Zeilen)
+│   ├── yaml-parser.ts   - YAML Frontmatter-Parsing (511 Zeilen)
+│   ├── placeholder.ts   - Platzhalter-Ersetzung (126 Zeilen)
+│   ├── validator.ts     - Parameter-Validierung (283 Zeilen)
+│   └── tool-loader.ts   - Custom Tool Discovery (195 Zeilen)
 │
 ├── Core & Tools (Phase 2) ✅
-│   ├── tool-registry.ts - Tool-Verwaltung (Factory Pattern)
-│   ├── tool-executor.ts - 3-Phasen-Execution + HITL
-│   ├── sandbox.ts       - QuickJS sichere JavaScript-Ausführung
-│   └── predefined.ts    - 4 Standard-Tools
+│   ├── tool-registry.ts - Tool-Verwaltung / Factory Pattern (252 Zeilen)
+│   ├── tool-executor.ts - 3-Phasen-Execution + HITL (503 Zeilen)
+│   ├── sandbox.ts       - QuickJS sichere JavaScript-Ausführung (397 Zeilen)
+│   └── predefined.ts    - 4 Standard-Tools (392 Zeilen)
 │
 ├── UI (Phase 3) ✅
-│   ├── sidebar.ts       - Tool-Übersicht & Status
-│   ├── forms.ts         - Dynamische Parameter-Formulare
-│   ├── hitl-modal.ts    - Bestätigungsdialoge
-│   └── main.ts          - Plugin-Integration
+│   ├── sidebar.ts       - Tool-Übersicht & Status (260 Zeilen)
+│   ├── forms.ts         - Dynamische Parameter-Formulare (375 Zeilen)
+│   ├── hitl-modal.ts    - Bestätigungsdialoge (287 Zeilen)
+│   └── main.ts          - Plugin-Integration (272 Zeilen)
 │
-└── Agents & Conversation (Phase 4) ⏳
-    ├── agent-parser.ts  - Agenten-Notation-Parsing
-    ├── conversation.ts  - Konversationslogik
-    └── openrouter.ts    - OpenRouter API-Integration
+├── Agents & Conversation (Phase 4)
+│   ├── agent-parser.ts  - Agenten-Notation-Parsing ✅ (309 Zeilen)
+│   ├── conversation.ts  - Konversationslogik ✅ (356 Zeilen)
+│   └── openrouter.ts    - OpenRouter API-Integration ⏳ (ausstehend)
+│
+└── Utils
+    ├── constants.ts     - Zentrale Konstanten (107 Zeilen)
+    └── logger.ts        - Debug-Logging (134 Zeilen)
 ```
 
 ### Design Principles
@@ -301,7 +310,7 @@ Paper Agents
 
 ### ✅ Phase 1: Plugin-Grundgerüst (Abgeschlossen)
 - Build-Infrastructure und TypeScript-Setup
-- Test-Framework (Vitest, 76 Tests, 67% Coverage)
+- Test-Framework (Vitest)
 - Basis-Typen und Konstanten
 
 ### ✅ Phase 2: Tool-Engine (Abgeschlossen)
@@ -313,37 +322,27 @@ Paper Agents
 ### ✅ Phase 3: Sandbox & Security (Abgeschlossen)
 - QuickJS-Integration für sichere JavaScript-Ausführung
 - Pre-/Post-Processing mit Code-Validierung
-- Memory- und Timeout-Limits
+- Memory- und Timeout-Limits (10 MB, 5 s)
 - HITL-Modal für kritische Operationen
 
-### ⏳ Phase 4: Agenten & Konversation (Aktuell)
+### ✅ Phase 4.1: Agenten-Notation (Abgeschlossen)
+- AgentParser mit Markdown-Format für System-Prompts, Tools, Kontext
+- Memory-Konfiguration (conversation, summary, none)
+- 3 Beispiel-Agenten (Research Assistant, Writing Helper, API Helper)
+- 94.49% Coverage
 
-**Geplante Features:**
-1. **Agenten-Notation finalisieren**
-   - Markdown-Format für System-Prompts, Tools, Kontext
-   - Memory-Management für Konversationen
-   - Beispiel-Templates erstellen
+### ✅ Phase 4.2: Konversationslogik (Abgeschlossen)
+- ConversationManager mit State-Management
+- Token-Counting (approximativ: 4 Zeichen ≈ 1 Token)
+- Memory-Management (Truncation, Summary-Placeholder)
+- Round-trip-fähiges Markdown-Format mit ISO 8601 Timestamps
+- 97.47% Coverage
 
-2. **Konversationslogik implementieren**
-   - Trigger für Nutzer-Nachrichten erkennen
-   - LLM-Integration über OpenRouter
-   - Automatisches Rückschreiben in Markdown
-
-3. **OpenRouter-Integration**
-   - API-Key-Verwaltung in Settings
-   - Request/Response-Handling
-   - Error-Handling und Rate-Limiting
-
-4. **Testing & Iteration**
-   - Manuelle Tests der Agenten-Interaktionen
-   - Tool-Ketten validieren
-   - Performance-Profiling
-
-**Herausforderungen:**
-- **Markdown-Parsing**: Wie wird sichergestellt, dass Nutzer die Notation nicht versehentlich zerstören?
-  - *Lösung*: Validierung durch Plugin oder LLM-Feedback
-- **Kontext-Management**: Wie wird Memory bei langen Konversationen verwaltet?
-  - *Lösung*: Token-Limits beachten, ggf. Zusammenfassung alter Nachrichten
+### ⏳ Phase 4.3: OpenRouter-Integration (Ausstehend)
+- API-Key-Verwaltung in Settings
+- Request/Response-Handling mit Streaming (SSE)
+- Tool-Calling-Support
+- Error-Handling und Rate-Limiting
 
 ### 🔮 Phase 5: Advanced Features (Zukunft)
 
@@ -356,8 +355,6 @@ Paper Agents
 ---
 
 ## 🧪 Entwicklung
-
-**Für detaillierte Entwicklungsanweisungen, siehe [DEVELOPMENT.md](DEVELOPMENT.md)**
 
 ### Build from Source
 
@@ -410,19 +407,16 @@ src/
     constants.ts       # Constants
 
 tests/
-  unit/                # Unit Tests (50 Tests)
-  integration/         # Integration Tests (16 Tests)
-  e2e/                 # End-to-End Tests (10 Tests)
+  unit/                # Unit Tests
+    core/              # Conversation, Executor, Registry, Sandbox
+    parser/            # AgentParser, YAML, Validator, Placeholder
+  integration/         # Integration Tests
+    loader/            # Tool-Loader
+    tools/             # Predefined Tools
+    e2e/               # End-to-End Szenarien
 ```
 
-### Test Coverage
-
-```
-All files          |   67.25 |    67.27 |   70.27 |   67.25
-src/core          |   79.42 |    71.96 |   69.04 |   79.42
-src/parser        |   64.29 |    65.38 |   74.35 |   64.29
-src/tools         |   84.43 |    62.85 |    87.5 |   84.43
-```
+**146 Tests** insgesamt, ~75% Statement-Coverage.
 
 ---
 
@@ -433,7 +427,7 @@ src/tools         |   84.43 |    62.85 |    87.5 |   84.43
 | Ich will... | Gehe zu... |
 |-------------|------------|
 | Das Projekt verstehen | [README.md](README.md) |
-| Architektur & Roadmap | [arc42/arc42.md](arc42/arc42.md) |
+| Architektur & Roadmap | [arc42/chapters/INDEX.md](arc42/chapters/INDEX.md) |
 | Ein Custom Tool erstellen | [manuals/tools.md](manuals/tools.md) |
 | Beispiele sehen | [examples/](examples/) |
 | Ein Release machen | [RELEASE.md](RELEASE.md) |
@@ -446,7 +440,7 @@ src/tools         |   84.43 |    62.85 |    87.5 |   84.43
 
 ### Für Entwickler & Projektmanagement
 
-- **[Architekturdokumentation (arc42)](arc42/arc42.md)**: Single Source of Truth – Architektur, Entscheidungen, Qualität, Roadmap, technische Schulden
+- **[Architekturdokumentation (arc42)](arc42/chapters/INDEX.md)**: Single Source of Truth – Architektur, Entscheidungen, Qualität, Roadmap, technische Schulden
 - **[Release Process](RELEASE.md)**: Anleitung für Beta- und Production-Releases
 - **[Agent Guidelines](AGENTS.md)**: Richtlinien für AI-Agenten, die am Code arbeiten
 
@@ -496,8 +490,8 @@ MIT © [Merlin Becker](https://github.com/merlinbecker)
 ## 📊 Status
 
 **Aktuelle Version:** 0.0.1  
-**Status:** Beta (Phase 3 abgeschlossen, Phase 4 in Arbeit)  
-**Letzte Aktualisierung:** 24. Februar 2026
+**Status:** Beta (Phase 4.2 abgeschlossen, Phase 4.3 ausstehend)  
+**Letzte Aktualisierung:** 26. Februar 2026
 
 **Abgeschlossene Phasen:**
 - ✅ Phase 1: Plugin-Grundgerüst
@@ -509,7 +503,7 @@ MIT © [Merlin Becker](https://github.com/merlinbecker)
 **Aktuelle Phase:**
 - ⏳ Phase 4.3: OpenRouter-Integration
 
-> Siehe [arc42/arc42.md](arc42/arc42.md) für die vollständige Architekturdokumentation.
+> Siehe [arc42/chapters/INDEX.md](arc42/chapters/INDEX.md) für die vollständige Architekturdokumentation.
 
 ---
 
