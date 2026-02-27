@@ -39,26 +39,30 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
 
     containerEl.createEl("h3", { text: "OpenRouter API" });
 
+    const apiKeyStatusEl = containerEl.createDiv({ cls: "pa-settings-api-status" });
+    this.renderApiKeyStatus(apiKeyStatusEl);
+
     new Setting(containerEl)
       .setName("API Key")
-      .setDesc("Your OpenRouter API key (stored locally)")
+      .setDesc(this.createApiKeyDescription())
       .addText((text) => {
         text.inputEl.type = "password";
         text.inputEl.style.width = "300px";
         text
-          .setPlaceholder("sk-or-...")
+          .setPlaceholder("sk-or-v1-...")
           .setValue(this.plugin.settings.openRouterApiKey)
           .onChange(async (value) => {
             this.plugin.settings.openRouterApiKey = value;
             await this.plugin.saveSettings();
             this.plugin.reinitializeOrchestrator();
+            this.renderApiKeyStatus(apiKeyStatusEl);
           });
       })
       .addButton((button) =>
         button
           .setButtonText("Validate")
           .onClick(async () => {
-            await this.validateApiKey();
+            await this.validateApiKey(apiKeyStatusEl);
           })
       );
 
@@ -181,15 +185,41 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
     });
   }
 
-  private async validateApiKey(): Promise<void> {
+  private createApiKeyDescription(): DocumentFragment {
+    const frag = document.createDocumentFragment();
+    frag.appendText("Your OpenRouter API key (stored locally). ");
+    const link = document.createElement("a");
+    link.textContent = "Get a free API key";
+    link.href = "https://openrouter.ai/keys";
+    link.target = "_blank";
+    frag.appendChild(link);
+    return frag;
+  }
+
+  private renderApiKeyStatus(container: HTMLElement): void {
+    container.empty();
+    const key = this.plugin.settings.openRouterApiKey;
+
+    const statusDiv = container.createDiv({ cls: "pa-api-status-badge" });
+
+    if (!key) {
+      statusDiv.addClass("pa-api-status-missing");
+      statusDiv.createSpan({ text: "No API key configured — Chat & Agent features require an OpenRouter API key" });
+    } else {
+      statusDiv.addClass("pa-api-status-set");
+      statusDiv.createSpan({ text: "API key configured" });
+    }
+  }
+
+  private async validateApiKey(statusEl?: HTMLElement): Promise<void> {
     const apiKey = this.plugin.settings.openRouterApiKey;
     if (!apiKey) {
-      new Notice("❌ Please enter an API key first");
+      new Notice("Please enter an API key first");
       return;
     }
 
     try {
-      new Notice("🔄 Validating API key...");
+      new Notice("Validating API key...");
       const response = await requestUrl({
         url: `${OPENROUTER_DEFAULTS.API_URL}/auth/key`,
         method: "GET",
@@ -201,13 +231,24 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
       if (response.status === 200) {
         const data = response.json?.data;
         const label = data?.label || "unnamed";
-        new Notice(`✅ API key valid (${label})`);
+        const limit = data?.limit ? `$${(data.limit / 100).toFixed(2)} limit` : "unlimited";
+        new Notice(`API key valid (${label}, ${limit})`);
+        if (statusEl) {
+          statusEl.empty();
+          const badge = statusEl.createDiv({ cls: "pa-api-status-badge pa-api-status-valid" });
+          badge.createSpan({ text: `API key valid (${label})` });
+        }
       } else {
-        new Notice(`❌ API key invalid (HTTP ${response.status})`);
+        new Notice(`API key invalid (HTTP ${response.status})`);
+        if (statusEl) {
+          statusEl.empty();
+          const badge = statusEl.createDiv({ cls: "pa-api-status-badge pa-api-status-invalid" });
+          badge.createSpan({ text: "API key invalid" });
+        }
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
-      new Notice(`❌ API key validation failed: ${msg}`);
+      new Notice(`API key validation failed: ${msg}`);
     }
   }
 }

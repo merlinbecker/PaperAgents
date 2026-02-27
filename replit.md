@@ -84,7 +84,8 @@ arc42/                     # Architecture documentation (12 chapters)
 - Template browser for import/export
 - Visual workflow viewer for chain debugging
 - Technical debt: most `any` types replaced with proper types
-- Settings: API key, model, temperature, maxTokens, agentsPath
+- Settings: API key (with status indicator + OpenRouter link), model, temperature, maxTokens, agentsPath
+- Sidebar "Getting Started" section: 7 interactive examples (tools, chains, agents) with install-to-vault
 
 ## Key Architecture
 - **Orchestrator** (`src/core/orchestrator.ts`): Main loop connecting ConversationManager + OpenRouterClient + ToolRegistry
