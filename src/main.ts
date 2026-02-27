@@ -46,8 +46,13 @@ export default class PaperAgents extends Plugin {
     // Load Custom Tools from Vault
     await this.loadCustomToolsFromVault();
 
-    // Initialize Sandbox
-    await customJSExecutor.initialize();
+    // Initialize Sandbox (non-blocking: plugin works without sandbox)
+    try {
+      await customJSExecutor.initialize();
+    } catch (err) {
+      globalLogger.warn("QuickJS sandbox unavailable – custom-js tools will not work", { error: String(err) });
+      new Notice("Paper Agents: Sandbox konnte nicht initialisiert werden. Custom-JS Tools sind deaktiviert.");
+    }
 
     // Register Sidebar View
     this.registerView(

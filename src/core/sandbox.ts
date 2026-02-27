@@ -4,7 +4,8 @@
  * Unterstützt Desktop + Mobile (QuickJS läuft überall)
  */
 
-import { getQuickJS, QuickJSContext, QuickJSRuntime } from "quickjs-emscripten";
+import { newQuickJSWASMModuleFromVariant, QuickJSContext, QuickJSRuntime } from "quickjs-emscripten-core";
+import RELEASE_SYNC from "@jitl/quickjs-singlefile-cjs-release-sync";
 import { ExecutionContext, ExecutionResult } from "../types";
 import { globalLogger } from "../utils/logger";
 
@@ -24,7 +25,7 @@ export class QuickJSSandbox {
    */
   async initialize(): Promise<void> {
     try {
-      const QuickJS = await getQuickJS();
+      const QuickJS = await newQuickJSWASMModuleFromVariant(RELEASE_SYNC);
       this.runtime = QuickJS.newRuntime();
       
       // Set memory limit for safety
@@ -44,7 +45,7 @@ export class QuickJSSandbox {
         timeout: this.executionTimeout,
       });
     } catch (error) {
-      globalLogger.error("Failed to initialize QuickJS", { error });
+      globalLogger.error("Failed to initialize QuickJS", { error: String(error) });
       throw new Error("QuickJS initialization failed");
     }
   }
