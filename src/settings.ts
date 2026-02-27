@@ -54,7 +54,7 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.openRouterApiKey = value;
             await this.plugin.saveSettings();
-            this.plugin.reinitializeOrchestrator();
+            this.plugin.initializeOrchestrator();
             this.renderApiKeyStatus(apiKeyStatusEl);
           });
       })
@@ -78,7 +78,7 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.defaultModel = value;
             await this.plugin.saveSettings();
-            this.plugin.reinitializeOrchestrator();
+            this.plugin.initializeOrchestrator();
           });
       })
       .addText((text) => {
@@ -94,7 +94,7 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
             if (value.trim()) {
               this.plugin.settings.defaultModel = value.trim();
               await this.plugin.saveSettings();
-              this.plugin.reinitializeOrchestrator();
+              this.plugin.initializeOrchestrator();
             }
           });
       });
@@ -110,7 +110,7 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.temperature = value;
             await this.plugin.saveSettings();
-            this.plugin.reinitializeOrchestrator();
+            this.plugin.initializeOrchestrator();
             this.display();
           })
       );
@@ -129,7 +129,7 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
             if (!isNaN(parsed) && parsed > 0) {
               this.plugin.settings.maxTokens = parsed;
               await this.plugin.saveSettings();
-              this.plugin.reinitializeOrchestrator();
+              this.plugin.initializeOrchestrator();
             }
           });
       });

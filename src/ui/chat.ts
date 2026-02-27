@@ -152,7 +152,17 @@ export class PaperAgentsChatView extends ItemView {
     this.selectedAgent = this.agents.find((a) => a.id === agentId) || null;
 
     if (this.selectedAgent) {
-      this.startNewConversation();
+      // Try to resume the most recent existing conversation for this agent
+      const existingConvs = this.conversationManager
+        .listConversations(this.selectedAgent.id)
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+
+      if (existingConvs.length > 0 && existingConvs[0]) {
+        this.currentConversationId = existingConvs[0].id;
+        this.restoreConversationUI(existingConvs[0].id);
+      } else {
+        this.startNewConversation();
+      }
     }
   }
 
@@ -164,6 +174,30 @@ export class PaperAgentsChatView extends ItemView {
 
     this.clearMessages();
     this.addSystemMessage(`Started new conversation with ${this.selectedAgent.name}`);
+  }
+
+  private restoreConversationUI(conversationId: string): void {
+    this.clearMessages();
+
+    const messages = this.conversationManager.getMessages(conversationId);
+    for (const msg of messages) {
+      if (msg.role === "tool" && msg.toolCall) {
+        this.addToolCallToUI(msg.toolCall.toolId, msg.toolCall.parameters, true);
+        this.addToolCallToUI(
+          msg.toolCall.toolId,
+          {},
+          false,
+          msg.toolCall.result,
+          msg.toolCall.error
+        );
+      } else {
+        this.addMessageToUI(msg.role, msg.content);
+      }
+    }
+
+    if (messages.length === 0) {
+      this.addSystemMessage(`Resumed conversation with ${this.selectedAgent?.name}`);
+    }
   }
 
   private async sendMessage(): Promise<void> {
@@ -195,7 +229,7 @@ export class PaperAgentsChatView extends ItemView {
         this.addToolCallToUI(toolId, {}, false, result, error);
       },
       onError: (error) => {
-        this.addSystemMessage(`Error: ${error.message}`);
+        this.addErrorMessage(error);
       },
     };
 
@@ -208,6 +242,7 @@ export class PaperAgentsChatView extends ItemView {
       );
     } catch (error) {
       globalLogger.error("Chat send error", { error });
+      this.addErrorMessage(error instanceof Error ? error : new Error(String(error)));
     } finally {
       this.finalizeStreaming();
       this.setStreaming(false);
@@ -233,6 +268,42 @@ export class PaperAgentsChatView extends ItemView {
 
   private addSystemMessage(content: string): void {
     this.addMessageToUI("system", content);
+  }
+
+  /**
+   * Classifies an error and displays a user-friendly message in the chat.
+   */
+  private addErrorMessage(error: Error): void {
+    const msg = error.message.toLowerCase();
+    let userMessage: string;
+
+    if (msg.includes("timeout") || msg.includes("aborted")) {
+      userMessage = "Request timed out. The model may be overloaded — please try again in a moment.";
+    } else if (msg.includes("rate limit") || msg.includes("429")) {
+      userMessage = "Rate limit reached. Please wait a few seconds before sending another message.";
+    } else if (msg.includes("401") || msg.includes("unauthorized") || msg.includes("invalid api key")) {
+      userMessage = "API key is invalid or missing. Check your key in **Settings → Paper Agents**.";
+    } else if (msg.includes("network") || msg.includes("fetch") || msg.includes("econnrefused") || msg.includes("enotfound")) {
+      userMessage = "Network error — could not reach the API. Check your internet connection.";
+    } else if (msg.includes("402") || msg.includes("insufficient")) {
+      userMessage = "Insufficient credits on your OpenRouter account.";
+    } else if (msg.includes("model") && msg.includes("not found")) {
+      userMessage = "The selected model is unavailable. Try a different model in settings.";
+    } else {
+      userMessage = `Error: ${error.message}`;
+    }
+
+    if (!this.messagesContainer) return;
+
+    const placeholder = this.messagesContainer.querySelector(".pa-chat-placeholder");
+    if (placeholder) placeholder.remove();
+
+    const msgEl = this.messagesContainer.createDiv({ cls: "pa-chat-message pa-chat-message-error" });
+    msgEl.createDiv({ cls: "pa-chat-message-role", text: "Error" });
+    const contentEl = msgEl.createDiv({ cls: "pa-chat-message-content" });
+    contentEl.textContent = userMessage;
+
+    this.scrollToBottom();
   }
 
   private addToolCallToUI(

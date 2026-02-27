@@ -619,6 +619,14 @@
   text-align: center;
 }
 
+.pa-chat-message-error {
+  background: rgba(var(--color-red-rgb, 220, 38, 38), 0.1);
+  border-left: 3px solid var(--text-error, #dc2626);
+  color: var(--text-error, #dc2626);
+  align-self: center;
+  max-width: 90%;
+}
+
 .pa-chat-message-role {
   font-size: 0.7em;
   text-transform: uppercase;

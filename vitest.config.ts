@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       obsidian: path.resolve(__dirname, "tests/mocks/obsidian.ts"),
+      "quickjs-emscripten-core": path.resolve(__dirname, "tests/mocks/quickjs.ts"),
       "@jitl/quickjs-singlefile-cjs-release-sync": path.resolve(__dirname, "tests/mocks/quickjs.ts"),
     },
   },

@@ -47,24 +47,64 @@ Executor            HITL-Check          HITL-Modal              Nutzer
   │◀─Result───────────┤                   │                      │
 ```
 
-## 6.4 Agenten-Konversation (Geplant, Phase 4.3)
+## 6.4 Agenten-Konversation (Chat mit LLM)
 
 ```
-Nutzer               ConversationManager    OpenRouter API       Tool-Executor
-  │                       │                      │                    │
-  ├─User-Nachricht────────▶│                      │                    │
-  │                       ├─Add to Memory────────▶│                    │
-  │                       ├─Build Context────────▶│                    │
-  │                       ├─Format Messages──────▶│                    │
-  │                       ├─LLM Request──────────▶│                    │
-  │                       │◀─LLM Response─────────┤                    │
-  │                       ├─Tool Detection───────▶│                    │
-  │                       │                      ├─Tool Execution────▶│
-  │                       │                      │◀─Tool Result───────┤
-  │                       ├─Format for LLM───────▶│                    │
-  │                       ├─Continue Chat────────▶│                    │
-  │◀─Agent Answer────────┤                      │                    │
+Nutzer               Chat-UI            Orchestrator        OpenRouter API       Tool-Executor
+  │                    │                    │                    │                    │
+  ├─User-Nachricht─────▶│                    │                    │                    │
+  │                    ├─sendMessage─────────▶│                    │                    │
+  │                    │                    ├─buildContext────────▶│                    │
+  │                    │                    ├─SSE chatStream──────▶│                    │
+  │                    │◀─onToken (stream)──┤◀─SSE Tokens─────────┤                    │
+  │                    │                    │                    │                    │
+  │                    │  ... (Token-Streaming bis tool_call) ...│                    │
+  │                    │                    │                    │                    │
+  │                    │◀─onToolCallStart──┤◀─tool_use────────────┤                    │
+  │                    │                    ├───execute tool──────────────────────────▶│
+  │                    │◀─onToolCallEnd────┤◀─────────────result────────────────────┤
+  │                    │                    │                    │                    │
+  │                    │  ... (bis zu 10 Tool-Call-Runden möglich) ...               │
+  │                    │                    │                    │                    │
+  │                    │                    ├─Final SSE Stream───▶│                    │
+  │                    │◀─onToken (final)───┤◀─Final Tokens────────┤                    │
+  │◀─Assistant-Answer──┤◀─onComplete────────┤                    │                    │
 ```
+
+## 6.5 Chat-Persistenz
+
+```
+Plugin (onload)     Persistence          Vault (.obsidian/plugins/paper-agents/)
+  │                    │                    │
+  ├─initPersistence───▶│                    │
+  │                    ├─loadFromStorage───▶│ conversations.json
+  │                    │◀─Loaded Data──────┤
+  │                    │                    │
+(Nutzer chattet...)
+  │                    ├─scheduleSave()────▶│ (debounced, 1s)
+  │                    │                    │
+Plugin (onunload)
+  │                    ├─saveToStorage─────▶│ (force flush)
+```
+
+## 6.6 Streaming Error Handling
+
+```
+Orchestrator         Chat-UI (onError)       Nutzer
+  │                    │                       │
+  ├─Error (z.B. 429)──▶│                       │
+  │                    ├─classifyError()───────▶│
+  │                    ├─User-friendly msg─────▶│
+```
+
+| Error-Klasse | Erkennung | Nutzer-Nachricht |
+|---|---|---|
+| Timeout | `timeout`, `aborted` | „Request timed out. Bitte erneut versuchen." |
+| Rate Limit | `429`, `rate limit` | „Rate limit erreicht. Bitte warten." |
+| Auth | `401`, `unauthorized` | „API key ungültig. Bitte prüfen." |
+| Netzwerk | `network`, `fetch`, `ECONNREFUSED` | „Netzwerkfehler. Verbindung prüfen." |
+| Credits | `402`, `insufficient` | „Unzureichendes Guthaben." |
+| Modell | `model not found` | „Modell nicht verfügbar." |
 
 ---
 

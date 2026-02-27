@@ -17,7 +17,7 @@ export interface HITLDecision {
   approved: boolean;
   tool: string;
   step: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   reason?: string;
 }
 
@@ -26,7 +26,7 @@ export interface HITLDecision {
  */
 export class ToolExecutor {
   private hitlCallbacks: Map<string, (decision: HITLDecision) => Promise<void>> = new Map();
-  private globalHITLCallback: ((toolName: string, stepName: string, parameters: Record<string, any>) => Promise<HITLDecision>) | null = null;
+  private globalHITLCallback: ((toolName: string, stepName: string, parameters: Record<string, unknown>) => Promise<HITLDecision>) | null = null;
 
   /**
    * Registriert HITL-Callback für externe Bestätigung
@@ -40,7 +40,7 @@ export class ToolExecutor {
   }
 
   registerGlobalHITLCallback(
-    callback: (toolName: string, stepName: string, parameters: Record<string, any>) => Promise<HITLDecision>
+    callback: (toolName: string, stepName: string, parameters: Record<string, unknown>) => Promise<HITLDecision>
   ): void {
     this.globalHITLCallback = callback;
   }
@@ -55,7 +55,7 @@ export class ToolExecutor {
   async executeAgent(
     agent: Agent,
     toolRegistry: IToolRegistry,
-    userParameters: Record<string, any>
+    userParameters: Record<string, unknown>
   ): Promise<ExecutionResult> {
     const traceId = globalMetrics.generateTraceId();
     const executionId = `${agent.name}-${Date.now()}`;
@@ -242,7 +242,7 @@ export class ToolExecutor {
     try {
       // Hole Tool - Step.parameters hat toolId
       // Für jetzt: verwende step.parameters.tool wenn vorhanden
-      const toolId = step.parameters?.tool || step.name;
+      const toolId = String(step.parameters?.tool || step.name);
       const tool = toolRegistry.getTool(toolId);
       if (!tool) {
         throw new Error(`Tool not found: ${toolId}`);
@@ -304,7 +304,7 @@ export class ToolExecutor {
   private buildExecutionContext(
     agent: Agent,
     step: Step,
-    userParameters: Record<string, any>,
+    userParameters: Record<string, unknown>,
     stepOutputs: Map<string, unknown>,
     executionId: string
   ): ExecutionContext {
@@ -325,7 +325,7 @@ export class ToolExecutor {
     const processedParameters = PlaceholderReplacer.replacePlaceholdersInObject(
       step.parameters,
       placeholderCtx
-    ) as Record<string, any>;
+    ) as Record<string, unknown>;
 
     return {
       parameters: processedParameters,
@@ -343,7 +343,7 @@ export class ToolExecutor {
   private async requestHITLApproval(
     stepName: string,
     toolName: string,
-    parameters: Record<string, any>
+    parameters: Record<string, unknown>
   ): Promise<HITLDecision> {
     return new Promise((resolve) => {
       const callback = this.hitlCallbacks.get(stepName);
@@ -384,7 +384,7 @@ export class ToolExecutor {
    */
   private validateInputParameters(
     agentParams: Parameter[],
-    userParams: Record<string, any>
+    userParams: Record<string, unknown>
   ): string[] {
     const errors: string[] = [];
 
@@ -400,7 +400,7 @@ export class ToolExecutor {
   private evaluateCondition(
     condition: StepCondition,
     stepOutputs: Map<string, unknown>,
-    userParameters: Record<string, any>
+    userParameters: Record<string, unknown>
   ): boolean {
     const fieldParts = condition.field.split(".");
     let fieldValue: unknown;
@@ -448,7 +448,7 @@ export class ToolExecutor {
   private async executeLoopStep(
     step: Step,
     agent: Agent,
-    userParameters: Record<string, any>,
+    userParameters: Record<string, unknown>,
     stepOutputs: Map<string, unknown>,
     executionId: string,
     toolRegistry: IToolRegistry,
@@ -540,7 +540,7 @@ export class ToolExecutor {
 
   private async executeSingleTool(
     agent: Agent,
-    userParameters: Record<string, any>,
+    userParameters: Record<string, unknown>,
     toolRegistry: IToolRegistry
   ): Promise<ExecutionResult> {
     const log: ToolExecution[] = [];
@@ -553,11 +553,12 @@ export class ToolExecutor {
         try {
           const sandbox = new QuickJSSandbox();
           await sandbox.initialize();
-          currentData = await sandbox.executePreprocess(agent.preprocess, currentData as Record<string, any>);
+          currentData = await sandbox.executePreprocess(agent.preprocess, currentData as Record<string, unknown>);
           log.push({
             toolName: "preprocess",
             parameters: {},
             timestamp: Date.now(),
+            phase: "preprocess",
           });
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : "Pre-processing failed";
@@ -585,11 +586,11 @@ export class ToolExecutor {
           }
 
           // Baue Execution-Context mit Placeholder-Replacement
-          const placeholderCtx = PlaceholderReplacer.createContext(currentData as Record<string, any>, {});
+          const placeholderCtx = PlaceholderReplacer.createContext(currentData as Record<string, unknown>, {});
           const processedParameters = PlaceholderReplacer.replacePlaceholdersInObject(
             agent.toolDefinition.parameters,
             placeholderCtx
-          ) as Record<string, any>;
+          ) as Record<string, unknown>;
 
           const context: ExecutionContext = {
             parameters: processedParameters,
@@ -633,6 +634,7 @@ export class ToolExecutor {
             parameters: processedParameters,
             output: toolResult.data,
             timestamp: Date.now(),
+            phase: "tool_execution",
           });
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : "Tool execution failed";
@@ -656,6 +658,7 @@ export class ToolExecutor {
             toolName: "postprocess",
             parameters: {},
             timestamp: Date.now(),
+            phase: "postprocess",
           });
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : "Post-processing failed";

@@ -7,6 +7,7 @@ import { customJSExecutor } from "./core/sandbox";
 import { ConversationManager } from "./core/conversation";
 import { Orchestrator } from "./core/orchestrator";
 import { executionHistory } from "./core/history";
+import { initializeHistoryPersistence, initializeConversationPersistence } from "./core/persistence";
 
 import PredefinedToolsFactory from "./tools/predefined";
 
@@ -19,10 +20,8 @@ import { PaperAgentsSidebar, VIEW_TYPE_PAPER_AGENTS } from "./ui/sidebar";
 import { PaperAgentsChatView, VIEW_TYPE_PAPER_AGENTS_CHAT } from "./ui/chat";
 import { ToolFormModal } from "./ui/forms";
 import { OutputPanelModal } from "./ui/output-panel";
-import { HistoryPanelModal } from "./ui/history-panel";
 import { showHITLModal } from "./ui/hitl-modal";
-import { TemplateBrowserModal, ToolTemplate } from "./ui/template-browser";
-import { WorkflowViewModal } from "./ui/workflow-view";
+import { registerCommands } from "./commands";
 
 import { globalLogger } from "./utils/logger";
 import { DEFAULT_PATHS, OPENROUTER_DEFAULTS } from "./utils/constants";
@@ -48,7 +47,8 @@ export default class PaperAgents extends Plugin {
     await this.loadAgentsFromVault();
 
     this.initializeOrchestrator();
-    await this.initializeHistory();
+    await initializeHistoryPersistence(this.app.vault);
+    await initializeConversationPersistence(this.app.vault, this.conversationManager);
 
     try {
       await customJSExecutor.initialize();
@@ -64,7 +64,7 @@ export default class PaperAgents extends Plugin {
           this.handleToolClick(toolId)
         );
         sidebar.setAgents(this.loadedAgents);
-        sidebar.setOnAgentClick((agentId) => this.handleAgentClick(agentId));
+        sidebar.setOnAgentClick(() => this.activateChat());
         return sidebar;
       }
     );
@@ -84,61 +84,7 @@ export default class PaperAgents extends Plugin {
       this.activateSidebar();
     });
 
-    this.addCommand({
-      id: "open-sidebar",
-      name: "Open Paper Agents Sidebar",
-      callback: () => { this.activateSidebar(); },
-    });
-
-    this.addCommand({
-      id: "open-chat",
-      name: "Open Agent Chat",
-      callback: () => { this.activateChat(); },
-    });
-
-    this.addCommand({
-      id: "reload-custom-tools",
-      name: "Reload Custom Tools",
-      callback: async () => {
-        await this.loadCustomToolsFromVault();
-        new Notice("Custom tools reloaded");
-        this.sidebar?.refreshTools();
-      },
-    });
-
-    this.addCommand({
-      id: "reload-agents",
-      name: "Reload Agents",
-      callback: async () => {
-        await this.loadAgentsFromVault();
-        new Notice(`Agents reloaded (${this.loadedAgents.length} loaded)`);
-        this.sidebar?.setAgents(this.loadedAgents);
-      },
-    });
-
-    this.addCommand({
-      id: "show-history",
-      name: "Show Execution History",
-      callback: () => {
-        new HistoryPanelModal(this.app, executionHistory).open();
-      },
-    });
-
-    this.addCommand({
-      id: "browse-templates",
-      name: "Browse Templates",
-      callback: () => {
-        this.openTemplateBrowser();
-      },
-    });
-
-    this.addCommand({
-      id: "show-workflow",
-      name: "Show Workflow View",
-      callback: () => {
-        this.openWorkflowView();
-      },
-    });
+    registerCommands(this);
 
     this.addSettingTab(new PaperAgentsSettingTab(this.app, this));
 
@@ -150,6 +96,7 @@ export default class PaperAgents extends Plugin {
   async onunload() {
     globalLogger.info("Paper Agents plugin unloading...");
 
+    await this.conversationManager.saveToStorage();
     await customJSExecutor.destroy();
 
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_PAPER_AGENTS);
@@ -158,7 +105,7 @@ export default class PaperAgents extends Plugin {
     globalLogger.info("Paper Agents plugin unloaded");
   }
 
-  private initializeOrchestrator(): void {
+  initializeOrchestrator(): void {
     const apiKey = this.settings.openRouterApiKey;
     if (!apiKey) {
       globalLogger.info("OpenRouter API key not set, orchestrator disabled");
@@ -183,38 +130,6 @@ export default class PaperAgents extends Plugin {
     globalLogger.info("Orchestrator initialized");
   }
 
-  private async initializeHistory(): Promise<void> {
-    executionHistory.setPersistence(
-      async (data) => {
-        const path = ".obsidian/plugins/paper-agents/history.json";
-        const folder = ".obsidian/plugins/paper-agents";
-        if (!this.app.vault.getAbstractFileByPath(folder)) {
-          await this.app.vault.createFolder(folder).catch(() => {});
-        }
-        const existing = this.app.vault.getAbstractFileByPath(path);
-        if (existing instanceof TFile) {
-          await this.app.vault.modify(existing, data);
-        } else {
-          await this.app.vault.create(path, data);
-        }
-      },
-      async () => {
-        const path = ".obsidian/plugins/paper-agents/history.json";
-        const file = this.app.vault.getAbstractFileByPath(path);
-        if (file instanceof TFile) {
-          return await this.app.vault.read(file);
-        }
-        return null;
-      }
-    );
-
-    await executionHistory.loadFromStorage();
-  }
-
-  reinitializeOrchestrator(): void {
-    this.initializeOrchestrator();
-  }
-
   private registerPredefinedTools(): void {
     this.toolRegistry.registerPredefinedBatch([
       PredefinedToolsFactory.searchFiles,
@@ -225,7 +140,7 @@ export default class PaperAgents extends Plugin {
     globalLogger.info("Predefined tools registered", { count: 4 });
   }
 
-  private async loadCustomToolsFromVault(): Promise<void> {
+  async loadCustomToolsFromVault(): Promise<void> {
     try {
       const customToolsPath = this.settings.customToolsPath || DEFAULT_PATHS.CUSTOM_TOOLS;
       const loader = new ToolLoader(this.app);
@@ -247,7 +162,7 @@ export default class PaperAgents extends Plugin {
     }
   }
 
-  private async loadAgentsFromVault(): Promise<void> {
+  async loadAgentsFromVault(): Promise<void> {
     try {
       const agentsPath = this.settings.agentsPath || DEFAULT_PATHS.AGENTS;
       const folder = this.app.vault.getAbstractFileByPath(agentsPath);
@@ -314,7 +229,7 @@ export default class PaperAgents extends Plugin {
     }
   }
 
-  private async activateSidebar(): Promise<void> {
+  async activateSidebar(): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_PAPER_AGENTS);
 
     if (existing.length > 0) {
@@ -334,7 +249,7 @@ export default class PaperAgents extends Plugin {
     }
   }
 
-  private async activateChat(): Promise<void> {
+  async activateChat(): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_PAPER_AGENTS_CHAT);
 
     if (existing.length > 0) {
@@ -360,10 +275,6 @@ export default class PaperAgents extends Plugin {
       this.executeToolWithParameters(toolId, metadata.name, parameters);
     });
     modal.open();
-  }
-
-  private handleAgentClick(agentId: string): void {
-    this.activateChat();
   }
 
   private async executeToolWithParameters(
@@ -421,60 +332,6 @@ export default class PaperAgents extends Plugin {
       new Notice(`${toolName} failed: ${errorMsg}`);
       globalLogger.error("Tool execution failed", { error });
     }
-  }
-
-  private openTemplateBrowser(): void {
-    const templates: ToolTemplate[] = [];
-
-    for (const tool of this.toolRegistry.listTools()) {
-      templates.push({
-        id: tool.id,
-        name: tool.name,
-        description: tool.description || "",
-        type: "tool",
-        content: JSON.stringify({
-          id: tool.id,
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-        }, null, 2),
-      });
-    }
-
-    for (const agent of this.loadedAgents) {
-      templates.push({
-        id: agent.id,
-        name: agent.name,
-        description: agent.systemPrompt?.substring(0, 100) || "",
-        type: "agent",
-        content: JSON.stringify(agent, null, 2),
-      });
-    }
-
-    new TemplateBrowserModal(this.app, templates, (template) => {
-      new Notice(`Template "${template.name}" imported`);
-    }).open();
-  }
-
-  private openWorkflowView(): void {
-    if (this.loadedAgents.length === 0) {
-      new Notice("No agents loaded. Load agents first.");
-      return;
-    }
-
-    const chainAgents = this.loadedAgents.filter((a) => a.tools.length > 1);
-    const agent = chainAgents[0] || this.loadedAgents[0];
-    if (!agent) return;
-
-    const agentAsWorkflow = {
-      id: agent.id,
-      name: agent.name,
-      type: agent.tools.length > 1 ? "chain" as const : "single" as const,
-      parameters: [],
-      steps: agent.tools.map((t) => ({ name: t, parameters: {} })),
-    };
-
-    new WorkflowViewModal(this.app, agentAsWorkflow).open();
   }
 
   private registerHITLCallbacks(): void {

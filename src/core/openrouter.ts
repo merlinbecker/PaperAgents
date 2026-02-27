@@ -93,9 +93,12 @@ const API_BASE = "https://openrouter.ai/api/v1";
 const MAX_RETRIES = 3;
 const BASE_RETRY_DELAY = 1000;
 const REQUEST_TIMEOUT = 60000;
+const RATE_LIMIT_RPM = 60;
+const RATE_LIMIT_WINDOW_MS = 60000;
 
 export class OpenRouterClient {
   private config: OpenRouterConfig;
+  private requestTimestamps: number[] = [];
 
   constructor(config: OpenRouterConfig) {
     this.config = config;
@@ -160,14 +163,38 @@ export class OpenRouterClient {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /**
+   * Proactive rate limiting: waits if we're about to exceed RPM limit
+   */
+  private async enforceRateLimit(): Promise<void> {
+    const now = Date.now();
+    this.requestTimestamps = this.requestTimestamps.filter(
+      (ts) => now - ts < RATE_LIMIT_WINDOW_MS
+    );
+
+    if (this.requestTimestamps.length >= RATE_LIMIT_RPM) {
+      const oldestInWindow = this.requestTimestamps[0]!;
+      const waitMs = RATE_LIMIT_WINDOW_MS - (now - oldestInWindow) + 100;
+      globalLogger.info(`Rate limit approaching, waiting ${waitMs}ms`);
+      await this.sleep(waitMs);
+    }
+
+    this.requestTimestamps.push(Date.now());
+  }
+
   async chat(
     messages: LLMMessage[],
     tools?: LLMToolDefinition[]
   ): Promise<OpenRouterResponse> {
     const body = this.buildRequestBody(messages, tools, false);
 
+    await this.enforceRateLimit();
+
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
         const params: RequestUrlParam = {
           url: `${API_BASE}/chat/completions`,
           method: "POST",
@@ -176,7 +203,12 @@ export class OpenRouterClient {
           throw: false,
         };
 
-        const response = await requestUrl(params);
+        let response;
+        try {
+          response = await requestUrl(params);
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
         if (response.status >= 200 && response.status < 300) {
           const data = response.json as OpenRouterResponse;
@@ -234,6 +266,11 @@ export class OpenRouterClient {
   ): Promise<OpenRouterResponse> {
     const body = this.buildRequestBody(messages, tools, true);
 
+    await this.enforceRateLimit();
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT * 2);
+
     const params: RequestUrlParam = {
       url: `${API_BASE}/chat/completions`,
       method: "POST",
@@ -242,7 +279,23 @@ export class OpenRouterClient {
       throw: false,
     };
 
-    const response = await requestUrl(params);
+    let response;
+    try {
+      response = await requestUrl(params);
+    } catch (err) {
+      clearTimeout(timeoutId);
+      const error = err instanceof Error && err.name === "AbortError"
+        ? new OpenRouterError("Stream request timed out", 0, true)
+        : new OpenRouterError(
+            `Stream request failed: ${err instanceof Error ? err.message : String(err)}`,
+            0,
+            false
+          );
+      callbacks.onError?.(error);
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (response.status < 200 || response.status >= 300) {
       const error = new OpenRouterError(

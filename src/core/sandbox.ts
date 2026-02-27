@@ -99,7 +99,7 @@ export class QuickJSSandbox {
   /**
    * Erstellt einen minimalen ExecutionContext für Pre/Post-Processing
    */
-  private createMinimalContext(data: Record<string, any>): ExecutionContext {
+  private createMinimalContext(data: Record<string, unknown>): ExecutionContext {
     return {
       parameters: data,
       previousStepOutputs: {},
@@ -193,7 +193,7 @@ export class QuickJSSandbox {
    * @param inputParams User-Parameter
    * @returns Transformierte Parameter
    */
-  async executePreprocess(code: string, inputParams: Record<string, any>): Promise<Record<string, any>> {
+  async executePreprocess(code: string, inputParams: Record<string, unknown>): Promise<Record<string, unknown>> {
     const validation = this.validateCode(code);
     if (!validation.valid) {
       throw new Error(`Pre-processing validation failed: ${validation.errors.join(", ")}`);
@@ -218,7 +218,7 @@ export class QuickJSSandbox {
         throw new Error("Pre-processing must return an object");
       }
 
-      return returnValue as Record<string, any>;
+      return returnValue as Record<string, unknown>;
     } catch (error) {
       globalLogger.error("Pre-processing execution failed", { error, code });
       throw new Error(`Pre-processing failed: ${error instanceof Error ? error.message : "Unknown error"}`);

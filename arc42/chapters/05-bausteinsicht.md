@@ -37,9 +37,14 @@ C4Container
 
 #### Plugin Entry Point (`main.ts`)
 
-- **Verantwortung**: Plugin-Lifecycle (onload/onunload), Command-Registrierung, Settings, Initialisierung aller Subsysteme (Orchestrator, ToolRegistry, History, Chat)
+- **Verantwortung**: Plugin-Lifecycle (onload/onunload), Settings, Initialisierung aller Subsysteme (Orchestrator, ToolRegistry, History, Persistence, Chat). Delegiert Command-Registrierung an `commands/index.ts`.
 - **Schnittstellen**: Obsidian Plugin-API, alle internen Module
-- **Datei**: `src/main.ts` (500 Zeilen)
+- **Datei**: `src/main.ts` (~360 Zeilen)
+
+#### Commands Module (`commands/index.ts`)
+
+- **Verantwortung**: Registrierung aller Plugin-Commands, extrahiert aus main.ts
+- **Datei**: `src/commands/index.ts` (~120 Zeilen)
 - **Commands**: open-sidebar, open-chat, reload-custom-tools, reload-agents, show-history, browse-templates, show-workflow
 
 #### UI Layer
@@ -51,7 +56,7 @@ C4Container
 #### Core Execution Layer
 
 - **Verantwortung**: Tool-Ausführung, Tool-Verwaltung, Konversations-State, LLM-Orchestrierung, API-Kommunikation, Execution History
-- **Dateien**: `src/core/tool-executor.ts`, `src/core/tool-registry.ts`, `src/core/conversation.ts`, `src/core/sandbox.ts`, `src/core/openrouter.ts`, `src/core/orchestrator.ts`, `src/core/history.ts`
+- **Dateien**: `src/core/tool-executor.ts`, `src/core/tool-registry.ts`, `src/core/conversation.ts`, `src/core/sandbox.ts`, `src/core/openrouter.ts`, `src/core/orchestrator.ts`, `src/core/history.ts`, `src/core/persistence.ts`
 - **Schnittstellen**: Parser-Layer (Eingabe), Tools-Layer (Ausführung), UI-Layer (Ergebnisse), OpenRouter API (LLM)
 
 #### Parser & Validation Layer
@@ -115,11 +120,28 @@ Input-Parameter
 
 - **State-Management** für Agenten-Konversationen
 - Methoden: `createConversation()`, `addMessage()`, `getMessagesForContext()`, `buildContext()`
+- **Vault-Persistenz**: `setPersistence()`, `loadFromStorage()`, `saveToStorage()` mit debounced saves (1 s Delay). Speicherung nach `.obsidian/plugins/paper-agents/conversations.json`. Max. 50 persistierte Konversationen.
 - **Token-Counting**: Approximativ (4 Zeichen ≈ 1 Token)
 - **Memory-Strategien**: `conversation` (letzte N Nachrichten), `summary` (Zusammenfassung), `none`
 - **Markdown-Export/Import**: Round-trip-fähig mit ISO 8601 Timestamps
 - **LLM-Formatierung**: `formatMessagesForLLM()` für OpenRouter-API
 - **Coverage**: 97.47%
+
+### Orchestrator (`orchestrator.ts`)
+
+- **LLM-Chat-Orchestrierung** mit OpenRouter SSE-Streaming
+- Multi-Round Tool-Calling (max. 10 Runden pro Nachricht)
+- Callback-basiertes Streaming an UI: `onToken`, `onToolCallStart`, `onToolCallEnd`, `onComplete`, `onError`
+- Konvertiert Agenten-Definitionen zu OpenRouter Tool-Schemas
+- Integration mit `globalMetrics`/`globalLogger` für Tracing und Metriken
+
+### Persistence (`persistence.ts`)
+
+- **Vault-basierte Persistenz-Helpers** für JSON-Daten
+- Factory-Funktionen: `createVaultSaver()`, `createVaultLoader()`
+- Initialisiert History- und Conversation-Persistenz
+- Speicherort: `.obsidian/plugins/paper-agents/`
+- Dateien: `history.json`, `conversations.json`
 
 ### Sandbox (`sandbox.ts`)
 

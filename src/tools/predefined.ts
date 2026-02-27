@@ -260,7 +260,7 @@ class WriteFileTool implements IExecutableTool {
     }
   }
 
-  shouldRequireHITL(parameters: Record<string, any>): boolean {
+  shouldRequireHITL(parameters: Record<string, unknown>): boolean {
     return true; // Always require HITL for write operations
   }
 }
@@ -360,7 +360,7 @@ class RestRequestTool implements IExecutableTool {
     }
   }
 
-  shouldRequireHITL(parameters: Record<string, any>): boolean {
+  shouldRequireHITL(parameters: Record<string, unknown>): boolean {
     const method = (parameters.method as string) || "GET";
     // Require HITL for destructive operations
     return ["PUT", "POST", "DELETE"].includes(method.toUpperCase());

@@ -43,12 +43,12 @@ export interface Agent {
 
 export interface ToolDefinition {
   toolId: string; // ID des Predefined Tools (z.B. "read_file")
-  parameters: Record<string, any>; // Tool-Parameter
+  parameters: Record<string, unknown>; // Tool-Parameter
 }
 
 export interface Step {
   name: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   continueOnError?: boolean;
   condition?: StepCondition;
   loop?: StepLoop;
@@ -79,8 +79,8 @@ export interface StepRetry {
 // ============================================================================
 
 export interface ExecutionContext {
-  parameters: Record<string, any>; // User-Input
-  previousStepOutputs: Record<string, any>; // Für Chaining
+  parameters: Record<string, unknown>; // User-Input
+  previousStepOutputs: Record<string, unknown>; // Für Chaining
   date: string; // YYYY-MM-DD
   time: string; // HH:mm:ss
   randomId: string; // UUID
@@ -88,12 +88,13 @@ export interface ExecutionContext {
 
 export interface ToolExecution {
   toolName: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   output?: unknown;
   error?: string;
   hitlRequired?: boolean;
   hitlConfirmed?: boolean;
   timestamp: number;
+  phase?: string;
 }
 
 export interface ExecutionResult {
@@ -111,7 +112,7 @@ export interface IExecutableTool {
   name: string;
   parameters: Parameter[];
   execute(ctx: ExecutionContext): Promise<ExecutionResult>;
-  shouldRequireHITL(parameters: Record<string, any>): boolean;
+  shouldRequireHITL(parameters: Record<string, unknown>): boolean;
 }
 
 // ============================================================================
@@ -192,7 +193,7 @@ export interface ParsedToolFile {
 // ============================================================================
 
 export interface PlaceholderContext {
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   previousStepOutputs: Record<string, unknown>;
   date: string;
   time: string;
@@ -284,7 +285,7 @@ export interface Message {
 
 export interface ToolCallInfo {
   toolId: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   result?: unknown;
   error?: string;
 }

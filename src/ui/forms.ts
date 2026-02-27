@@ -13,14 +13,14 @@ import { globalLogger } from "../utils/logger";
  */
 export class ToolFormModal extends Modal {
   private tool: ToolMetadata;
-  private onSubmit: (parameters: Record<string, any>) => void;
-  private formValues: Record<string, any> = {};
+  private onSubmit: (parameters: Record<string, unknown>) => void;
+  private formValues: Record<string, unknown> = {};
   private formContainer: HTMLElement | null = null;
 
   constructor(
     app: App,
     tool: ToolMetadata,
-    onSubmit: (parameters: Record<string, any>) => void
+    onSubmit: (parameters: Record<string, unknown>) => void
   ) {
     super(app);
     this.tool = tool;
@@ -269,13 +269,13 @@ export class ToolFormModal extends Modal {
 export class QuickToolForm {
   private container: HTMLElement;
   private tool: ToolMetadata;
-  private onSubmit: (parameters: Record<string, any>) => void;
-  private formValues: Record<string, any> = {};
+  private onSubmit: (parameters: Record<string, unknown>) => void;
+  private formValues: Record<string, unknown> = {};
 
   constructor(
     container: HTMLElement,
     tool: ToolMetadata,
-    onSubmit: (parameters: Record<string, any>) => void
+    onSubmit: (parameters: Record<string, unknown>) => void
   ) {
     this.container = container;
     this.tool = tool;

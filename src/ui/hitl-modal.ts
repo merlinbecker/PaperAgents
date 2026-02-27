@@ -268,7 +268,7 @@ export function showHITLModal(
   app: App,
   toolName: string,
   stepName: string,
-  parameters: Record<string, any>
+  parameters: Record<string, unknown>
 ): Promise<HITLDecision> {
   return new Promise((resolve) => {
     const decision: HITLDecision = {

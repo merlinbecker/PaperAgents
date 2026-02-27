@@ -384,7 +384,7 @@ export class YAMLParser {
       if (Array.isArray(frontmatter.steps) && frontmatter.steps.length > 0) {
         agent.steps = (frontmatter.steps as unknown as Array<Record<string, unknown>>).map((step) => ({
           name: String(step.name || ""),
-          parameters: step.parameters || {},
+          parameters: (step.parameters || {}) as Record<string, unknown>,
         }));
       } else if (parsed.steps) {
         // Fallback: Wenn Steps als YAML-String vorhanden
@@ -404,11 +404,11 @@ export class YAMLParser {
    *   filePath: "input.path"
    * ```
    */
-  private static parseToolDefinition(yamlBlock: string): { toolId: string; parameters: Record<string, any> } {
+  private static parseToolDefinition(yamlBlock: string): { toolId: string; parameters: Record<string, unknown> } {
     const lines = yamlBlock.split("\n").filter((line) => line.trim() && !line.trim().startsWith("#"));
     
     let toolId = "";
-    const parameters: Record<string, any> = {};
+    const parameters: Record<string, unknown> = {};
     let inParameters = false;
 
     for (const line of lines) {
