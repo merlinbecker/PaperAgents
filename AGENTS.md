@@ -7,7 +7,7 @@
 - **Target**: Obsidian Community Plugin (TypeScript → bundled JavaScript)
 - **Entry point**: `main.ts` compiled to `main.js` and loaded by Obsidian
 - **Required release artifacts**: `main.js`, `manifest.json`, and optional `styles.css`
-- **Current Status**: Phase 4.2 completed (Agents & Conversation), Phase 4.3 (OpenRouter) pending
+- **Current Status**: Phase 4.3 + 4.4 completed (OpenRouter, Chat, Orchestration, Advanced Features)
 
 ## Environment & tooling
 
