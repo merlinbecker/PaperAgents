@@ -140,7 +140,7 @@ export class ToolFormModal extends Modal {
   /**
    * Parst Input-Wert basierend auf Typ
    */
-  private parseValue(value: string, type: string): any {
+  private parseValue(value: string, type: string): string | number | boolean | object | undefined {
     if (!value || value.trim() === "") {
       return undefined;
     }
@@ -180,7 +180,7 @@ export class ToolFormModal extends Modal {
   /**
    * Konvertiert Wert zu String für Anzeige
    */
-  private valueToString(value: any): string {
+  private valueToString(value: unknown): string {
     if (value === null || value === undefined) {
       return "";
     }
@@ -343,7 +343,7 @@ export class QuickToolForm {
   /**
    * Parst Quick-Form Value
    */
-  private parseValue(value: string, type: string): any {
+  private parseValue(value: string, type: string): string | number | undefined {
     if (type === "number") {
       const num = parseFloat(value);
       return isNaN(num) ? undefined : num;

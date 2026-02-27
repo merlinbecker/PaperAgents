@@ -29,7 +29,7 @@ export class PlaceholderReplacer {
     return normalized.split(".").filter((p) => p.length > 0);
   }
 
-  private static getValue(context: PlaceholderContext, path: string): any {
+  private static getValue(context: PlaceholderContext, path: string): unknown {
     const parts = this.parsePath(path);
     if (parts.length === 0) {
       return null;
@@ -51,24 +51,23 @@ export class PlaceholderReplacer {
       return context.parameters[paramName];
     }
 
-    // prev_step.*
     if (first === "prev_step") {
-      let current: any = (context.previousStepOutputs as any).prev_step || (context.previousStepOutputs as any).__last;
+      const outputs = context.previousStepOutputs as Record<string, unknown>;
+      let current: unknown = outputs["prev_step"] ?? outputs["__last"];
       for (let i = 1; i < parts.length; i++) {
         const part = parts[i];
         if (current === null || current === undefined || !part) return null;
-        current = current[part];
+        current = (current as Record<string, unknown>)[part];
       }
       return current;
     }
 
-    // direct step reference by name
-    let current: any = (context.previousStepOutputs as any)[first];
+    let current: unknown = (context.previousStepOutputs as Record<string, unknown>)[first];
     if (current !== undefined) {
       for (let i = 1; i < parts.length; i++) {
         const part = parts[i];
         if (current === null || current === undefined || !part) return null;
-        current = current[part];
+        current = (current as Record<string, unknown>)[part];
       }
       return current;
     }
@@ -77,7 +76,7 @@ export class PlaceholderReplacer {
     return context.parameters[path];
   }
 
-  private static valueToString(value: any): string {
+  private static valueToString(value: unknown): string {
     if (value === null || value === undefined) return "";
     if (typeof value === "object") return JSON.stringify(value);
     return String(value);
@@ -94,11 +93,11 @@ export class PlaceholderReplacer {
     return result;
   }
 
-  static replacePlaceholdersInObject(obj: any, context: PlaceholderContext): any {
+  static replacePlaceholdersInObject(obj: unknown, context: PlaceholderContext): unknown {
     if (typeof obj === "string") return this.replacePlaceholdersInString(obj, context);
     if (Array.isArray(obj)) return obj.map((item) => this.replacePlaceholdersInObject(item, context));
     if (typeof obj === "object" && obj !== null) {
-      const result: Record<string, any> = {};
+      const result: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(obj)) {
         result[key] = this.replacePlaceholdersInObject(value, context);
       }
@@ -107,7 +106,7 @@ export class PlaceholderReplacer {
     return obj;
   }
 
-  static createContext(parameters: Record<string, any>, previousStepOutputs: Record<string, any>): PlaceholderContext {
+  static createContext(parameters: Record<string, unknown>, previousStepOutputs: Record<string, unknown>): PlaceholderContext {
     return {
       parameters,
       previousStepOutputs,
@@ -117,7 +116,7 @@ export class PlaceholderReplacer {
     };
   }
 
-  static findPlaceholderMatches(str: string): Array<{ placeholder: string; value: any; path: string }> {
+  static findPlaceholderMatches(str: string): Array<{ placeholder: string; value: unknown; path: string }> {
     const placeholders = this.findPlaceholders(str);
     return placeholders.map((placeholder) => ({ placeholder, value: null, path: placeholder }));
   }

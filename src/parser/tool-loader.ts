@@ -4,7 +4,7 @@
  * Konvertiert diese zu Agent-Objekten
  */
 
-import { App, TFile, TAbstractFile, Vault } from "obsidian";
+import { App, TFile, TFolder, TAbstractFile, Vault } from "obsidian";
 import { Agent, LoadToolsResult, ToolFile } from "../types";
 import YAMLParser from "./yaml-parser";
 import ParameterValidator from "./validator";
@@ -32,8 +32,7 @@ export class CustomToolLoader {
         return [];
       }
 
-      // Rekursive Suche
-      this.collectMarkdownFiles(folder, toolFiles);
+      this.collectMarkdownFiles(folder as TFolder, toolFiles);
     } catch (error) {
       console.error(`Error discovering tools in ${basePath}:`, error);
     }
@@ -44,11 +43,7 @@ export class CustomToolLoader {
   /**
    * Rekursiv durchsuche Ordner nach .md-Dateien
    */
-  private collectMarkdownFiles(folder: any, results: ToolFile[]): void {
-    if (!folder.children) {
-      return;
-    }
-
+  private collectMarkdownFiles(folder: TFolder, results: ToolFile[]): void {
     for (const child of folder.children) {
       if (child instanceof TFile && child.extension === "md") {
         results.push({
@@ -56,7 +51,7 @@ export class CustomToolLoader {
           name: child.name,
           content: "", // Wird später geladen
         });
-      } else if ("children" in child) {
+      } else if (child instanceof TFolder) {
         this.collectMarkdownFiles(child, results);
       }
     }

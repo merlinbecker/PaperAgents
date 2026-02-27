@@ -14,7 +14,26 @@ export const PREDEFINED_TOOL_IDS = {
 // Default-Pfade
 export const DEFAULT_PATHS = {
   CUSTOM_TOOLS: "paper-agents-tools",
+  AGENTS: "paper-agents-agents",
   LOGS: "/.obsidian/plugins/paper-agents/logs/",
+};
+
+// OpenRouter Defaults
+export const OPENROUTER_DEFAULTS = {
+  API_URL: "https://openrouter.ai/api/v1",
+  DEFAULT_MODEL: "openai/gpt-4o-mini",
+  TEMPERATURE: 0.7,
+  MAX_TOKENS: 4096,
+  MODELS: [
+    "openai/gpt-4o",
+    "openai/gpt-4o-mini",
+    "anthropic/claude-sonnet-4",
+    "anthropic/claude-3.5-haiku",
+    "google/gemini-2.0-flash-001",
+    "google/gemini-2.5-pro-preview",
+    "meta-llama/llama-3.1-70b-instruct",
+    "mistralai/mistral-large",
+  ],
 };
 export const DEFAULT_TOOLS_PATH = DEFAULT_PATHS.CUSTOM_TOOLS;
 export const DEFAULT_LOGS_PATH = DEFAULT_PATHS.LOGS;
@@ -33,6 +52,7 @@ export const TOOL_CATEGORIES = {
   CUSTOM: "Custom Tools",
   CHAINS: "Chains",
   CHAIN: "Chains",
+  AGENTS: "Agents",
 };
 
 // Icons
@@ -41,6 +61,7 @@ export const TOOL_ICONS = {
   SYSTEM: "🔧",
   CUSTOM: "📝",
   CHAIN: "🔗",
+  AGENTS: "🤖",
   DEFAULT: "⚙️",
 };
 

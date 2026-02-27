@@ -29,6 +29,7 @@ import {
   MemoryConfig,
   MemoryType,
   LoadAgentsResult,
+  YAMLPrimitive,
 } from "../types";
 import { YAMLParser, YAMLParseError } from "./yaml-parser";
 
@@ -78,13 +79,13 @@ export class AgentParser {
   private static parseFrontmatter(yaml: string): AgentFrontmatter {
     try {
       const lines = yaml.split("\n");
-      const result: Record<string, any> = {};
+      const result: Record<string, unknown> = {};
       
       let currentKey: string | null = null;
-      let currentArray: any[] = [];
+      let currentArray: unknown[] = [];
       let inArray = false;
       let inMemory = false;
-      let memoryObj: Record<string, any> = {};
+      let memoryObj: Record<string, unknown> = {};
 
       for (const line of lines) {
         const trimmed = line.trim();
@@ -155,7 +156,7 @@ export class AgentParser {
     }
   }
 
-  private static parseKeyValue(line: string): [string, any] {
+  private static parseKeyValue(line: string): [string, YAMLPrimitive] {
     const match = line.match(/^(\w+):\s*(.*)$/);
     if (!match) return ["", null];
     
@@ -164,7 +165,7 @@ export class AgentParser {
     return [key, valueStr ? this.parseValue(valueStr.trim()) : null];
   }
 
-  private static parseValue(str: string): any {
+  private static parseValue(str: string): YAMLPrimitive {
     if (str === "true") return true;
     if (str === "false") return false;
     if (str === "null") return null;
@@ -241,22 +242,23 @@ export class AgentParser {
     };
   }
 
-  private static parseMemoryConfig(memory: any): MemoryConfig {
+  private static parseMemoryConfig(memory: unknown): MemoryConfig {
     if (!memory || typeof memory !== "object") {
       return { ...this.DEFAULT_MEMORY };
     }
 
+    const mem = memory as Record<string, unknown>;
     const validTypes: MemoryType[] = ["conversation", "summary", "none"];
-    const type = validTypes.includes(memory.type) ? memory.type : "conversation";
+    const type = validTypes.includes(mem.type as MemoryType) ? (mem.type as MemoryType) : "conversation";
 
     return {
       type,
-      maxMessages: typeof memory.maxMessages === "number" ? memory.maxMessages : 
-                   typeof memory.max_messages === "number" ? memory.max_messages : 50,
-      maxTokens: typeof memory.maxTokens === "number" ? memory.maxTokens :
-                 typeof memory.max_tokens === "number" ? memory.max_tokens : undefined,
-      summarizeAfter: typeof memory.summarizeAfter === "number" ? memory.summarizeAfter :
-                      typeof memory.summarize_after === "number" ? memory.summarize_after : undefined,
+      maxMessages: typeof mem.maxMessages === "number" ? mem.maxMessages : 
+                   typeof mem.max_messages === "number" ? mem.max_messages : 50,
+      maxTokens: typeof mem.maxTokens === "number" ? mem.maxTokens :
+                 typeof mem.max_tokens === "number" ? mem.max_tokens : undefined,
+      summarizeAfter: typeof mem.summarizeAfter === "number" ? mem.summarizeAfter :
+                      typeof mem.summarize_after === "number" ? mem.summarize_after : undefined,
     };
   }
 

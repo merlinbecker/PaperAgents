@@ -372,6 +372,616 @@
 }
 
 /* ============================================================================
+   OUTPUT PANEL STYLES
+   ============================================================================ */
+
+.paper-agents-output {
+  padding: 20px;
+  max-width: 700px;
+}
+
+.pa-output-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.pa-output-icon {
+  font-size: 2em;
+}
+
+.pa-output-title {
+  margin: 0;
+  font-size: 1.3em;
+}
+
+.pa-output-summary {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+}
+
+.pa-output-summary-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pa-output-label {
+  font-size: 0.75em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.pa-output-value {
+  font-weight: 600;
+  font-size: 1.1em;
+}
+
+.pa-output-section {
+  margin-bottom: 20px;
+}
+
+.pa-output-section h3 {
+  margin: 0 0 10px 0;
+  font-size: 1em;
+  color: var(--text-normal);
+}
+
+.pa-output-data {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 12px;
+  overflow-x: auto;
+  max-height: 300px;
+  overflow-y: auto;
+  font-size: 0.85em;
+  margin: 8px 0;
+}
+
+.pa-output-data code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.pa-btn-copy {
+  padding: 6px 12px;
+  margin-top: 8px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85em;
+  color: var(--text-normal);
+}
+
+.pa-btn-copy:hover {
+  background: var(--interactive-hover);
+}
+
+.pa-output-error-section {
+  margin-bottom: 20px;
+}
+
+.pa-output-error-box {
+  padding: 12px;
+  background: rgba(231, 76, 60, 0.1);
+  border-left: 3px solid #e74c3c;
+  border-radius: 4px;
+  color: var(--text-normal);
+  font-size: 0.9em;
+}
+
+.pa-output-log-entry {
+  margin-bottom: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+}
+
+.pa-output-log-entry summary {
+  padding: 10px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--background-secondary);
+  border-radius: 4px;
+}
+
+.pa-output-timestamp {
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+
+.pa-output-log-content {
+  padding: 12px;
+}
+
+.pa-output-log-content h4 {
+  margin: 10px 0 5px 0;
+  font-size: 0.9em;
+  color: var(--text-muted);
+}
+
+.pa-output-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* ============================================================================
+   CHAT VIEW STYLES
+   ============================================================================ */
+
+.pa-chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0;
+}
+
+.pa-chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+}
+
+.pa-chat-title {
+  margin: 0;
+  font-size: 1.1em;
+}
+
+.pa-chat-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pa-chat-agent-select {
+  padding: 4px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 0.9em;
+  max-width: 200px;
+}
+
+.pa-chat-new-btn {
+  padding: 4px 10px;
+  background: var(--interactive-accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85em;
+}
+
+.pa-chat-new-btn:hover {
+  background: var(--interactive-accent-hover);
+}
+
+.pa-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pa-chat-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.pa-chat-message {
+  padding: 10px 14px;
+  border-radius: 8px;
+  max-width: 85%;
+}
+
+.pa-chat-message-user {
+  background: var(--interactive-accent);
+  color: white;
+  align-self: flex-end;
+  border-bottom-right-radius: 2px;
+}
+
+.pa-chat-message-assistant {
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  align-self: flex-start;
+  border-bottom-left-radius: 2px;
+}
+
+.pa-chat-message-system {
+  background: var(--background-primary-alt);
+  color: var(--text-muted);
+  align-self: center;
+  font-size: 0.85em;
+  font-style: italic;
+  max-width: 90%;
+  text-align: center;
+}
+
+.pa-chat-message-role {
+  font-size: 0.7em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 4px;
+  opacity: 0.7;
+}
+
+.pa-chat-message-content {
+  font-size: 0.95em;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.pa-chat-streaming {
+  position: relative;
+}
+
+.pa-chat-streaming::after {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background: var(--text-normal);
+  animation: pa-blink 1s infinite;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+}
+
+@keyframes pa-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.pa-chat-tool-call {
+  align-self: flex-start;
+  width: 90%;
+  margin: 4px 0;
+}
+
+.pa-chat-tool-call details {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.pa-chat-tool-call summary {
+  padding: 8px 12px;
+  background: var(--background-secondary);
+  cursor: pointer;
+  font-size: 0.9em;
+  display: flex;
+  justify-content: space-between;
+}
+
+.pa-chat-tool-status {
+  font-size: 0.8em;
+  font-weight: 500;
+}
+
+.pa-chat-tool-running { color: var(--text-accent); }
+.pa-chat-tool-success { color: #27ae60; }
+.pa-chat-tool-error { color: #e74c3c; }
+
+.pa-chat-tool-content {
+  padding: 10px 12px;
+  font-size: 0.85em;
+}
+
+.pa-chat-tool-content h4 {
+  margin: 8px 0 4px 0;
+  font-size: 0.9em;
+  color: var(--text-muted);
+}
+
+.pa-chat-input-area {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+  align-items: flex-end;
+}
+
+.pa-chat-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 0.95em;
+  resize: none;
+  font-family: inherit;
+  min-height: 40px;
+  max-height: 120px;
+}
+
+.pa-chat-input:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+.pa-chat-send-btn {
+  padding: 8px 16px;
+  background: var(--interactive-accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  min-width: 60px;
+  min-height: 40px;
+}
+
+.pa-chat-send-btn:hover {
+  background: var(--interactive-accent-hover);
+}
+
+.pa-chat-send-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================================
+   HISTORY PANEL STYLES
+   ============================================================================ */
+
+.paper-agents-history {
+  padding: 20px;
+  max-width: 700px;
+}
+
+.pa-history-header {
+  margin-bottom: 16px;
+}
+
+.pa-history-header h2 {
+  margin: 0;
+}
+
+.pa-history-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.pa-history-search {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.pa-history-filter-select {
+  padding: 6px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.pa-history-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+}
+
+.pa-history-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.pa-history-stat-value {
+  font-size: 1.3em;
+  font-weight: 700;
+}
+
+.pa-history-stat-label {
+  font-size: 0.75em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.pa-history-entries {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.pa-history-entry {
+  margin-bottom: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+}
+
+.pa-history-entry-summary {
+  padding: 10px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--background-secondary);
+}
+
+.pa-history-entry-time {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  margin-left: auto;
+  margin-right: 10px;
+}
+
+.pa-history-entry-duration {
+  font-size: 0.8em;
+  color: var(--text-accent);
+  font-weight: 500;
+}
+
+.pa-history-entry-content {
+  padding: 12px;
+}
+
+.pa-history-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 30px;
+  font-style: italic;
+}
+
+.pa-history-footer {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* ============================================================================
+   TEMPLATE BROWSER STYLES
+   ============================================================================ */
+
+.paper-agents-templates {
+  padding: 20px;
+  max-width: 600px;
+}
+
+.pa-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pa-template-card {
+  padding: 12px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pa-template-card:hover {
+  border-color: var(--interactive-accent);
+  transform: translateY(-2px);
+}
+
+.pa-template-name {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.pa-template-desc {
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.pa-template-type-badge {
+  display: inline-block;
+  font-size: 0.7em;
+  padding: 2px 6px;
+  background: var(--interactive-accent);
+  color: white;
+  border-radius: 10px;
+  margin-top: 8px;
+}
+
+/* ============================================================================
+   WORKFLOW VIEW STYLES
+   ============================================================================ */
+
+.pa-workflow-container {
+  padding: 20px;
+  height: 100%;
+  overflow: auto;
+}
+
+.pa-workflow-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.pa-workflow-canvas {
+  position: relative;
+  min-height: 300px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 20px;
+}
+
+.pa-workflow-step {
+  display: inline-block;
+  padding: 12px 16px;
+  background: var(--background-primary);
+  border: 2px solid var(--background-modifier-border);
+  border-radius: 8px;
+  margin: 8px;
+  cursor: move;
+  min-width: 150px;
+  text-align: center;
+}
+
+.pa-workflow-step-active {
+  border-color: var(--interactive-accent);
+}
+
+.pa-workflow-step-error {
+  border-color: #e74c3c;
+}
+
+.pa-workflow-step-success {
+  border-color: #27ae60;
+}
+
+.pa-workflow-step-name {
+  font-weight: 600;
+  font-size: 0.9em;
+}
+
+.pa-workflow-step-type {
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+
+.pa-workflow-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 0;
+  color: var(--text-muted);
+}
+
+/* ============================================================================
    RESPONSIVE & DARK MODE
    ============================================================================ */
 
@@ -392,6 +1002,22 @@
   .pa-btn-reject,
   .pa-btn-approve {
     width: 100%;
+  }
+
+  .pa-chat-message {
+    max-width: 95%;
+  }
+
+  .pa-chat-controls {
+    flex-wrap: wrap;
+  }
+
+  .pa-output-summary {
+    flex-wrap: wrap;
+  }
+
+  .pa-history-stats {
+    flex-wrap: wrap;
   }
 }
 

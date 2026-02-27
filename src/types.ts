@@ -3,6 +3,14 @@
  * Single Source of Truth für alle Agent-, Tool- und Execution-Interfaces
  */
 
+import type { App } from "obsidian";
+
+// ============================================================================
+// COMMON TYPE ALIASES
+// ============================================================================
+
+export type YAMLPrimitive = string | number | boolean | null;
+
 // ============================================================================
 // PARAMETER TYPES & VALIDATION
 // ============================================================================
@@ -14,7 +22,7 @@ export interface Parameter {
   type: ParameterType;
   description?: string;
   required: boolean;
-  default?: any;
+  default?: unknown;
 }
 
 // ============================================================================
@@ -41,6 +49,29 @@ export interface ToolDefinition {
 export interface Step {
   name: string;
   parameters: Record<string, any>;
+  continueOnError?: boolean;
+  condition?: StepCondition;
+  loop?: StepLoop;
+  retry?: StepRetry;
+}
+
+export interface StepCondition {
+  field: string;
+  operator?: "eq" | "neq" | "gt" | "lt" | "gte" | "lte" | "contains" | "exists";
+  value?: unknown;
+  equals?: unknown;
+}
+
+export interface StepLoop {
+  over: string;
+  as: string;
+  maxIterations?: number;
+}
+
+export interface StepRetry {
+  maxAttempts: number;
+  backoffMs?: number;
+  retryOn?: string[];
 }
 
 // ============================================================================
@@ -58,7 +89,7 @@ export interface ExecutionContext {
 export interface ToolExecution {
   toolName: string;
   parameters: Record<string, any>;
-  output?: any;
+  output?: unknown;
   error?: string;
   hitlRequired?: boolean;
   hitlConfirmed?: boolean;
@@ -67,7 +98,7 @@ export interface ToolExecution {
 
 export interface ExecutionResult {
   success: boolean;
-  data?: any;
+  data?: unknown;
   error?: string;
   log: ToolExecution[];
 }
@@ -90,7 +121,16 @@ export interface IExecutableTool {
 export interface IToolFactory {
   name: string;
   description: string;
-  create(app?: any): IExecutableTool;
+  create(app?: App): IExecutableTool;
+}
+
+// ============================================================================
+// TOOL REGISTRY INTERFACE (for dependency inversion)
+// ============================================================================
+
+export interface IToolRegistry {
+  getTool(id: string): IExecutableTool | null;
+  listTools(): ToolMetadata[];
 }
 
 // ============================================================================
@@ -114,7 +154,7 @@ export interface ToolMetadata {
 export interface ValidationError {
   field: string;
   message: string;
-  value?: any;
+  value?: unknown;
 }
 
 export interface ValidationResult {
@@ -135,7 +175,7 @@ export interface YAMLFrontmatter {
   parameters?: Parameter[];
   custom_function?: string;
   steps?: Step[];
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface ParsedToolFile {
@@ -153,7 +193,7 @@ export interface ParsedToolFile {
 
 export interface PlaceholderContext {
   parameters: Record<string, any>;
-  previousStepOutputs: Record<string, any>;
+  previousStepOutputs: Record<string, unknown>;
   date: string;
   time: string;
   randomId: string;
@@ -161,8 +201,8 @@ export interface PlaceholderContext {
 
 export interface PlaceholderMatch {
   placeholder: string;
-  value: any;
-  path: string; // z.B. "param_name" oder "prev_step.output.field"
+  value: unknown;
+  path: string;
 }
 
 // ============================================================================
@@ -219,7 +259,7 @@ export interface AgentFrontmatter {
   memory?: MemoryConfig | Partial<MemoryConfig>;
   temperature?: number;
   maxTokens?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface ParsedAgentFile {
@@ -245,7 +285,7 @@ export interface Message {
 export interface ToolCallInfo {
   toolId: string;
   parameters: Record<string, any>;
-  result?: any;
+  result?: unknown;
   error?: string;
 }
 
@@ -255,7 +295,7 @@ export interface Conversation {
   messages: Message[];
   createdAt: number;
   updatedAt: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ConversationContext {

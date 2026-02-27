@@ -121,7 +121,7 @@ export class HITLModal extends Modal {
   /**
    * Formatiert Parameter-Wert für Anzeige
    */
-  private formatParameterValue(value: any): string {
+  private formatParameterValue(value: unknown): string {
     if (value === null || value === undefined) {
       return "(empty)";
     }

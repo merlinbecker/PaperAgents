@@ -4,7 +4,7 @@
  */
 
 import { ItemView, WorkspaceLeaf } from "obsidian";
-import { ToolMetadata } from "../types";
+import { ToolMetadata, AgentDefinition, IToolRegistry } from "../types";
 import { TOOL_CATEGORIES, TOOL_ICONS } from "../utils/constants";
 import { globalLogger } from "../utils/logger";
 
@@ -15,13 +15,16 @@ export const VIEW_TYPE_PAPER_AGENTS = "paper-agents-sidebar";
  */
 export class PaperAgentsSidebar extends ItemView {
   private toolsContainer: HTMLElement | null = null;
+  private agentsContainer: HTMLElement | null = null;
   private statusContainer: HTMLElement | null = null;
-  private toolRegistry: any; // ToolRegistry
+  private toolRegistry: IToolRegistry;
   private onToolClick: (toolId: string) => void;
+  private agents: AgentDefinition[] = [];
+  private onAgentClick: ((agentId: string) => void) | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
-    toolRegistry: any,
+    toolRegistry: IToolRegistry,
     onToolClick: (toolId: string) => void
   ) {
     super(leaf);
@@ -54,6 +57,10 @@ export class PaperAgentsSidebar extends ItemView {
     // Tools Section
     this.toolsContainer = container.createDiv({ cls: "pa-tools-section" });
     this.renderTools();
+
+    // Agents Section
+    this.agentsContainer = container.createDiv({ cls: "pa-agents-section" });
+    this.renderAgents();
 
     // Status Section
     this.statusContainer = container.createDiv({ cls: "pa-status-section" });
@@ -251,10 +258,80 @@ export class PaperAgentsSidebar extends ItemView {
     setTimeout(() => this.updateStatus("Ready"), 5000);
   }
 
+  private renderAgents(): void {
+    if (!this.agentsContainer) return;
+
+    this.agentsContainer.empty();
+
+    if (this.agents.length === 0) return;
+
+    const categoryDiv = this.agentsContainer.createDiv({ cls: "pa-tool-category" });
+
+    const categoryHeader = categoryDiv.createEl("h3", { text: TOOL_CATEGORIES.AGENTS });
+    categoryHeader.addClass("pa-category-header");
+
+    for (const agent of this.agents) {
+      this.renderAgentItem(categoryDiv, agent);
+    }
+
+    globalLogger.debug(`Rendered ${this.agents.length} agents in sidebar`);
+  }
+
+  private renderAgentItem(container: HTMLElement, agent: AgentDefinition): void {
+    const toolItem = container.createDiv({ cls: "pa-tool-item" });
+
+    const icon = toolItem.createSpan({ cls: "pa-tool-icon" });
+    icon.setText(TOOL_ICONS.AGENTS);
+
+    const content = toolItem.createDiv({ cls: "pa-tool-content" });
+
+    const name = content.createEl("div", { text: agent.name });
+    name.addClass("pa-tool-name");
+
+    if (agent.description) {
+      const desc = content.createEl("div", { text: agent.description });
+      desc.addClass("pa-tool-description");
+    }
+
+    const badge = toolItem.createSpan({
+      text: agent.model || "default",
+      cls: "pa-tool-badge",
+    });
+
+    toolItem.addEventListener("click", () => {
+      if (this.onAgentClick) {
+        this.onAgentClick(agent.id);
+      }
+      this.updateStatus(`Selected agent: ${agent.name}`);
+      globalLogger.info(`Agent clicked: ${agent.id}`);
+    });
+
+    toolItem.addEventListener("mouseenter", () => {
+      toolItem.addClass("pa-tool-item-hover");
+    });
+
+    toolItem.addEventListener("mouseleave", () => {
+      toolItem.removeClass("pa-tool-item-hover");
+    });
+  }
+
+  public setAgents(agents: AgentDefinition[]): void {
+    this.agents = agents;
+    this.renderAgents();
+  }
+
+  public setOnAgentClick(callback: (agentId: string) => void): void {
+    this.onAgentClick = callback;
+  }
+
   /**
    * Refresh Tools (nach Custom-Tool-Loading)
    */
   public refreshTools(): void {
     this.renderTools();
+  }
+
+  public refreshAgents(): void {
+    this.renderAgents();
   }
 }

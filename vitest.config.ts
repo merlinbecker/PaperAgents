@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       obsidian: path.resolve(__dirname, "tests/mocks/obsidian.ts"),
+      "@jitl/quickjs-singlefile-cjs-release-sync": path.resolve(__dirname, "tests/mocks/quickjs.ts"),
     },
   },
   test: {
