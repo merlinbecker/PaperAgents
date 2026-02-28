@@ -1,7 +1,7 @@
 # Paper Agents – Abschließender Status & Offene Punkte
 
-**Stand**: 27. Februar 2026
-**Version**: 0.0.3
+**Stand**: 28. Februar 2026
+**Version**: 0.0.4
 **Basis**: Implementierung aller Phasen aus `openPhases.md`
 
 ---
