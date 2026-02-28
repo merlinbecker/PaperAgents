@@ -101,3 +101,39 @@ jobs:
             echo "Failed to push tag ${{ steps.bump.outputs.new_version }}. It may already exist."
             exit 1
           fi
+
+      - name: Build plugin
+        if: steps.check.outputs.skip == 'false'
+        run: npm run build
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.bump.outputs.new_version }}"
+          NAME=$(node -p "require('./manifest.json').name")
+
+          # Generate release notes from commits since last tag
+          PREV_TAG=$(git tag --sort=-version:refname | sed -n 2p)
+          if [ -n "$PREV_TAG" ]; then
+            RELEASE_NOTES=$(git log "${PREV_TAG}..HEAD" --pretty=format:"- %s" --no-merges)
+          else
+            RELEASE_NOTES="Initial release"
+          fi
+
+          # Build release command arguments
+          RELEASE_ARGS=(gh release create "$TAG" --title "${NAME} ${TAG}" --notes "${RELEASE_NOTES}")
+
+          # Mark as prerelease if tag contains "beta" or "rc"
+          if [[ "$TAG" == *"beta"* ]] || [[ "$TAG" == *"rc"* ]]; then
+            RELEASE_ARGS+=(--prerelease)
+          fi
+
+          # Add release assets (styles.css is optional)
+          RELEASE_ARGS+=(main.js manifest.json)
+          if [ -f styles.css ]; then
+            RELEASE_ARGS+=(styles.css)
+          fi
+
+          "${RELEASE_ARGS[@]}"
