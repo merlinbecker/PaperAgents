@@ -30,7 +30,7 @@ export class ChatView extends ItemView {
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
-    this.fileManager = new ConversationFileManager(this.app);
+    this.fileManager = new ConversationFileManager(this.app, conversationManager);
   }
 
   getViewType(): string {
