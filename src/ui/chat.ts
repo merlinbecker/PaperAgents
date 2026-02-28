@@ -72,6 +72,36 @@ export class PaperAgentsChatView extends ItemView {
     this.containerEl.empty();
   }
 
+  /**
+   * Load an existing conversation from a Markdown file and resume it with full LLM support.
+   * Called by the plugin when the user opens a conversation file via the "open-file-as-chat" command.
+   */
+  async loadConversationFromFile(filePath: string): Promise<void> {
+    try {
+      const conversation = await this.fileManager.loadConversation(filePath);
+      if (!conversation) {
+        new Notice("Not a conversation file");
+        return;
+      }
+
+      this.agents = this.onGetAgents();
+      this.orchestrator = this.onGetOrchestrator();
+      this.currentConversationId = conversation.id;
+      this.currentFilePath = filePath;
+
+      const matchingAgent = this.agents.find((a) => a.id === conversation.agentId) ?? null;
+      this.selectedAgent = matchingAgent;
+      this.updateAgentSelect();
+
+      this.restoreConversationUI(conversation.id);
+      globalLogger.info(`Loaded conversation ${conversation.id} from ${filePath}`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      new Notice(`Failed to load conversation: ${msg}`);
+      globalLogger.error("Failed to load conversation from file", { error });
+    }
+  }
+
   refreshAgents(): void {
     this.agents = this.onGetAgents();
     this.orchestrator = this.onGetOrchestrator();

@@ -50,6 +50,7 @@ export default class PaperAgents extends Plugin {
     this.initializeOrchestrator();
     await initializeHistoryPersistence(this.app.vault);
     await initializeConversationPersistence(this.app.vault, this.conversationManager);
+    await this.restoreConversationsFromFiles();
 
     try {
       await customJSExecutor.initialize();
@@ -370,25 +371,55 @@ export default class PaperAgents extends Plugin {
   }
 
   /**
-   * Opens a conversation Markdown file in the Chat View.
+   * Opens a conversation Markdown file in PaperAgentsChatView with full LLM support.
    */
   private async openChatView(filePath: string): Promise<void> {
-    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
-    let leaf = existing[0] ?? null;
+    await this.activateChat();
 
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_PAPER_AGENTS_CHAT);
+    const leaf = leaves[0];
     if (!leaf) {
-      leaf = this.app.workspace.getRightLeaf(false);
-      if (!leaf) {
-        new Notice("Failed to open chat view");
-        return;
-      }
-      await leaf.setViewState({ type: VIEW_TYPE_CHAT, active: true });
+      new Notice("Failed to open chat view");
+      return;
     }
 
-    await this.app.workspace.revealLeaf(leaf);
+    const view = leaf.view as PaperAgentsChatView;
+    await view.loadConversationFromFile(filePath);
+  }
 
-    const view = leaf.view as ChatView;
-    await view.loadFile(filePath);
+  /**
+   * Scans the conversations folder for Markdown files and loads any conversation
+   * that is not already present in the ConversationManager (e.g. after conversations.json
+   * was cleared or a conversation was only stored as a Markdown file).
+   */
+  private async restoreConversationsFromFiles(): Promise<void> {
+    const conversationsPath = this.settings.conversationsPath || DEFAULT_PATHS.CONVERSATIONS;
+    const folder = this.app.vault.getAbstractFileByPath(conversationsPath);
+    if (!folder || !("children" in folder)) return;
+
+    const mdFiles: TFile[] = [];
+    this.collectMarkdownFiles(folder, mdFiles);
+
+    let loaded = 0;
+    for (const file of mdFiles) {
+      try {
+        const content = await this.app.vault.read(file);
+        const parsed = this.conversationManager.parseConversationFile(content);
+        if (!parsed) continue;
+
+        const convId = parsed.conversation.id;
+        if (convId && this.conversationManager.getConversation(convId)) continue;
+
+        this.conversationManager.loadFromConversationFile(content);
+        loaded++;
+      } catch (error) {
+        globalLogger.debug(`Skipping file during conversation restore: ${file.path}`, { error });
+      }
+    }
+
+    if (loaded > 0) {
+      globalLogger.info(`Restored ${loaded} conversation(s) from Markdown files`);
+    }
   }
 
   /**
