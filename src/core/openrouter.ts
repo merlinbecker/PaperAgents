@@ -324,7 +324,7 @@ export class OpenRouterClient {
       if (data === "[DONE]") break;
 
       try {
-        const chunk: StreamChunk = JSON.parse(data);
+        const chunk = JSON.parse(data) as StreamChunk;
         responseId = chunk.id || responseId;
 
         for (const choice of chunk.choices) {

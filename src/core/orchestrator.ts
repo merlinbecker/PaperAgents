@@ -143,7 +143,7 @@ export class Orchestrator {
     let params: Record<string, unknown> = {};
 
     try {
-      params = JSON.parse(toolCall.function.arguments);
+      params = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
     } catch {
       globalLogger.warn("Failed to parse tool call arguments", {
         toolName,
@@ -165,7 +165,7 @@ export class Orchestrator {
       }
 
       const context = {
-        parameters: params as Record<string, unknown>,
+        parameters: params,
         previousStepOutputs: {},
         date: new Date().toISOString().split("T")[0] || "",
         time: new Date().toISOString().split("T")[1]?.split(".")[0] || "",
@@ -176,7 +176,7 @@ export class Orchestrator {
 
       const toolCallInfo: ToolCallInfo = {
         toolId: toolName,
-        parameters: params as Record<string, unknown>,
+        parameters: params,
         result: result.data,
         error: result.error,
       };
@@ -196,7 +196,7 @@ export class Orchestrator {
 
       const toolCallInfo: ToolCallInfo = {
         toolId: toolName,
-        parameters: params as Record<string, unknown>,
+        parameters: params,
         error: errorMsg,
       };
 

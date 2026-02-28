@@ -3,7 +3,7 @@
  * Validiert Input, erstellt UI-Elemente basierend auf Parametertypen
  */
 
-import { Modal, App, Setting } from "obsidian";
+import { Modal, App, Setting, Notice } from "obsidian";
 import { Parameter, ToolMetadata } from "../types";
 import ParameterValidator from "../parser/validator";
 import { globalLogger } from "../utils/logger";
@@ -146,26 +146,27 @@ export class ToolFormModal extends Modal {
     }
 
     switch (type) {
-      case "number":
+      case "number": {
         const num = parseFloat(value);
         return isNaN(num) ? undefined : num;
+      }
 
       case "boolean":
         return value.toLowerCase() === "true";
 
       case "array":
         try {
-          const parsed = JSON.parse(value);
-          return Array.isArray(parsed) ? parsed : undefined;
+          const parsedArr: unknown = JSON.parse(value) as unknown;
+          return Array.isArray(parsedArr) ? parsedArr : undefined;
         } catch {
           return undefined;
         }
 
       case "object":
         try {
-          const parsed = JSON.parse(value);
-          return typeof parsed === "object" && !Array.isArray(parsed)
-            ? parsed
+          const parsedObj: unknown = JSON.parse(value) as unknown;
+          return typeof parsedObj === "object" && !Array.isArray(parsedObj) && parsedObj !== null
+            ? parsedObj
             : undefined;
         } catch {
           return undefined;
@@ -189,7 +190,7 @@ export class ToolFormModal extends Modal {
       return JSON.stringify(value);
     }
 
-    return String(value);
+    return String(value as string | number | boolean | bigint | symbol);
   }
 
   /**
@@ -246,7 +247,7 @@ export class ToolFormModal extends Modal {
     errorContainer.empty();
 
     const errorTitle = errorContainer.createEl("h4", {
-      text: "Validation Errors:",
+      text: "Validation errors:",
     });
     errorTitle.addClass("pa-error-title");
 
@@ -322,7 +323,7 @@ export class QuickToolForm {
     input.setAttribute("placeholder", this.getPlaceholder(param));
 
     if (param.default !== undefined) {
-      input.value = String(param.default);
+      input.value = String(param.default as string | number | boolean | bigint | symbol);
       this.formValues[param.name] = param.default;
     }
 
@@ -358,7 +359,7 @@ export class QuickToolForm {
     // Einfache Validierung
     for (const param of this.tool.parameters) {
       if (param.required && !this.formValues[param.name]) {
-        alert(`Required parameter missing: ${param.name}`);
+        new Notice(`Required parameter missing: ${param.name}`);
         return;
       }
     }

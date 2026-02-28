@@ -3,7 +3,7 @@
  * Verwaltet Ausführung, State-Sharing, HITL-Entscheidungen
  */
 
-import { IExecutableTool, ExecutionContext, ExecutionResult, Agent, Step, StepCondition, StepRetry, PlaceholderContext, ToolExecution, Parameter, IToolRegistry } from "../types";
+import { ExecutionContext, ExecutionResult, Agent, Step, StepCondition, StepRetry, PlaceholderContext, ToolExecution, Parameter, IToolRegistry } from "../types";
 import { globalLogger } from "../utils/logger";
 import { globalMetrics } from "../utils/metrics";
 import { QuickJSSandbox } from "./sandbox";
@@ -242,7 +242,7 @@ export class ToolExecutor {
     try {
       // Hole Tool - Step.parameters hat toolId
       // Für jetzt: verwende step.parameters.tool wenn vorhanden
-      const toolId = String(step.parameters?.tool || step.name);
+      const toolId = typeof step.parameters?.tool === "string" ? step.parameters.tool : step.name;
       const tool = toolRegistry.getTool(toolId);
       if (!tool) {
         throw new Error(`Tool not found: ${toolId}`);
@@ -358,11 +358,11 @@ export class ToolExecutor {
 
         callback(decision).then(() => {
           resolve(decision);
-        });
+        }).catch(() => { resolve(decision); });
       } else if (this.globalHITLCallback) {
         this.globalHITLCallback(toolName, stepName, parameters).then((decision) => {
           resolve(decision);
-        });
+        }).catch(() => { resolve({ approved: false, tool: toolName, step: stepName, parameters }); });
       } else {
         globalLogger.warn("No HITL callback registered, auto-rejecting", {
           stepName,

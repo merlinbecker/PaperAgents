@@ -37,21 +37,19 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
 
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Paper Agents Settings" });
-
-    containerEl.createEl("h3", { text: "OpenRouter API" });
+    new Setting(containerEl).setName("Openrouter API").setHeading();
 
     const apiKeyStatusEl = containerEl.createDiv({ cls: "pa-settings-api-status" });
     this.renderApiKeyStatus(apiKeyStatusEl);
 
     new Setting(containerEl)
-      .setName("API Key")
+      .setName("API key")
       .setDesc(this.createApiKeyDescription())
       .addText((text) => {
         text.inputEl.type = "password";
-        text.inputEl.style.width = "300px";
+        text.inputEl.setCssProps({"width": "300px"});
         text
-          .setPlaceholder("sk-or-v1-...")
+          .setPlaceholder("Sk-or-v1-...")
           .setValue(this.plugin.settings.openRouterApiKey)
           .onChange(async (value) => {
             this.plugin.settings.openRouterApiKey = value;
@@ -69,7 +67,7 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Default Model")
+      .setName("Default model")
       .setDesc("Model to use when not specified by agent")
       .addDropdown((dropdown) => {
         for (const model of OPENROUTER_DEFAULTS.MODELS) {
@@ -84,9 +82,9 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
           });
       })
       .addText((text) => {
-        text.inputEl.style.width = "200px";
+        text.inputEl.setCssProps({"width": "200px"});
         text
-          .setPlaceholder("or enter custom model ID")
+          .setPlaceholder("Or enter custom model ID")
           .setValue(
             OPENROUTER_DEFAULTS.MODELS.includes(this.plugin.settings.defaultModel)
               ? ""
@@ -118,11 +116,11 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Max Tokens")
+      .setName("Max tokens")
       .setDesc("Maximum number of tokens in the response")
       .addText((text) => {
         text.inputEl.type = "number";
-        text.inputEl.style.width = "100px";
+        text.inputEl.setCssProps({"width": "100px"});
         text
           .setPlaceholder(String(OPENROUTER_DEFAULTS.MAX_TOKENS))
           .setValue(String(this.plugin.settings.maxTokens))
@@ -136,10 +134,10 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
           });
       });
 
-    containerEl.createEl("h3", { text: "Paths" });
+    new Setting(containerEl).setName("Paths").setHeading();
 
     new Setting(containerEl)
-      .setName("Custom Tools Path")
+      .setName("Custom tools path")
       .setDesc("Folder path for custom tool definitions (Markdown files with YAML frontmatter)")
       .addText((text) =>
         text
@@ -152,7 +150,7 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Agents Path")
+      .setName("Agents path")
       .setDesc("Folder path for agent definition files")
       .addText((text) =>
         text
@@ -166,7 +164,7 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
 
     // Conversations Path
     new Setting(containerEl)
-      .setName("Conversations Path")
+      .setName("Conversations path")
       .setDesc("Folder path where conversation Markdown files are stored")
       .addText((text) =>
         text
@@ -178,11 +176,11 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
           })
       );
 
-    containerEl.createEl("h3", { text: "Debug" });
+    new Setting(containerEl).setName("Debug").setHeading();
 
     // Debug Logging
     new Setting(containerEl)
-      .setName("Enable Debug Logging")
+      .setName("Enable debug logging")
       .setDesc("Enable detailed logging for troubleshooting (check console)")
       .addToggle((toggle) =>
         toggle
@@ -193,12 +191,12 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
           })
       );
 
-    containerEl.createEl("h3", { text: "About" });
+    new Setting(containerEl).setName("About").setHeading();
     containerEl.createEl("p", {
-      text: "Paper Agents allows you to define and execute custom tools using YAML-based configurations.",
+      text: "Paper agents allows you to define and execute custom tools using YAML-based configurations.",
     });
     containerEl.createEl("p", {
-      text: "Predefined tools: search_files, read_file, write_file, rest_request",
+      text: "Predefined tools: search_files, read_file, write_file, REST_request",
     });
   }
 
@@ -246,7 +244,8 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
       });
 
       if (response.status === 200) {
-        const data = response.json?.data;
+        const json = response.json as { data?: { label?: string; limit?: number } } | undefined;
+        const data = json?.data;
         const label = data?.label || "unnamed";
         const limit = data?.limit ? `$${(data.limit / 100).toFixed(2)} limit` : "unlimited";
         new Notice(`API key valid (${label}, ${limit})`);

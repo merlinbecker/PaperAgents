@@ -20,7 +20,7 @@
  * Hi there!
  */
 
-import type { App, TFile } from "obsidian";
+import { App, TFile } from "obsidian";
 import type { Conversation } from "../types";
 import { conversationManager } from "./conversation";
 import { globalLogger } from "../utils/logger";
@@ -43,8 +43,8 @@ export class ConversationFileManager {
     }
 
     const existing = this.app.vault.getAbstractFileByPath(filePath);
-    if (existing) {
-      await this.app.vault.modify(existing as TFile, content);
+    if (existing instanceof TFile) {
+      await this.app.vault.modify(existing, content);
     } else {
       await this.app.vault.create(filePath, content);
     }
@@ -58,11 +58,11 @@ export class ConversationFileManager {
    */
   async loadConversation(filePath: string): Promise<Conversation | null> {
     const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!file) {
+    if (!(file instanceof TFile)) {
       throw new Error(`File not found: ${filePath}`);
     }
 
-    const content = await this.app.vault.read(file as TFile);
+    const content = await this.app.vault.read(file);
     const conversation = conversationManager.loadFromConversationFile(content);
 
     if (!conversation) {
@@ -98,10 +98,10 @@ export class ConversationFileManager {
    */
   async isConversationFile(filePath: string): Promise<boolean> {
     const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!file) return false;
+    if (!(file instanceof TFile)) return false;
 
     try {
-      const content = await this.app.vault.read(file as TFile);
+      const content = await this.app.vault.read(file);
       return content.startsWith("---") && content.includes("conversation: true");
     } catch {
       return false;

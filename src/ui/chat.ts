@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf } from "obsidian";
-import { AgentDefinition, Message } from "../types";
+import { AgentDefinition } from "../types";
 import { ConversationManager } from "../core/conversation";
 import { Orchestrator, OrchestratorCallbacks } from "../core/orchestrator";
 import { globalLogger } from "../utils/logger";
@@ -40,7 +40,7 @@ export class PaperAgentsChatView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Paper Agents Chat";
+    return "Paper agents chat";
   }
 
   getIcon(): string {
@@ -74,7 +74,7 @@ export class PaperAgentsChatView extends ItemView {
   private renderHeader(container: HTMLElement): void {
     const header = container.createDiv({ cls: "pa-chat-header" });
 
-    header.createEl("h3", { cls: "pa-chat-title", text: "Agent Chat" });
+    header.createEl("h3", { cls: "pa-chat-title", text: "Agent chat" });
 
     const controls = header.createDiv({ cls: "pa-chat-controls" });
 
@@ -85,7 +85,7 @@ export class PaperAgentsChatView extends ItemView {
 
     const newChatBtn = controls.createEl("button", {
       cls: "pa-chat-new-btn",
-      text: "New Chat",
+      text: "New chat",
     });
     newChatBtn.addEventListener("click", () => {
       this.startNewConversation();
@@ -112,7 +112,7 @@ export class PaperAgentsChatView extends ItemView {
     this.inputEl.addEventListener("keydown", (e: KeyboardEvent) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        this.sendMessage();
+        void this.sendMessage();
       }
     });
 
@@ -121,7 +121,7 @@ export class PaperAgentsChatView extends ItemView {
       text: "Send",
     });
     this.sendBtn.addEventListener("click", () => {
-      this.sendMessage();
+      void this.sendMessage();
     });
   }
 
@@ -131,7 +131,7 @@ export class PaperAgentsChatView extends ItemView {
     this.agentSelect.empty();
 
     const defaultOpt = this.agentSelect.createEl("option", {
-      text: "-- Select Agent --",
+      text: "-- select agent --",
       attr: { value: "" },
     });
     if (!this.selectedAgent) defaultOpt.selected = true;
@@ -407,7 +407,7 @@ export class PaperAgentsChatView extends ItemView {
       }
     }
     if (this.inputEl) {
-      (this.inputEl as HTMLTextAreaElement).disabled = streaming;
+      this.inputEl.disabled = streaming;
     }
   }
 

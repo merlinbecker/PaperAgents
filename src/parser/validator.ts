@@ -3,7 +3,7 @@
  * Unterstützt: string, number, boolean, array, object
  */
 
-import { Parameter, ParameterType, ValidationResult, ValidationError } from "../types";
+import { Parameter, ValidationResult, ValidationError } from "../types";
 
 export class ParameterValidator {
   /**
@@ -67,7 +67,7 @@ export class ParameterValidator {
     if (isNaN(num)) {
       return {
         field: param.name,
-        message: `Expected number, got "${value}"`,
+        message: `Expected number, got "${String(value)}"`,
         value,
       };
     }
@@ -136,7 +136,7 @@ export class ParameterValidator {
     // Versuche zu parsen, falls String
     if (typeof value === "string") {
       try {
-        const parsed = JSON.parse(value);
+        const parsed: unknown = JSON.parse(value) as unknown;
         if (typeof parsed === "object" && !Array.isArray(parsed) && parsed !== null) {
           return null; // Valid JSON object
         }
@@ -201,7 +201,9 @@ export class ParameterValidator {
       // Type-Konversion
       switch (param.type) {
         case "number":
-          result[param.name] = value !== null && value !== undefined ? parseFloat(String(value)) : 0;
+          result[param.name] = value !== null && value !== undefined
+            ? parseFloat(typeof value === "string" ? value : typeof value === "number" || typeof value === "boolean" ? String(value) : "0")
+            : 0;
           break;
 
         case "boolean":
@@ -242,7 +244,10 @@ export class ParameterValidator {
 
         default:
           // string
-          result[param.name] = value !== null && value !== undefined ? String(value) : "";
+          result[param.name] = value !== null && value !== undefined
+            ? (typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+              ? String(value) : "")
+            : "";
       }
     }
 

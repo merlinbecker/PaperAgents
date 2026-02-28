@@ -1,4 +1,4 @@
-import { ExecutionResult, ToolExecution } from "../types";
+import { ExecutionResult } from "../types";
 import { globalLogger } from "../utils/logger";
 
 export interface HistoryEntry {
@@ -145,7 +145,7 @@ export class ExecutionHistory {
 
   clearHistory(): void {
     this.entries = [];
-    this.persist();
+    void this.persist();
   }
 
   exportToJSON(): string {

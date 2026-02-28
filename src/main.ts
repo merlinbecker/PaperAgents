@@ -56,7 +56,7 @@ export default class PaperAgents extends Plugin {
       await customJSExecutor.initialize();
     } catch (err) {
       globalLogger.warn("QuickJS sandbox unavailable – custom-js tools will not work", { error: String(err) });
-      new Notice("Paper Agents: Sandbox konnte nicht initialisiert werden. Custom-JS Tools sind deaktiviert.");
+      new Notice("Sandbox could not be initialized. Custom JavaScript tools are disabled.");
     }
 
     this.registerView(
@@ -66,7 +66,7 @@ export default class PaperAgents extends Plugin {
           this.handleToolClick(toolId)
         );
         sidebar.setAgents(this.loadedAgents);
-        sidebar.setOnAgentClick(() => this.activateChat());
+        sidebar.setOnAgentClick(() => { void this.activateChat(); });
         return sidebar;
       }
     );
@@ -82,8 +82,8 @@ export default class PaperAgents extends Plugin {
         )
     );
 
-    this.addRibbonIcon("bot", "Paper Agents", () => {
-      this.activateSidebar();
+    this.addRibbonIcon("bot", "Paper agents", () => {
+      void this.activateSidebar();
     });
 
     registerCommands(this);
@@ -95,7 +95,7 @@ export default class PaperAgents extends Plugin {
         const file = this.app.workspace.getActiveFile();
         if (!file || !file.path.endsWith(".md")) return false;
         if (!checking) {
-          this.openChatView(file.path);
+          void this.openChatView(file.path);
         }
         return true;
       },
@@ -117,14 +117,11 @@ export default class PaperAgents extends Plugin {
     globalLogger.info("Paper Agents plugin loaded successfully");
   }
 
-  async onunload() {
+  onunload() {
     globalLogger.info("Paper Agents plugin unloading...");
 
-    await this.conversationManager.saveToStorage();
-    await customJSExecutor.destroy();
-
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_PAPER_AGENTS);
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_PAPER_AGENTS_CHAT);
+    void this.conversationManager.saveToStorage();
+    void customJSExecutor.destroy();
 
     globalLogger.info("Paper Agents plugin unloaded");
   }
@@ -259,7 +256,7 @@ export default class PaperAgents extends Plugin {
     if (existing.length > 0) {
       const leaf = existing[0];
       if (!leaf) return;
-      this.app.workspace.revealLeaf(leaf);
+      await this.app.workspace.revealLeaf(leaf);
     } else {
       const leaf = this.app.workspace.getRightLeaf(false);
       if (!leaf) {
@@ -268,7 +265,7 @@ export default class PaperAgents extends Plugin {
       }
 
       await leaf.setViewState({ type: VIEW_TYPE_PAPER_AGENTS, active: true });
-      this.app.workspace.revealLeaf(leaf);
+      await this.app.workspace.revealLeaf(leaf);
       this.sidebar = leaf.view as PaperAgentsSidebar;
     }
   }
@@ -278,13 +275,13 @@ export default class PaperAgents extends Plugin {
 
     if (existing.length > 0) {
       const leaf = existing[0];
-      if (leaf) this.app.workspace.revealLeaf(leaf);
+      if (leaf) await this.app.workspace.revealLeaf(leaf);
     } else {
       const leaf = this.app.workspace.getLeaf(true);
       if (!leaf) return;
 
       await leaf.setViewState({ type: VIEW_TYPE_PAPER_AGENTS_CHAT, active: true });
-      this.app.workspace.revealLeaf(leaf);
+      await this.app.workspace.revealLeaf(leaf);
     }
   }
 
@@ -296,7 +293,7 @@ export default class PaperAgents extends Plugin {
     }
 
     const modal = new ToolFormModal(this.app, metadata, (parameters) => {
-      this.executeToolWithParameters(toolId, metadata.name, parameters);
+      void this.executeToolWithParameters(toolId, metadata.name, parameters);
     });
     modal.open();
   }
@@ -383,7 +380,7 @@ export default class PaperAgents extends Plugin {
       await leaf.setViewState({ type: VIEW_TYPE_CHAT, active: true });
     }
 
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
 
     const view = leaf.view as ChatView;
     await view.loadFile(filePath);

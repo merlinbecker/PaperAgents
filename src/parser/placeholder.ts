@@ -12,7 +12,7 @@ import { PlaceholderContext } from "../types";
 
 export class PlaceholderReplacer {
   private static findPlaceholders(str: string): string[] {
-    const regex = /\{\{([a-zA-Z0-9_.\[\]]+)\}\}/g;
+    const regex = /\{\{([a-zA-Z0-9_.[\]]+)\}\}/g;
     const matches: string[] = [];
     let match: RegExpExecArray | null;
     while ((match = regex.exec(str)) !== null) {
@@ -52,7 +52,7 @@ export class PlaceholderReplacer {
     }
 
     if (first === "prev_step") {
-      const outputs = context.previousStepOutputs as Record<string, unknown>;
+      const outputs = context.previousStepOutputs;
       let current: unknown = outputs["prev_step"] ?? outputs["__last"];
       for (let i = 1; i < parts.length; i++) {
         const part = parts[i];
@@ -62,7 +62,7 @@ export class PlaceholderReplacer {
       return current;
     }
 
-    let current: unknown = (context.previousStepOutputs as Record<string, unknown>)[first];
+    let current: unknown = context.previousStepOutputs[first];
     if (current !== undefined) {
       for (let i = 1; i < parts.length; i++) {
         const part = parts[i];
@@ -79,7 +79,7 @@ export class PlaceholderReplacer {
   private static valueToString(value: unknown): string {
     if (value === null || value === undefined) return "";
     if (typeof value === "object") return JSON.stringify(value);
-    return String(value);
+    return String(value as string | number | boolean | bigint | symbol);
   }
 
   static replacePlaceholdersInString(str: string, context: PlaceholderContext): string {

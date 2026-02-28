@@ -361,7 +361,7 @@ export class YAMLParser {
       id: String(frontmatter.id),
       name: String(frontmatter.name),
       description: frontmatter.description ? String(frontmatter.description) : undefined,
-      type: frontmatter.type as "single" | "chain",
+      type: frontmatter.type,
       parameters: this.parseParameters((frontmatter.parameters || []) as unknown[] as Array<Record<string, unknown>>),
     };
 
@@ -383,7 +383,7 @@ export class YAMLParser {
       // Steps werden direkt aus dem Frontmatter geparst (als Array von Objects)
       if (Array.isArray(frontmatter.steps) && frontmatter.steps.length > 0) {
         agent.steps = (frontmatter.steps as unknown as Array<Record<string, unknown>>).map((step) => ({
-          name: String(step.name || ""),
+          name: typeof step.name === "string" ? step.name : "",
           parameters: (step.parameters || {}) as Record<string, unknown>,
         }));
       } else if (parsed.steps) {
@@ -445,9 +445,9 @@ export class YAMLParser {
     }
 
     return params.map((p) => ({
-      name: String(p.name || ""),
+      name: typeof p.name === "string" ? p.name : "",
       type: (p.type || "string") as ParameterType,
-      description: p.description ? String(p.description) : undefined,
+      description: typeof p.description === "string" ? p.description : undefined,
       required: p.required !== false,
       default: p.default !== undefined ? p.default : undefined,
     }));

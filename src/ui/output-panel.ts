@@ -78,15 +78,15 @@ export class OutputPanelModal extends Modal {
 
     const copyBtn = section.createEl("button", {
       cls: "pa-btn-copy",
-      text: "Copy to Clipboard",
+      text: "Copy to clipboard",
     });
     copyBtn.addEventListener("click", () => {
       navigator.clipboard.writeText(outputData).then(() => {
         copyBtn.textContent = "Copied!";
-        setTimeout(() => { copyBtn.textContent = "Copy to Clipboard"; }, 2000);
+        setTimeout(() => { copyBtn.textContent = "Copy to clipboard"; }, 2000);
       }).catch(() => {
         copyBtn.textContent = "Copy failed";
-        setTimeout(() => { copyBtn.textContent = "Copy to Clipboard"; }, 2000);
+        setTimeout(() => { copyBtn.textContent = "Copy to clipboard"; }, 2000);
         new Notice("Failed to copy to clipboard");
       });
     });
@@ -94,14 +94,14 @@ export class OutputPanelModal extends Modal {
 
   private renderError(container: HTMLElement): void {
     const section = container.createDiv({ cls: "pa-output-error-section" });
-    section.createEl("h3", { text: "Error Details" });
+    section.createEl("h3", { text: "Error details" });
     const errorBox = section.createDiv({ cls: "pa-output-error-box" });
     errorBox.createEl("p", { text: this.result.error || "Unknown error" });
   }
 
   private renderExecutionLog(container: HTMLElement): void {
     const section = container.createDiv({ cls: "pa-output-section" });
-    section.createEl("h3", { text: "Execution Log" });
+    section.createEl("h3", { text: "Execution log" });
 
     for (const entry of this.result.log) {
       this.renderLogEntry(section, entry);
@@ -150,16 +150,16 @@ export class OutputPanelModal extends Modal {
 
     const copyAllBtn = buttons.createEl("button", {
       cls: "pa-btn-submit",
-      text: "Copy Full Result",
+      text: "Copy full result",
     });
     copyAllBtn.addEventListener("click", () => {
       const fullResult = JSON.stringify(this.result, null, 2);
       navigator.clipboard.writeText(fullResult).then(() => {
         copyAllBtn.textContent = "Copied!";
-        setTimeout(() => { copyAllBtn.textContent = "Copy Full Result"; }, 2000);
+        setTimeout(() => { copyAllBtn.textContent = "Copy full result"; }, 2000);
       }).catch(() => {
         copyAllBtn.textContent = "Copy failed";
-        setTimeout(() => { copyAllBtn.textContent = "Copy Full Result"; }, 2000);
+        setTimeout(() => { copyAllBtn.textContent = "Copy full result"; }, 2000);
         new Notice("Failed to copy to clipboard");
       });
     });
