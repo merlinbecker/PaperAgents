@@ -1,0 +1,100 @@
+name: Auto Release on Merge
+
+on:
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  auto-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Skip if version bump commit
+        id: check
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+          if echo "$COMMIT_MSG" | grep -qE '^chore: bump version to'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Use Node.js
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip == 'false'
+        run: npm ci
+
+      - name: Bump patch version
+        if: steps.check.outputs.skip == 'false'
+        id: bump
+        run: |
+          CURRENT_VERSION=$(node -p "require('./manifest.json').version")
+          MIN_APP_VERSION=$(node -p "require('./manifest.json').minAppVersion")
+
+          IFS='.' read -r major minor patch <<< "$CURRENT_VERSION"
+          NEW_PATCH=$((patch + 1))
+          NEW_VERSION="${major}.${minor}.${NEW_PATCH}"
+
+          echo "Current version: $CURRENT_VERSION"
+          echo "New version: $NEW_VERSION"
+          echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+
+          # Update manifest.json
+          node -e "
+            try {
+              const fs = require('fs');
+              const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+              manifest.version = '${NEW_VERSION}';
+              fs.writeFileSync('manifest.json', JSON.stringify(manifest, null, '\t') + '\n');
+            } catch (e) {
+              console.error('Failed to update manifest.json:', e.message);
+              process.exit(1);
+            }
+          "
+
+          # Update versions.json
+          node -e "
+            try {
+              const fs = require('fs');
+              const versions = JSON.parse(fs.readFileSync('versions.json', 'utf8'));
+              if (!versions['${NEW_VERSION}']) {
+                versions['${NEW_VERSION}'] = '${MIN_APP_VERSION}';
+                fs.writeFileSync('versions.json', JSON.stringify(versions, null, '\t') + '\n');
+              }
+            } catch (e) {
+              console.error('Failed to update versions.json:', e.message);
+              process.exit(1);
+            }
+          "
+
+      - name: Commit version bump and push tag
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add manifest.json versions.json
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }}"
+          git push
+
+          git tag "${{ steps.bump.outputs.new_version }}"
+          if ! git push origin "${{ steps.bump.outputs.new_version }}"; then
+            echo "Failed to push tag ${{ steps.bump.outputs.new_version }}. It may already exist."
+            exit 1
+          fi
