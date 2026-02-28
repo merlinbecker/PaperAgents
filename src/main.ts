@@ -10,6 +10,7 @@ import { DEFAULT_SETTINGS, PaperAgentsSettings, PaperAgentsSettingTab } from "./
 import ToolRegistry from "./core/tool-registry";
 import { toolExecutor } from "./core/tool-executor";
 import { customJSExecutor } from "./core/sandbox";
+import { ConversationFileManager } from "./core/conversation-file-manager";
 
 // Tools
 import PredefinedToolsFactory from "./tools/predefined";
@@ -19,6 +20,7 @@ import ToolLoader from "./parser/tool-loader";
 
 // UI
 import { PaperAgentsSidebar, VIEW_TYPE_PAPER_AGENTS } from "./ui/sidebar";
+import { ChatView, VIEW_TYPE_CHAT } from "./ui/chat-view";
 import { ToolFormModal } from "./ui/forms";
 import { showHITLModal } from "./ui/hitl-modal";
 
@@ -58,6 +60,12 @@ export default class PaperAgents extends Plugin {
         )
     );
 
+    // Register Chat View
+    this.registerView(
+      VIEW_TYPE_CHAT,
+      (leaf) => new ChatView(leaf)
+    );
+
     // Add Ribbon Icon
     this.addRibbonIcon("bot", "Paper Agents", () => {
       this.activateSidebar();
@@ -82,6 +90,27 @@ export default class PaperAgents extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: "open-chat",
+      name: "Open conversation as chat",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || !file.path.endsWith(".md")) return false;
+        if (!checking) {
+          this.openChatView(file.path);
+        }
+        return true;
+      },
+    });
+
+    this.addCommand({
+      id: "new-conversation",
+      name: "New conversation",
+      callback: async () => {
+        await this.createNewConversation();
+      },
+    });
+
     // Add Settings Tab
     this.addSettingTab(new PaperAgentsSettingTab(this.app, this));
 
@@ -97,8 +126,9 @@ export default class PaperAgents extends Plugin {
     // Cleanup Sandbox
     await customJSExecutor.destroy();
 
-    // Detach Sidebar
+    // Detach views
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_PAPER_AGENTS);
+    this.app.workspace.detachLeavesOfType(VIEW_TYPE_CHAT);
 
     globalLogger.info("Paper Agents plugin unloaded");
   }
@@ -255,6 +285,46 @@ export default class PaperAgents extends Plugin {
     // Dummy Step IDs - werden später von Executor gesetzt
     // Der Executor ruft showHITLModal() auf wenn benötigt
     globalLogger.debug("HITL callbacks ready");
+  }
+
+  /**
+   * Opens a conversation Markdown file in the Chat View.
+   */
+  private async openChatView(filePath: string): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+    let leaf = existing[0] ?? null;
+
+    if (!leaf) {
+      leaf = this.app.workspace.getRightLeaf(false);
+      if (!leaf) {
+        new Notice("Failed to open chat view");
+        return;
+      }
+      await leaf.setViewState({ type: VIEW_TYPE_CHAT, active: true });
+    }
+
+    this.app.workspace.revealLeaf(leaf);
+
+    const view = leaf.view as ChatView;
+    await view.loadFile(filePath);
+  }
+
+  /**
+   * Creates a new conversation Markdown file and opens it in the Chat View.
+   */
+  private async createNewConversation(): Promise<void> {
+    const conversationsPath = this.settings.conversationsPath || DEFAULT_PATHS.CONVERSATIONS;
+    const fileManager = new ConversationFileManager(this.app);
+
+    try {
+      const filePath = await fileManager.createConversationFile("default", conversationsPath);
+      new Notice(`Conversation created: ${filePath}`);
+      await this.openChatView(filePath);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      new Notice(`Failed to create conversation: ${msg}`);
+      globalLogger.error("Failed to create conversation", { error });
+    }
   }
 
   async loadSettings() {
