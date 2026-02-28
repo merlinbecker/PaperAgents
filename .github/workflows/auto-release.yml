@@ -46,8 +46,11 @@ jobs:
           MIN_APP_VERSION=$(node -p "require('./manifest.json').minAppVersion")
 
           IFS='.' read -r major minor patch <<< "$CURRENT_VERSION"
-          NEW_PATCH=$((patch + 1))
-          NEW_VERSION="${major}.${minor}.${NEW_PATCH}"
+          # Strip any pre-release suffix (e.g. "-beta") from the patch segment
+          PATCH_NUM="${patch%%-*}"
+          PATCH_SUFFIX="${patch#${PATCH_NUM}}"
+          NEW_PATCH=$((PATCH_NUM + 1))
+          NEW_VERSION="${major}.${minor}.${NEW_PATCH}${PATCH_SUFFIX}"
 
           echo "Current version: $CURRENT_VERSION"
           echo "New version: $NEW_VERSION"
