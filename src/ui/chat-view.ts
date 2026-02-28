@@ -16,7 +16,7 @@ import { ConversationFileManager } from "../core/conversation-file-manager";
 import type { Conversation, Message } from "../types";
 import { globalLogger } from "../utils/logger";
 
-export const VIEW_TYPE_CHAT = "paper-agents-chat";
+export const VIEW_TYPE_CHAT = "paper-agents-chat-file";
 
 export class ChatView extends ItemView {
   private conversation: Conversation | null = null;

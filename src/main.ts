@@ -8,7 +8,6 @@ import { ConversationManager } from "./core/conversation";
 import { Orchestrator } from "./core/orchestrator";
 import { executionHistory } from "./core/history";
 import { initializeHistoryPersistence, initializeConversationPersistence } from "./core/persistence";
-import { ConversationFileManager } from "./core/conversation-file-manager";
 
 import PredefinedToolsFactory from "./tools/predefined";
 
@@ -78,8 +77,14 @@ export default class PaperAgents extends Plugin {
           leaf,
           this.conversationManager,
           () => this.loadedAgents,
-          () => this.orchestrator
+          () => this.orchestrator,
+          () => this.settings.conversationsPath || DEFAULT_PATHS.CONVERSATIONS
         )
+    );
+
+    this.registerView(
+      VIEW_TYPE_CHAT,
+      (leaf) => new ChatView(leaf)
     );
 
     this.addRibbonIcon("bot", "Paper agents", () => {
@@ -89,8 +94,8 @@ export default class PaperAgents extends Plugin {
     registerCommands(this);
 
     this.addCommand({
-      id: "open-chat",
-      name: "Open conversation as chat",
+      id: "open-file-as-chat",
+      name: "Open current file as conversation chat",
       checkCallback: (checking) => {
         const file = this.app.workspace.getActiveFile();
         if (!file || !file.path.endsWith(".md")) return false;
@@ -387,21 +392,10 @@ export default class PaperAgents extends Plugin {
   }
 
   /**
-   * Creates a new conversation Markdown file and opens it in the Chat View.
+   * Creates a new conversation Markdown file and opens PaperAgentsChatView.
    */
   private async createNewConversation(): Promise<void> {
-    const conversationsPath = this.settings.conversationsPath || DEFAULT_PATHS.CONVERSATIONS;
-    const fileManager = new ConversationFileManager(this.app);
-
-    try {
-      const filePath = await fileManager.createConversationFile("default", conversationsPath);
-      new Notice(`Conversation created: ${filePath}`);
-      await this.openChatView(filePath);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Unknown error";
-      new Notice(`Failed to create conversation: ${msg}`);
-      globalLogger.error("Failed to create conversation", { error });
-    }
+    await this.activateChat();
   }
 
   async loadSettings() {
