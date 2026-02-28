@@ -36,7 +36,7 @@ export class PaperAgentsChatView extends ItemView {
   ) {
     super(leaf);
     this.conversationManager = conversationManager;
-    this.fileManager = new ConversationFileManager(this.app);
+    this.fileManager = new ConversationFileManager(this.app, this.conversationManager);
     this.onGetAgents = getAgents;
     this.onGetOrchestrator = getOrchestrator;
     this.getConversationsPath = getConversationsPath;
@@ -192,7 +192,7 @@ export class PaperAgentsChatView extends ItemView {
     try {
       const conversationsPath = this.getConversationsPath();
       const filePath = await this.fileManager.createConversationFile(
-        this.selectedAgent.id,
+        this.currentConversationId,
         conversationsPath,
         this.selectedAgent.name
       );

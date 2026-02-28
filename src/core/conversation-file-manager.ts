@@ -22,14 +22,16 @@
 
 import { App, TFile } from "obsidian";
 import type { Conversation } from "../types";
-import { conversationManager } from "./conversation";
+import { ConversationManager } from "./conversation";
 import { globalLogger } from "../utils/logger";
 
 export class ConversationFileManager {
   private app: App;
+  private conversationManager: ConversationManager;
 
-  constructor(app: App) {
+  constructor(app: App, conversationManager: ConversationManager) {
     this.app = app;
+    this.conversationManager = conversationManager;
   }
 
   /**
@@ -37,7 +39,7 @@ export class ConversationFileManager {
    * Creates the file if it does not exist; overwrites if it does.
    */
   async saveConversation(filePath: string, conversationId: string): Promise<void> {
-    const content = conversationManager.toConversationFile(conversationId);
+    const content = this.conversationManager.toConversationFile(conversationId);
     if (content === null) {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
@@ -63,7 +65,7 @@ export class ConversationFileManager {
     }
 
     const content = await this.app.vault.read(file);
-    const conversation = conversationManager.loadFromConversationFile(content);
+    const conversation = this.conversationManager.loadFromConversationFile(content);
 
     if (!conversation) {
       globalLogger.debug(`File is not a conversation file: ${filePath}`);
@@ -75,19 +77,22 @@ export class ConversationFileManager {
   }
 
   /**
-   * Create a new conversation file for a given agent.
+   * Create a new conversation file for an existing conversation.
    * Returns the file path of the created file.
    */
-  async createConversationFile(agentId: string, conversationsPath: string, title?: string): Promise<string> {
+  async createConversationFile(conversationId: string, conversationsPath: string, title?: string): Promise<string> {
     await this.ensureFolder(conversationsPath);
 
-    const conversation = conversationManager.createConversation(agentId);
+    const conversation = this.conversationManager.getConversation(conversationId);
+    if (!conversation) {
+      throw new Error(`Conversation not found: ${conversationId}`);
+    }
     const date = new Date().toISOString().slice(0, 10);
-    const safeName = (title || agentId).replace(/[^a-zA-Z0-9_\-\s]/g, "").trim().replace(/\s+/g, "-");
+    const safeName = (title || conversation.agentId).replace(/[^a-zA-Z0-9_\-\s]/g, "").trim().replace(/\s+/g, "-");
     const fileName = `${date}-${safeName}.md`;
     const filePath = `${conversationsPath}/${fileName}`;
 
-    await this.saveConversation(filePath, conversation.id);
+    await this.saveConversation(filePath, conversationId);
 
     globalLogger.info(`Created conversation file: ${filePath}`);
     return filePath;

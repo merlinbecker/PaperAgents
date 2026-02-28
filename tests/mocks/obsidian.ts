@@ -86,6 +86,10 @@ export class Vault {
     this.files.set(file.path, data);
   }
 
+  async createFolder(path: string): Promise<void> {
+    this.ensureFolder(path);
+  }
+
   async create(path: string, data: string): Promise<TFile> {
     this.files.set(path, data);
     const folderPath = path.split("/").slice(0, -1).join("/") || "/";
