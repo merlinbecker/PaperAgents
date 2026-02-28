@@ -271,19 +271,6 @@ export interface ParsedAgentFile {
 }
 
 // ============================================================================
-// CONVERSATION FILE (Markdown-based persistence)
-// ============================================================================
-
-export interface ConversationFrontmatter {
-  conversation: boolean;
-  id: string;
-  agentId: string;
-  createdAt: string; // ISO 8601
-  updatedAt: string; // ISO 8601
-  [key: string]: any;
-}
-
-// ============================================================================
 // CONVERSATION & MESSAGES
 // ============================================================================
 
