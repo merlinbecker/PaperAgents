@@ -6,7 +6,7 @@
 | **Erweiterbarkeit** | Factory Pattern (ToolRegistry) für Tool-Erstellung. Custom Tools als Markdown-Dateien mit automatischer Discovery. Agenten-Notation als Markdown-Format. |
 | **Benutzerfreundlichkeit** | Sidebar mit Tool-Übersicht, dynamische Formulare aus Parameter-Definitionen, HITL-Dialoge mit Approve/Reject. |
 | **Portabilität** | WASM-basierte Sandbox (kein Node.js nötig). `isDesktopOnly: false` in manifest.json. Keine Desktop-spezifischen APIs. |
-| **Wartbarkeit** | Layered Architecture (Parser → Core → UI). TypeScript strict mode. 146 Tests, 75.55% Coverage. Klare Modulgrenzen. |
+| **Wartbarkeit** | Layered Architecture (Parser → Core → UI). TypeScript strict mode. 178 Tests. Klare Modulgrenzen. Observability (Metrics, Tracing). |
 
 ## Technologieentscheidungen
 
@@ -27,8 +27,9 @@
 | 3 | Sandbox & Security (QuickJS, HITL) | ✅ Abgeschlossen |
 | 4.1 | Agenten-Notation (Parser, Typen, Beispiele) | ✅ Abgeschlossen |
 | 4.2 | Konversationslogik (ConversationManager) | ✅ Abgeschlossen |
-| 4.3 | OpenRouter-Integration (API-Client) | ⏳ Ausstehend |
-| 5 | Advanced Features (History, Loops, Visual Editor) | 🔮 Zukunft |
+| 4.3 | OpenRouter-Integration (API-Client, Chat-UI, Orchestrierung) | ✅ Abgeschlossen |
+| 4.4 | Advanced Features (History, Conditional, Loops, Retry, Metrics) | ✅ Abgeschlossen |
+| 5 | Polish (Drag&Drop Workflow Editor, Community Templates, Chat-Persistierung) | 🔮 Zukunft |
 
 ---
 

@@ -3,6 +3,14 @@
  * Single Source of Truth für alle Agent-, Tool- und Execution-Interfaces
  */
 
+import type { App } from "obsidian";
+
+// ============================================================================
+// COMMON TYPE ALIASES
+// ============================================================================
+
+export type YAMLPrimitive = string | number | boolean | null;
+
 // ============================================================================
 // PARAMETER TYPES & VALIDATION
 // ============================================================================
@@ -14,7 +22,7 @@ export interface Parameter {
   type: ParameterType;
   description?: string;
   required: boolean;
-  default?: any;
+  default?: unknown;
 }
 
 // ============================================================================
@@ -35,12 +43,35 @@ export interface Agent {
 
 export interface ToolDefinition {
   toolId: string; // ID des Predefined Tools (z.B. "read_file")
-  parameters: Record<string, any>; // Tool-Parameter
+  parameters: Record<string, unknown>; // Tool-Parameter
 }
 
 export interface Step {
   name: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
+  continueOnError?: boolean;
+  condition?: StepCondition;
+  loop?: StepLoop;
+  retry?: StepRetry;
+}
+
+export interface StepCondition {
+  field: string;
+  operator?: "eq" | "neq" | "gt" | "lt" | "gte" | "lte" | "contains" | "exists";
+  value?: unknown;
+  equals?: unknown;
+}
+
+export interface StepLoop {
+  over: string;
+  as: string;
+  maxIterations?: number;
+}
+
+export interface StepRetry {
+  maxAttempts: number;
+  backoffMs?: number;
+  retryOn?: string[];
 }
 
 // ============================================================================
@@ -48,8 +79,8 @@ export interface Step {
 // ============================================================================
 
 export interface ExecutionContext {
-  parameters: Record<string, any>; // User-Input
-  previousStepOutputs: Record<string, any>; // Für Chaining
+  parameters: Record<string, unknown>; // User-Input
+  previousStepOutputs: Record<string, unknown>; // Für Chaining
   date: string; // YYYY-MM-DD
   time: string; // HH:mm:ss
   randomId: string; // UUID
@@ -57,17 +88,18 @@ export interface ExecutionContext {
 
 export interface ToolExecution {
   toolName: string;
-  parameters: Record<string, any>;
-  output?: any;
+  parameters: Record<string, unknown>;
+  output?: unknown;
   error?: string;
   hitlRequired?: boolean;
   hitlConfirmed?: boolean;
   timestamp: number;
+  phase?: string;
 }
 
 export interface ExecutionResult {
   success: boolean;
-  data?: any;
+  data?: unknown;
   error?: string;
   log: ToolExecution[];
 }
@@ -80,7 +112,7 @@ export interface IExecutableTool {
   name: string;
   parameters: Parameter[];
   execute(ctx: ExecutionContext): Promise<ExecutionResult>;
-  shouldRequireHITL(parameters: Record<string, any>): boolean;
+  shouldRequireHITL(parameters: Record<string, unknown>): boolean;
 }
 
 // ============================================================================
@@ -90,7 +122,16 @@ export interface IExecutableTool {
 export interface IToolFactory {
   name: string;
   description: string;
-  create(app?: any): IExecutableTool;
+  create(app?: App): IExecutableTool;
+}
+
+// ============================================================================
+// TOOL REGISTRY INTERFACE (for dependency inversion)
+// ============================================================================
+
+export interface IToolRegistry {
+  getTool(id: string): IExecutableTool | null;
+  listTools(): ToolMetadata[];
 }
 
 // ============================================================================
@@ -114,7 +155,7 @@ export interface ToolMetadata {
 export interface ValidationError {
   field: string;
   message: string;
-  value?: any;
+  value?: unknown;
 }
 
 export interface ValidationResult {
@@ -135,7 +176,7 @@ export interface YAMLFrontmatter {
   parameters?: Parameter[];
   custom_function?: string;
   steps?: Step[];
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface ParsedToolFile {
@@ -152,8 +193,8 @@ export interface ParsedToolFile {
 // ============================================================================
 
 export interface PlaceholderContext {
-  parameters: Record<string, any>;
-  previousStepOutputs: Record<string, any>;
+  parameters: Record<string, unknown>;
+  previousStepOutputs: Record<string, unknown>;
   date: string;
   time: string;
   randomId: string;
@@ -161,8 +202,8 @@ export interface PlaceholderContext {
 
 export interface PlaceholderMatch {
   placeholder: string;
-  value: any;
-  path: string; // z.B. "param_name" oder "prev_step.output.field"
+  value: unknown;
+  path: string;
 }
 
 // ============================================================================
@@ -219,7 +260,7 @@ export interface AgentFrontmatter {
   memory?: MemoryConfig | Partial<MemoryConfig>;
   temperature?: number;
   maxTokens?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface ParsedAgentFile {
@@ -227,19 +268,6 @@ export interface ParsedAgentFile {
   systemPrompt: string;
   contextTemplate?: string;
   rawContent: string;
-}
-
-// ============================================================================
-// CONVERSATION FILE (Markdown-based persistence)
-// ============================================================================
-
-export interface ConversationFrontmatter {
-  conversation: boolean;
-  id: string;
-  agentId: string;
-  createdAt: string; // ISO 8601
-  updatedAt: string; // ISO 8601
-  [key: string]: any;
 }
 
 // ============================================================================
@@ -257,8 +285,8 @@ export interface Message {
 
 export interface ToolCallInfo {
   toolId: string;
-  parameters: Record<string, any>;
-  result?: any;
+  parameters: Record<string, unknown>;
+  result?: unknown;
   error?: string;
 }
 
@@ -268,7 +296,16 @@ export interface Conversation {
   messages: Message[];
   createdAt: number;
   updatedAt: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ConversationFrontmatter {
+  conversation: boolean;
+  id: string;
+  agentId: string;
+  createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
+  [key: string]: unknown;
 }
 
 export interface ConversationContext {

@@ -10,7 +10,7 @@ export class ParameterValidator {
    * Validiert einen einzelnen Parameter-Wert
    */
   private static validateValue(
-    value: any,
+    value: unknown,
     param: Parameter
   ): ValidationError | null {
     // Required-Check
@@ -47,7 +47,7 @@ export class ParameterValidator {
   /**
    * Validiert string-Typ
    */
-  private static validateString(value: any, param: Parameter): ValidationError | null {
+  private static validateString(value: unknown, param: Parameter): ValidationError | null {
     if (typeof value !== "string") {
       return {
         field: param.name,
@@ -61,8 +61,8 @@ export class ParameterValidator {
   /**
    * Validiert number-Typ
    */
-  private static validateNumber(value: any, param: Parameter): ValidationError | null {
-    const num = parseFloat(value);
+  private static validateNumber(value: unknown, param: Parameter): ValidationError | null {
+    const num = parseFloat(String(value));
 
     if (isNaN(num)) {
       return {
@@ -78,7 +78,7 @@ export class ParameterValidator {
   /**
    * Validiert boolean-Typ
    */
-  private static validateBoolean(value: any, param: Parameter): ValidationError | null {
+  private static validateBoolean(value: unknown, param: Parameter): ValidationError | null {
     if (typeof value !== "boolean") {
       // Versuche zu konvertieren
       if (value === "true" || value === 1 || value === "1") {
@@ -100,7 +100,7 @@ export class ParameterValidator {
   /**
    * Validiert array-Typ
    */
-  private static validateArray(value: any, param: Parameter): ValidationError | null {
+  private static validateArray(value: unknown, param: Parameter): ValidationError | null {
     if (!Array.isArray(value)) {
       // Versuche zu parsen, falls String
       if (typeof value === "string") {
@@ -128,7 +128,7 @@ export class ParameterValidator {
   /**
    * Validiert object-Typ
    */
-  private static validateObject(value: any, param: Parameter): ValidationError | null {
+  private static validateObject(value: unknown, param: Parameter): ValidationError | null {
     if (typeof value === "object" && !Array.isArray(value) && value !== null) {
       return null; // Valid object
     }
@@ -161,7 +161,7 @@ export class ParameterValidator {
    */
   static validateParameters(
     parameters: Parameter[],
-    input: Record<string, any>
+    input: Record<string, unknown>
   ): ValidationResult {
     const errors: ValidationError[] = [];
 
@@ -186,9 +186,9 @@ export class ParameterValidator {
    */
   static normalizeInput(
     parameters: Parameter[],
-    input: Record<string, any>
-  ): Record<string, any> {
-    const result: Record<string, any> = {};
+    input: Record<string, unknown>
+  ): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
 
     for (const param of parameters) {
       let value = input[param.name];
@@ -201,7 +201,7 @@ export class ParameterValidator {
       // Type-Konversion
       switch (param.type) {
         case "number":
-          result[param.name] = value !== null && value !== undefined ? parseFloat(value) : 0;
+          result[param.name] = value !== null && value !== undefined ? parseFloat(String(value)) : 0;
           break;
 
         case "boolean":

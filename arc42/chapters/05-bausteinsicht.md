@@ -9,12 +9,12 @@ C4Container
     Person(user, "Obsidian-Nutzer")
     
     Container_Boundary(plugin, "Paper Agents Plugin") {
-        Container(ui, "UI Layer", "TypeScript/HTML", "Sidebar, Formulare, HITL-Modal")
-        Container(core, "Core Layer", "TypeScript", "Tool-Executor, Registry, Conversation")
+        Container(ui, "UI Layer", "TypeScript/HTML", "Sidebar, Chat, Formulare, HITL, Output, History, Templates, Workflow")
+        Container(core, "Core Layer", "TypeScript", "Tool-Executor, Registry, Conversation, Orchestrator, OpenRouter, History")
         Container(parser, "Parser Layer", "TypeScript", "YAML, Agent, Validator, Tool-Loader")
         Container(tools, "Tools Layer", "TypeScript", "search_files, read_file, write_file, rest_request")
         Container(sandbox, "Sandbox", "QuickJS WASM", "Pre/Post-Processing Isolation")
-        Container(utils, "Utils", "TypeScript", "Logger, Constants")
+        Container(utils, "Utils", "TypeScript", "Logger, Constants, Metrics")
     }
     
     System_Ext(vault, "Obsidian Vault", "Lokales Dateisystem")
@@ -28,7 +28,7 @@ C4Container
     Rel(core, parser, "Nutzt")
     Rel(tools, vault, "Liest/schreibt")
     Rel(tools, rest, "HTTP Requests")
-    Rel(core, router, "LLM Calls (Phase 4.3)")
+    Rel(core, router, "LLM Calls (SSE Streaming, Tool-Calling)")
     Rel(utils, ui, "Genutzt von")
     Rel(utils, core, "Genutzt von")
 ```
@@ -37,21 +37,27 @@ C4Container
 
 #### Plugin Entry Point (`main.ts`)
 
-- **Verantwortung**: Plugin-Lifecycle (onload/onunload), Command-Registrierung, Settings, Initialisierung aller Subsysteme
+- **Verantwortung**: Plugin-Lifecycle (onload/onunload), Settings, Initialisierung aller Subsysteme (Orchestrator, ToolRegistry, History, Persistence, Chat). Delegiert Command-Registrierung an `commands/index.ts`.
 - **Schnittstellen**: Obsidian Plugin-API, alle internen Module
-- **Datei**: `src/main.ts` (272 Zeilen)
+- **Datei**: `src/main.ts` (~360 Zeilen)
+
+#### Commands Module (`commands/index.ts`)
+
+- **Verantwortung**: Registrierung aller Plugin-Commands, extrahiert aus main.ts
+- **Datei**: `src/commands/index.ts` (~120 Zeilen)
+- **Commands**: open-sidebar, open-chat, reload-custom-tools, reload-agents, show-history, browse-templates, show-workflow
 
 #### UI Layer
 
-- **Verantwortung**: Benutzerinteraktion, Tool-Übersicht, Formular-Eingabe, Bestätigungsdialoge
-- **Dateien**: `src/ui/sidebar.ts`, `src/ui/forms.ts`, `src/ui/hitl-modal.ts`
-- **Schnittstellen**: Obsidian UI-API (View, Modal, Setting), ToolRegistry, ToolExecutor
+- **Verantwortung**: Benutzerinteraktion, Tool-Übersicht, Chat, Formular-Eingabe, Bestätigungsdialoge, History, Templates, Workflow-Visualisierung
+- **Dateien**: `src/ui/sidebar.ts`, `src/ui/chat.ts`, `src/ui/forms.ts`, `src/ui/hitl-modal.ts`, `src/ui/output-panel.ts`, `src/ui/history-panel.ts`, `src/ui/template-browser.ts`, `src/ui/workflow-view.ts`
+- **Schnittstellen**: Obsidian UI-API (View, Modal, Setting), ToolRegistry, ToolExecutor, Orchestrator, ExecutionHistory
 
 #### Core Execution Layer
 
-- **Verantwortung**: Tool-Ausführung, Tool-Verwaltung, Konversations-State
-- **Dateien**: `src/core/tool-executor.ts`, `src/core/tool-registry.ts`, `src/core/conversation.ts`, `src/core/sandbox.ts`
-- **Schnittstellen**: Parser-Layer (Eingabe), Tools-Layer (Ausführung), UI-Layer (Ergebnisse)
+- **Verantwortung**: Tool-Ausführung, Tool-Verwaltung, Konversations-State, LLM-Orchestrierung, API-Kommunikation, Execution History
+- **Dateien**: `src/core/tool-executor.ts`, `src/core/tool-registry.ts`, `src/core/conversation.ts`, `src/core/sandbox.ts`, `src/core/openrouter.ts`, `src/core/orchestrator.ts`, `src/core/history.ts`, `src/core/persistence.ts`
+- **Schnittstellen**: Parser-Layer (Eingabe), Tools-Layer (Ausführung), UI-Layer (Ergebnisse), OpenRouter API (LLM)
 
 #### Parser & Validation Layer
 
@@ -67,8 +73,8 @@ C4Container
 
 #### Utils Layer
 
-- **Verantwortung**: Shared Constants, Logging
-- **Dateien**: `src/utils/constants.ts`, `src/utils/logger.ts`
+- **Verantwortung**: Shared Constants, Logging, Execution-Metriken, Tracing
+- **Dateien**: `src/utils/constants.ts`, `src/utils/logger.ts`, `src/utils/metrics.ts`
 - **Schnittstellen**: Von allen anderen Layern genutzt
 
 ## 5.2 Ebene 2 – Core Execution Layer
@@ -114,11 +120,28 @@ Input-Parameter
 
 - **State-Management** für Agenten-Konversationen
 - Methoden: `createConversation()`, `addMessage()`, `getMessagesForContext()`, `buildContext()`
+- **Vault-Persistenz**: `setPersistence()`, `loadFromStorage()`, `saveToStorage()` mit debounced saves (1 s Delay). Speicherung nach `.obsidian/plugins/paper-agents/conversations.json`. Max. 50 persistierte Konversationen.
 - **Token-Counting**: Approximativ (4 Zeichen ≈ 1 Token)
 - **Memory-Strategien**: `conversation` (letzte N Nachrichten), `summary` (Zusammenfassung), `none`
 - **Markdown-Export/Import**: Round-trip-fähig mit ISO 8601 Timestamps
 - **LLM-Formatierung**: `formatMessagesForLLM()` für OpenRouter-API
 - **Coverage**: 97.47%
+
+### Orchestrator (`orchestrator.ts`)
+
+- **LLM-Chat-Orchestrierung** mit OpenRouter SSE-Streaming
+- Multi-Round Tool-Calling (max. 10 Runden pro Nachricht)
+- Callback-basiertes Streaming an UI: `onToken`, `onToolCallStart`, `onToolCallEnd`, `onComplete`, `onError`
+- Konvertiert Agenten-Definitionen zu OpenRouter Tool-Schemas
+- Integration mit `globalMetrics`/`globalLogger` für Tracing und Metriken
+
+### Persistence (`persistence.ts`)
+
+- **Vault-basierte Persistenz-Helpers** für JSON-Daten
+- Factory-Funktionen: `createVaultSaver()`, `createVaultLoader()`
+- Initialisiert History- und Conversation-Persistenz
+- Speicherort: `.obsidian/plugins/paper-agents/`
+- Dateien: `history.json`, `conversations.json`
 
 ### Sandbox (`sandbox.ts`)
 

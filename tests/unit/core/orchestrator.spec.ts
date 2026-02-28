@@ -1,0 +1,126 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+vi.mock("obsidian", () => {
+  return {
+    requestUrl: vi.fn(),
+  };
+});
+
+import { Orchestrator } from "../../../src/core/orchestrator";
+import { ConversationManager } from "../../../src/core/conversation";
+import ToolRegistry from "../../../src/core/tool-registry";
+import { AgentDefinition } from "../../../src/types";
+import { requestUrl } from "obsidian";
+
+const mockRequestUrl = vi.mocked(requestUrl);
+
+const makeAgent = (): AgentDefinition => ({
+  id: "test-agent",
+  name: "Test Agent",
+  systemPrompt: "You are a helpful assistant.",
+  tools: [],
+  memory: { type: "conversation", maxMessages: 50 },
+});
+
+const makeOrchestratorConfig = () => ({
+  openRouterConfig: {
+    apiKey: "test-key",
+    model: "openai/gpt-4",
+    temperature: 0.7,
+    maxTokens: 1024,
+  },
+  maxToolCallRounds: 5,
+});
+
+describe("Orchestrator", () => {
+  let conversationManager: ConversationManager;
+  let toolRegistry: ToolRegistry;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    conversationManager = new ConversationManager();
+    toolRegistry = new ToolRegistry();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("sends a message and returns assistant response", async () => {
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      text: [
+        'data: {"id":"gen-1","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}',
+        'data: {"id":"gen-1","choices":[{"index":0,"delta":{"content":" there!"},"finish_reason":null}]}',
+        'data: {"id":"gen-1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+        "data: [DONE]",
+      ].join("\n"),
+    } as never);
+
+    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
+    const agent = makeAgent();
+
+    const convId = "conv-1";
+    conversationManager.createConversation(convId, agent.id);
+
+    const result = await orchestrator.sendMessage(agent, convId, "Hello");
+    expect(result).toBe("Hello there!");
+  });
+
+  it("calls onToken callback during streaming", async () => {
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      text: [
+        'data: {"id":"gen-1","choices":[{"index":0,"delta":{"role":"assistant","content":"Hi"},"finish_reason":null}]}',
+        'data: {"id":"gen-1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+        "data: [DONE]",
+      ].join("\n"),
+    } as never);
+
+    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
+    const agent = makeAgent();
+    const convId = "conv-2";
+    conversationManager.createConversation(convId, agent.id);
+
+    const tokens: string[] = [];
+    await orchestrator.sendMessage(agent, convId, "Test", {
+      onToken: (t) => tokens.push(t),
+    });
+
+    expect(tokens.length).toBeGreaterThan(0);
+  });
+
+  it("calls onError callback on failure", async () => {
+    mockRequestUrl.mockRejectedValueOnce(new Error("API down"));
+
+    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
+    const agent = makeAgent();
+    const convId = "conv-3";
+    conversationManager.createConversation(convId, agent.id);
+
+    let errorReceived: Error | null = null;
+    await expect(
+      orchestrator.sendMessage(agent, convId, "Test", {
+        onError: (e) => { errorReceived = e; },
+      })
+    ).rejects.toThrow();
+
+    expect(errorReceived).not.toBeNull();
+  });
+
+  it("testConnection delegates to client", async () => {
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      json: { data: [{ id: "openai/gpt-4" }] },
+    } as never);
+
+    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
+    const result = await orchestrator.testConnection();
+    expect(result.success).toBe(true);
+  });
+
+  it("updateConfig updates the client config", () => {
+    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
+    orchestrator.updateConfig({ model: "new-model" });
+  });
+});

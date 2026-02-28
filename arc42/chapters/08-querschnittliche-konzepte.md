@@ -157,6 +157,9 @@ Result: "Dateiinhalt"
 | **Strategy Pattern** | `ToolExecutor` | Austauschbare Ausführungslogik (Single vs. Chain) |
 | **Observer Pattern** | HITL-Callbacks | UI-Integration ohne Tight Coupling |
 | **Pipeline Pattern** | 3-Phasen-Execution | Pre → Tool → Post als sequenzielle Pipeline |
+| **Callback Pattern** | `OrchestratorCallbacks` | Streaming-Events (onToken, onToolCallStart, onToolCallEnd, onComplete, onError) |
+| **Debounce Pattern** | `ConversationManager` | Persistenz-Speicherung mit 1 s Timer, vermeidet exzessive Schreiboperationen |
+| **Module Extraction** | `commands/`, `persistence.ts` | Verantwortlichkeiten aus main.ts in eigenständige Module extrahiert |
 
 ## 8.5 Logging
 
@@ -174,25 +177,60 @@ Result: "Dateiinhalt"
 - User-Facing errors als `Notice` in Obsidian
 - Detaillierte Fehler im Debug-Log
 
+### Streaming Error Classification (Chat-UI)
+
+Fehler während der LLM-Kommunikation werden in `src/ui/chat.ts` (`addErrorMessage()`) klassifiziert und nutzerfreundlich angezeigt:
+
+| Error-Typ | Erkennung (im Error-Message) | Nutzer-Nachricht |
+|---|---|---|
+| Timeout | `timeout`, `aborted` | „Request timed out. Model is overloaded.“ |
+| Rate Limit | `429`, `rate limit` | „Rate limit reached. Please wait.“ |
+| Auth | `401`, `unauthorized`, `invalid api key` | „API key invalid or missing.“ |
+| Netzwerk | `network`, `fetch`, `ECONNREFUSED`, `ENOTFOUND` | „Network error — check connection.“ |
+| Credits | `402`, `insufficient` | „Insufficient credits on OpenRouter account.“ |
+| Model | `model` + `not found` | „Selected model unavailable.“ |
+| Generic | alles andere | „Error: {original message}“ |
+
+Fehler werden als eigener CSS-styled Message-Block (`pa-chat-message-error`) angezeigt.
+
 ## 8.7 Plugin-Lifecycle
 
 ```typescript
 onload():
   1. Settings laden (loadData)
   2. ToolRegistry initialisieren
-  3. Predefined Tools registrieren
-  4. Custom Tools aus Vault laden
-  5. Sandbox initialisieren (QuickJS)
-  6. Sidebar View registrieren
-  7. Ribbon Icon hinzufügen
-  8. Commands registrieren (open-sidebar, reload-custom-tools)
-  9. Settings-Tab registrieren
-  10. HITL Callbacks registrieren
+  3. ConversationManager initialisieren
+  4. Predefined Tools registrieren
+  5. Custom Tools aus Vault laden
+  6. Agents aus Vault laden
+  7. Orchestrator initialisieren
+  8. History-Persistenz initialisieren
+  9. Conversation-Persistenz initialisieren (loadFromStorage)
+  10. Sandbox initialisieren (QuickJS)
+  11. Sidebar View registrieren
+  12. Chat View registrieren
+  13. Ribbon Icon hinzufügen
+  14. Commands registrieren (via registerCommands())
+  15. Settings-Tab registrieren
+  16. HITL Callbacks registrieren
 
 onunload():
-  1. Sandbox destroyen
-  2. Sidebar-Leaves detachen
+  1. Conversations speichern (force flush – saveToStorage)
+  2. Sandbox destroyen
+  3. Sidebar-Leaves detachen
+  4. Chat-Leaves detachen
 ```
+
+## 8.8 Vault-Persistenz
+
+- **Speicherort**: `.obsidian/plugins/paper-agents/`
+- **Dateien**: `conversations.json` (Chat-Konversationen), `history.json` (Execution-History)
+- **Debounced Saves**: Während der Laufzeit werden Änderungen mit 1 s Delay gespeichert (vermeidet exzessive I/O)
+- **Force-Save bei Unload**: Beim Plugin-Stopp wird explizit `saveToStorage()` aufgerufen
+- **Factory-Funktionen**: `createVaultSaver()`, `createVaultLoader()` in `src/core/persistence.ts`
+- **Limits**: Max. 50 persistierte Konversationen
+- **Fehlertoleranz**: Korrupte Daten werden geloggt und ignoriert (kein Plugin-Crash)
+- **Datenschutz**: Alle Daten lokal im Vault – kein Cloud-Sync der Gespräche
 
 ---
 

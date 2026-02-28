@@ -3,7 +3,7 @@
  * Extrahiert YAML-Frontmatter und Code-Blöcke
  */
 
-import { Agent, Parameter, Step, YAMLFrontmatter, ParsedToolFile, ParameterType } from "../types";
+import { Agent, Parameter, Step, YAMLFrontmatter, ParsedToolFile, ParameterType, YAMLPrimitive } from "../types";
 
 export class YAMLParseError extends Error {
   line: number;
@@ -62,12 +62,12 @@ export class YAMLParser {
     const lines = yaml.split("\n");
 
     let currentKey: string | null = null;
-    let currentArray: any[] = [];
-    let currentItem: Record<string, any> | null = null;
+    let currentArray: unknown[] = [];
+    let currentItem: Record<string, unknown> | null = null;
     let inArray = false;
     let inNestedObject = false;
     let nestedObjectKey: string | null = null;
-    let nestedObject: Record<string, any> | null = null;
+    let nestedObject: Record<string, unknown> | null = null;
     const raise = (message: string, lineIndex: number, line: string): never => {
       const column = Math.max(line.search(/\S/), 0) + 1;
       const snippet = line.trim();
@@ -105,7 +105,7 @@ export class YAMLParser {
 
         if (!inArray) {
           inArray = true;
-          currentArray = Array.isArray(result[currentKey]) ? ([...(result[currentKey] as any[])]) : [];
+          currentArray = Array.isArray(result[currentKey]) ? ([...(result[currentKey] as unknown[])]) : [];
         }
 
         if (currentItem && nestedObjectKey && nestedObject) {
@@ -115,7 +115,7 @@ export class YAMLParser {
         }
 
         const itemContent = trimmed.replace(/^-/, "").trim();
-        const item: Record<string, any> = {};
+        const item: Record<string, unknown> = {};
 
         if (itemContent) {
           if (itemContent.includes(":")) {
@@ -247,7 +247,7 @@ export class YAMLParser {
   /**
    * Parst ein einzelnes Key-Value Paar
    */
-  private static parseKeyValue(line: string): [string, any] {
+  private static parseKeyValue(line: string): [string, YAMLPrimitive] {
     const match = line.match(/^(\w+):\s*(.*)$/);
     if (!match) {
       return ["", null];
@@ -262,8 +262,8 @@ export class YAMLParser {
   /**
    * Parst ein YAML-Object aus String (z.B. "name: foo, type: bar")
    */
-  private static parseYAMLObject(str: string): Record<string, any> {
-    const obj: Record<string, any> = {};
+  private static parseYAMLObject(str: string): Record<string, YAMLPrimitive> {
+    const obj: Record<string, YAMLPrimitive> = {};
     const pairs = str.split(",").map((p) => p.trim());
 
     for (const pair of pairs) {
@@ -279,7 +279,7 @@ export class YAMLParser {
   /**
    * Konvertiert String zu korrektem Typ
    */
-  private static parseValue(str: string): any {
+  private static parseValue(str: string): YAMLPrimitive {
     if (str === "true") return true;
     if (str === "false") return false;
     if (str === "null") return null;
@@ -362,7 +362,7 @@ export class YAMLParser {
       name: String(frontmatter.name),
       description: frontmatter.description ? String(frontmatter.description) : undefined,
       type: frontmatter.type as "single" | "chain",
-      parameters: this.parseParameters(frontmatter.parameters || []),
+      parameters: this.parseParameters((frontmatter.parameters || []) as unknown[] as Array<Record<string, unknown>>),
     };
 
     // Pre- und Post-Processing hinzufügen (beide für single und chain)
@@ -382,9 +382,9 @@ export class YAMLParser {
     if (frontmatter.type === "chain") {
       // Steps werden direkt aus dem Frontmatter geparst (als Array von Objects)
       if (Array.isArray(frontmatter.steps) && frontmatter.steps.length > 0) {
-        agent.steps = (frontmatter.steps as any[]).map((step) => ({
+        agent.steps = (frontmatter.steps as unknown as Array<Record<string, unknown>>).map((step) => ({
           name: String(step.name || ""),
-          parameters: step.parameters || {},
+          parameters: (step.parameters || {}) as Record<string, unknown>,
         }));
       } else if (parsed.steps) {
         // Fallback: Wenn Steps als YAML-String vorhanden
@@ -404,11 +404,11 @@ export class YAMLParser {
    *   filePath: "input.path"
    * ```
    */
-  private static parseToolDefinition(yamlBlock: string): { toolId: string; parameters: Record<string, any> } {
+  private static parseToolDefinition(yamlBlock: string): { toolId: string; parameters: Record<string, unknown> } {
     const lines = yamlBlock.split("\n").filter((line) => line.trim() && !line.trim().startsWith("#"));
     
     let toolId = "";
-    const parameters: Record<string, any> = {};
+    const parameters: Record<string, unknown> = {};
     let inParameters = false;
 
     for (const line of lines) {
@@ -439,7 +439,7 @@ export class YAMLParser {
   /**
    * Parst Parameter-Array aus YAML
    */
-  private static parseParameters(params: any[]): Parameter[] {
+  private static parseParameters(params: Array<Record<string, unknown>>): Parameter[] {
     if (!Array.isArray(params)) {
       return [];
     }

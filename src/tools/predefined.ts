@@ -4,7 +4,7 @@
  */
 
 import { App, TFile, requestUrl } from "obsidian";
-import { IExecutableTool, IToolFactory, Parameter, ExecutionContext, ExecutionResult } from "../types";
+import type { IExecutableTool, IToolFactory, Parameter, ExecutionContext, ExecutionResult } from "../types";
 import { PREDEFINED_TOOL_IDS } from "../utils/constants";
 import { globalLogger } from "../utils/logger";
 
@@ -95,7 +95,7 @@ class SearchFilesTool implements IExecutableTool {
 export const SearchFilesFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.SEARCH_FILES,
   description: "Search files in vault by name or path",
-  create: (app?: any) => {
+  create: (app?: App) => {
     if (!app) {
       throw new Error("SearchFilesTool requires App instance");
     }
@@ -173,7 +173,7 @@ class ReadFileTool implements IExecutableTool {
 export const ReadFileFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.READ_FILE,
   description: "Read file content from vault",
-  create: (app?: any) => {
+  create: (app?: App) => {
     if (!app) {
       throw new Error("ReadFileTool requires App instance");
     }
@@ -260,7 +260,7 @@ class WriteFileTool implements IExecutableTool {
     }
   }
 
-  shouldRequireHITL(parameters: Record<string, any>): boolean {
+  shouldRequireHITL(parameters: Record<string, unknown>): boolean {
     return true; // Always require HITL for write operations
   }
 }
@@ -268,7 +268,7 @@ class WriteFileTool implements IExecutableTool {
 export const WriteFileFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.WRITE_FILE,
   description: "Write or modify file in vault",
-  create: (app?: any) => {
+  create: (app?: App) => {
     if (!app) {
       throw new Error("WriteFileTool requires App instance");
     }
@@ -360,7 +360,7 @@ class RestRequestTool implements IExecutableTool {
     }
   }
 
-  shouldRequireHITL(parameters: Record<string, any>): boolean {
+  shouldRequireHITL(parameters: Record<string, unknown>): boolean {
     const method = (parameters.method as string) || "GET";
     // Require HITL for destructive operations
     return ["PUT", "POST", "DELETE"].includes(method.toUpperCase());
@@ -370,7 +370,7 @@ class RestRequestTool implements IExecutableTool {
 export const RestRequestFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.REST_REQUEST,
   description: "Make HTTP requests to APIs",
-  create: (app?: any) => {
+  create: (app?: App) => {
     if (!app) {
       throw new Error("RestRequestTool requires App instance");
     }

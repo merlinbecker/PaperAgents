@@ -14,7 +14,7 @@ export interface LogEntry {
   level: LogLevel;
   timestamp: number;
   message: string;
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
 }
 
 export class Logger {
@@ -29,35 +29,35 @@ export class Logger {
   /**
    * Log auf DEBUG-Level
    */
-  debug(message: string, context?: Record<string, any>): void {
+  debug(message: string, context?: Record<string, unknown>): void {
     this.log(LogLevel.DEBUG, message, context);
   }
 
   /**
    * Log auf INFO-Level
    */
-  info(message: string, context?: Record<string, any>): void {
+  info(message: string, context?: Record<string, unknown>): void {
     this.log(LogLevel.INFO, message, context);
   }
 
   /**
    * Log auf WARN-Level
    */
-  warn(message: string, context?: Record<string, any>): void {
+  warn(message: string, context?: Record<string, unknown>): void {
     this.log(LogLevel.WARN, message, context);
   }
 
   /**
    * Log auf ERROR-Level
    */
-  error(message: string, context?: Record<string, any>): void {
+  error(message: string, context?: Record<string, unknown>): void {
     this.log(LogLevel.ERROR, message, context);
   }
 
   /**
    * Internal Log-Funktion
    */
-  private log(level: LogLevel, message: string, context?: Record<string, any>): void {
+  private log(level: LogLevel, message: string, context?: Record<string, unknown>): void {
     if (level < this.minLevel) {
       return; // Skip
     }

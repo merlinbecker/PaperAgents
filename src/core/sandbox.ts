@@ -4,7 +4,8 @@
  * Unterstützt Desktop + Mobile (QuickJS läuft überall)
  */
 
-import { getQuickJS, QuickJSContext, QuickJSRuntime } from "quickjs-emscripten";
+import { newQuickJSWASMModuleFromVariant, QuickJSContext, QuickJSRuntime } from "quickjs-emscripten-core";
+import RELEASE_SYNC from "@jitl/quickjs-singlefile-cjs-release-sync";
 import { ExecutionContext, ExecutionResult } from "../types";
 import { globalLogger } from "../utils/logger";
 
@@ -24,7 +25,7 @@ export class QuickJSSandbox {
    */
   async initialize(): Promise<void> {
     try {
-      const QuickJS = await getQuickJS();
+      const QuickJS = await newQuickJSWASMModuleFromVariant(RELEASE_SYNC);
       this.runtime = QuickJS.newRuntime();
       
       // Set memory limit for safety
@@ -44,7 +45,7 @@ export class QuickJSSandbox {
         timeout: this.executionTimeout,
       });
     } catch (error) {
-      globalLogger.error("Failed to initialize QuickJS", { error });
+      globalLogger.error("Failed to initialize QuickJS", { error: String(error) });
       throw new Error("QuickJS initialization failed");
     }
   }
@@ -53,9 +54,9 @@ export class QuickJSSandbox {
    * Führt Custom-JS Code sicher aus
    * @param code JavaScript-Code zum Ausführen
    * @param ctx Execution-Kontext (Parameter, vorherige Step-Outputs)
-   * @returns Promise<any> Rückgabewert des Scripts
+   * @returns Promise<unknown> Rückgabewert des Scripts
    */
-  async execute(code: string, ctx: ExecutionContext): Promise<any> {
+  async execute(code: string, ctx: ExecutionContext): Promise<unknown> {
     if (!this.context) {
       throw new Error("QuickJS not initialized");
     }
@@ -85,7 +86,7 @@ export class QuickJSSandbox {
    * Baut Script-Kontext aus Execution-Context
    * Ermöglicht Zugriff auf Parameter, vorherige Outputs, Metadaten
    */
-  private buildScriptContext(ctx: ExecutionContext): any {
+  private buildScriptContext(ctx: ExecutionContext): Record<string, unknown> {
     return {
       parameters: ctx.parameters,
       previousStepOutputs: ctx.previousStepOutputs,
@@ -98,7 +99,7 @@ export class QuickJSSandbox {
   /**
    * Erstellt einen minimalen ExecutionContext für Pre/Post-Processing
    */
-  private createMinimalContext(data: Record<string, any>): ExecutionContext {
+  private createMinimalContext(data: Record<string, unknown>): ExecutionContext {
     return {
       parameters: data,
       previousStepOutputs: {},
@@ -111,7 +112,7 @@ export class QuickJSSandbox {
   /**
    * Setzt eine globale Variable im QuickJS Context via JSON
    */
-  private setGlobalVariable(name: string, value: any): void {
+  private setGlobalVariable(name: string, value: unknown): void {
     if (!this.context) {
       throw new Error("QuickJS not initialized");
     }
@@ -128,7 +129,7 @@ export class QuickJSSandbox {
    * Führt Code aus und gibt das Ergebnis zurück
    * Wraps code in IIFE to support return statements
    */
-  private executeCode(code: string, filename: string): any {
+  private executeCode(code: string, filename: string): unknown {
     if (!this.context) {
       throw new Error("QuickJS not initialized");
     }
@@ -192,7 +193,7 @@ export class QuickJSSandbox {
    * @param inputParams User-Parameter
    * @returns Transformierte Parameter
    */
-  async executePreprocess(code: string, inputParams: Record<string, any>): Promise<Record<string, any>> {
+  async executePreprocess(code: string, inputParams: Record<string, unknown>): Promise<Record<string, unknown>> {
     const validation = this.validateCode(code);
     if (!validation.valid) {
       throw new Error(`Pre-processing validation failed: ${validation.errors.join(", ")}`);
@@ -217,7 +218,7 @@ export class QuickJSSandbox {
         throw new Error("Pre-processing must return an object");
       }
 
-      return returnValue as Record<string, any>;
+      return returnValue as Record<string, unknown>;
     } catch (error) {
       globalLogger.error("Pre-processing execution failed", { error, code });
       throw new Error(`Pre-processing failed: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -231,7 +232,7 @@ export class QuickJSSandbox {
    * @param toolOutput Rohausgabe des Tools
    * @returns Transformierte Ausgabe
    */
-  async executePostprocess(code: string, toolOutput: any): Promise<any> {
+  async executePostprocess(code: string, toolOutput: unknown): Promise<unknown> {
     const validation = this.validateCode(code);
     if (!validation.valid) {
       throw new Error(`Post-processing validation failed: ${validation.errors.join(", ")}`);

@@ -13,14 +13,14 @@ import { globalLogger } from "../utils/logger";
  */
 export class ToolFormModal extends Modal {
   private tool: ToolMetadata;
-  private onSubmit: (parameters: Record<string, any>) => void;
-  private formValues: Record<string, any> = {};
+  private onSubmit: (parameters: Record<string, unknown>) => void;
+  private formValues: Record<string, unknown> = {};
   private formContainer: HTMLElement | null = null;
 
   constructor(
     app: App,
     tool: ToolMetadata,
-    onSubmit: (parameters: Record<string, any>) => void
+    onSubmit: (parameters: Record<string, unknown>) => void
   ) {
     super(app);
     this.tool = tool;
@@ -140,7 +140,7 @@ export class ToolFormModal extends Modal {
   /**
    * Parst Input-Wert basierend auf Typ
    */
-  private parseValue(value: string, type: string): any {
+  private parseValue(value: string, type: string): string | number | boolean | object | undefined {
     if (!value || value.trim() === "") {
       return undefined;
     }
@@ -180,7 +180,7 @@ export class ToolFormModal extends Modal {
   /**
    * Konvertiert Wert zu String für Anzeige
    */
-  private valueToString(value: any): string {
+  private valueToString(value: unknown): string {
     if (value === null || value === undefined) {
       return "";
     }
@@ -269,13 +269,13 @@ export class ToolFormModal extends Modal {
 export class QuickToolForm {
   private container: HTMLElement;
   private tool: ToolMetadata;
-  private onSubmit: (parameters: Record<string, any>) => void;
-  private formValues: Record<string, any> = {};
+  private onSubmit: (parameters: Record<string, unknown>) => void;
+  private formValues: Record<string, unknown> = {};
 
   constructor(
     container: HTMLElement,
     tool: ToolMetadata,
-    onSubmit: (parameters: Record<string, any>) => void
+    onSubmit: (parameters: Record<string, unknown>) => void
   ) {
     this.container = container;
     this.tool = tool;
@@ -343,7 +343,7 @@ export class QuickToolForm {
   /**
    * Parst Quick-Form Value
    */
-  private parseValue(value: string, type: string): any {
+  private parseValue(value: string, type: string): string | number | undefined {
     if (type === "number") {
       const num = parseFloat(value);
       return isNaN(num) ? undefined : num;

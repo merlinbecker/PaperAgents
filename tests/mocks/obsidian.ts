@@ -2,6 +2,7 @@
 export class TFile {
   path: string;
   name: string;
+  basename: string;
   stat: { size: number; mtime: number };
   extension: string;
   constructor(path: string, size = 0, mtime = Date.now()) {
@@ -10,6 +11,7 @@ export class TFile {
     this.stat = { size, mtime };
     const parts = this.name.split(".");
     this.extension = parts.length > 1 ? parts.pop() || "" : "";
+    this.basename = parts.join(".");
   }
 }
 
@@ -97,6 +99,11 @@ export class Vault {
 
   async exists(path: string): Promise<boolean> {
     return this.files.has(path);
+  }
+
+  on(_event: string, _cb: (...args: any[]) => void) {
+    // noop in tests - override per test for event simulation
+    return () => {};
   }
 }
 

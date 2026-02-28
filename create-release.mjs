@@ -13,9 +13,13 @@ import { createInterface } from "readline";
  *   npm run release:beta      # Creates beta release
  */
 
-// Use absolute paths for commands to avoid PATH manipulation vulnerabilities
-const GIT_PATH = "/usr/bin/git";
-const NPM_PATH = "/usr/local/bin/npm";
+// Use bare command names and rely on the system PATH for cross-platform resolution
+function resolveCommand(name) {
+	return name;
+}
+
+const GIT_PATH = resolveCommand("git");
+const NPM_PATH = resolveCommand("npm");
 
 /**
  * Verify that a command exists at the expected path
@@ -39,8 +43,9 @@ function verifyCommand(path, name) {
 
 function main() {
 	const args = process.argv.slice(2);
-	let tag = args[0];
 	const isBeta = args.includes("--beta");
+	// First non-flag argument is the tag override
+	let tag = args.find(a => !a.startsWith("--")) || null;
 
 	// Show help if requested
 	if (args.includes("--help") || args.includes("-h")) {
