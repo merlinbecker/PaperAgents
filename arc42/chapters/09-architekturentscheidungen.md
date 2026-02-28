@@ -44,7 +44,7 @@
 - Streaming-Support (SSE)
 - Nutzer wählt Modell und zahlt über eigenen API-Key
 
-**Status**: Geplant (Phase 4.3).
+**Status**: Implementiert (openrouter.ts, orchestrator.ts, chat.ts mit SSE-Streaming und Tool-Calling).
 
 ---
 
@@ -75,6 +75,25 @@
 - Leichtgewichtig und schnell
 
 **Status**: Implementiert (conversation.ts).
+
+---
+
+## ADR-6: Zweischichtige Conversation-Persistenz (JSON + Markdown)
+
+**Kontext**: Conversations müssen nach einem Obsidian-Neustart wiederherstellbar sein. JSON (`conversations.json`) ist kompakt und schnell; Markdown-Dateien sind für den Nutzer lesbar und editierbar.
+
+**Entscheidung**: Zwei Persistenzschichten:
+1. **JSON** (`.obsidian/plugins/paper-agents/conversations.json`): Primäre Laufzeit-Persistenz via `ConversationManager`, max. 50 Conversations, debounced saves.
+2. **Markdown** (`paper-agents-conversations/*.md`): Sekundäre Persistenz via `ConversationFileManager`, eine Datei pro Conversation, YAML-Frontmatter + Message-Blöcke.
+
+**Konfliktlösung beim Startup**: Newest-wins – die Quelle mit dem neueren `updatedAt`-Timestamp gewinnt.
+
+**Begründung**:
+- Markdown-Dateien sind von Nutzern direkt editier- und versionierbar (Git)
+- JSON-Persistenz ist performant für Runtime-State
+- Zweischichtigkeit ermöglicht Robustheit gegen JSON-Verlust oder 50-Conversation-Limit
+
+**Status**: Implementiert (conversation-file-manager.ts, main.ts `restoreConversationsFromFiles()`).
 
 ---
 

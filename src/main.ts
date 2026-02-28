@@ -408,7 +408,14 @@ export default class PaperAgents extends Plugin {
         if (!parsed) continue;
 
         const convId = parsed.conversation.id;
-        if (convId && this.conversationManager.getConversation(convId)) continue;
+        if (convId) {
+          const existing = this.conversationManager.getConversation(convId);
+          if (existing) {
+            // Newest-wins: prefer the Markdown file if it was updated more recently
+            const markdownUpdatedAt = parsed.conversation.updatedAt ?? 0;
+            if (markdownUpdatedAt <= existing.updatedAt) continue;
+          }
+        }
 
         this.conversationManager.loadFromConversationFile(content);
         loaded++;

@@ -105,6 +105,15 @@ export class PaperAgentsChatView extends ItemView {
   refreshAgents(): void {
     this.agents = this.onGetAgents();
     this.orchestrator = this.onGetOrchestrator();
+
+    // Auto-select the only available agent when none is selected yet
+    if (!this.selectedAgent && this.agents.length === 1) {
+      this.selectedAgent = this.agents[0] ?? null;
+      if (this.selectedAgent) {
+        void this.startNewConversation();
+      }
+    }
+
     this.updateAgentSelect();
   }
 
