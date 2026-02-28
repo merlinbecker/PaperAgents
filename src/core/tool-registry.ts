@@ -5,7 +5,7 @@
  */
 
 import { Agent, IExecutableTool, ToolMetadata, IToolFactory } from "../types";
-import { PREDEFINED_TOOL_IDS, TOOL_CATEGORIES, TOOL_ICONS } from "../utils/constants";
+import { TOOL_CATEGORIES, TOOL_ICONS } from "../utils/constants";
 import { globalLogger } from "../utils/logger";
 import type { App } from "obsidian";
 
@@ -203,15 +203,13 @@ export class ToolRegistry {
    * Wird benötigt, wenn ein Agent selbst als Tool in anderem Agent verwendet wird
    */
   private agentToExecutableTool(agent: Agent): IExecutableTool {
-    const self = this;
-
     return {
       name: agent.name,
       parameters: agent.parameters,
 
-      async execute(ctx) {
+      execute: async (ctx) => {
         const { toolExecutor } = await import("./tool-executor");
-        return toolExecutor.executeAgent(agent, self, ctx.parameters);
+        return toolExecutor.executeAgent(agent, this, ctx.parameters);
       },
 
       shouldRequireHITL() {

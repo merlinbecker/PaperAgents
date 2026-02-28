@@ -23,7 +23,7 @@ export class TemplateBrowserModal extends Modal {
     contentEl.empty();
     contentEl.addClass("paper-agents-templates");
 
-    contentEl.createEl("h2", { text: "Template Library" });
+    contentEl.createEl("h2", { text: "Template library" });
 
     const controls = contentEl.createDiv({ cls: "pa-history-filters" });
     const searchInput = controls.createEl("input", {
@@ -32,7 +32,7 @@ export class TemplateBrowserModal extends Modal {
     });
 
     const typeSelect = controls.createEl("select", { cls: "pa-history-filter-select" });
-    typeSelect.createEl("option", { text: "All Types", attr: { value: "" } });
+    typeSelect.createEl("option", { text: "All types", attr: { value: "" } });
     typeSelect.createEl("option", { text: "Tools", attr: { value: "tool" } });
     typeSelect.createEl("option", { text: "Agents", attr: { value: "agent" } });
     typeSelect.createEl("option", { text: "Chains", attr: { value: "chain" } });
@@ -74,18 +74,17 @@ export class TemplateBrowserModal extends Modal {
 
     const footer = contentEl.createDiv({ cls: "pa-history-footer" });
 
-    const importBtn = footer.createEl("button", { cls: "pa-btn-submit", text: "Import from Clipboard" });
-    importBtn.addEventListener("click", async () => {
-      try {
-        const text = await navigator.clipboard.readText();
+    const importBtn = footer.createEl("button", { cls: "pa-btn-submit", text: "Import from clipboard" });
+    importBtn.addEventListener("click", () => {
+      void navigator.clipboard.readText().then((text) => {
         const template = JSON.parse(text) as ToolTemplate;
         if (template.id && template.name && template.content) {
           this.onImport(template);
           this.close();
         }
-      } catch {
+      }).catch(() => {
         /* ignore parse errors */
-      }
+      });
     });
   }
 
@@ -99,8 +98,8 @@ export class TemplateBrowserModal extends Modal {
 
   static parseTemplate(json: string): ToolTemplate | null {
     try {
-      const parsed = JSON.parse(json);
-      if (parsed.id && parsed.name && parsed.content) {
+      const parsed: unknown = JSON.parse(json) as unknown;
+      if (parsed && typeof parsed === "object" && "id" in parsed && "name" in parsed && "content" in parsed) {
         return parsed as ToolTemplate;
       }
       return null;

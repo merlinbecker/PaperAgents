@@ -69,7 +69,7 @@ export class MetricsCollector {
     this.traces.get(traceId)!.push(span);
 
     if (this.traces.size > this.maxTraces) {
-      const oldest = this.traces.keys().next().value;
+      const oldest: string | undefined = this.traces.keys().next().value as string | undefined;
       if (oldest) this.traces.delete(oldest);
     }
 

@@ -13,19 +13,19 @@ import { WorkflowViewModal } from "../ui/workflow-view";
 export function registerCommands(plugin: PaperAgents): void {
   plugin.addCommand({
     id: "open-sidebar",
-    name: "Open Paper Agents Sidebar",
-    callback: () => { plugin.activateSidebar(); },
+    name: "Open sidebar",
+    callback: () => { void plugin.activateSidebar(); },
   });
 
   plugin.addCommand({
     id: "open-chat",
-    name: "Open Agent Chat",
-    callback: () => { plugin.activateChat(); },
+    name: "Open agent chat",
+    callback: () => { void plugin.activateChat(); },
   });
 
   plugin.addCommand({
     id: "reload-custom-tools",
-    name: "Reload Custom Tools",
+    name: "Reload custom tools",
     callback: async () => {
       await plugin.loadCustomToolsFromVault();
       new Notice("Custom tools reloaded");
@@ -35,7 +35,7 @@ export function registerCommands(plugin: PaperAgents): void {
 
   plugin.addCommand({
     id: "reload-agents",
-    name: "Reload Agents",
+    name: "Reload agents",
     callback: async () => {
       await plugin.loadAgentsFromVault();
       new Notice(`Agents reloaded (${plugin.loadedAgents.length} loaded)`);
@@ -45,7 +45,7 @@ export function registerCommands(plugin: PaperAgents): void {
 
   plugin.addCommand({
     id: "show-history",
-    name: "Show Execution History",
+    name: "Show execution history",
     callback: () => {
       new HistoryPanelModal(plugin.app, executionHistory).open();
     },
@@ -53,7 +53,7 @@ export function registerCommands(plugin: PaperAgents): void {
 
   plugin.addCommand({
     id: "browse-templates",
-    name: "Browse Templates",
+    name: "Browse templates",
     callback: () => {
       openTemplateBrowser(plugin);
     },
@@ -61,7 +61,7 @@ export function registerCommands(plugin: PaperAgents): void {
 
   plugin.addCommand({
     id: "show-workflow",
-    name: "Show Workflow View",
+    name: "Show workflow view",
     callback: () => {
       openWorkflowView(plugin);
     },

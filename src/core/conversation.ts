@@ -74,8 +74,8 @@ export class ConversationManager {
       clearTimeout(this.saveDebounceTimer);
     }
 
-    this.saveDebounceTimer = setTimeout(async () => {
-      await this.saveToStorage();
+    this.saveDebounceTimer = setTimeout(() => {
+      void this.saveToStorage();
     }, 1000);
   }
 
@@ -368,7 +368,7 @@ export class ConversationManager {
           let parameters: Record<string, unknown> = {};
           if (paramsMatch) {
             try {
-              parameters = JSON.parse(paramsMatch.replace("<!-- params:", "").replace(" -->", ""));
+              parameters = JSON.parse(paramsMatch.replace("<!-- params:", "").replace(" -->", "")) as Record<string, unknown>;
             } catch {
               parameters = {};
             }
@@ -380,7 +380,7 @@ export class ConversationManager {
           toolCall = {
             toolId,
             parameters,
-            result: resultLine ? JSON.parse(resultLine.replace("Result: ", "")) : undefined,
+            result: resultLine ? JSON.parse(resultLine.replace("Result: ", "")) as unknown : undefined,
             error: errorLine ? errorLine.replace("Error: ", "") : undefined,
           };
         }

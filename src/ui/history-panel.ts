@@ -30,7 +30,7 @@ export class HistoryPanelModal extends Modal {
 
   private renderHeader(container: HTMLElement): void {
     const header = container.createDiv({ cls: "pa-history-header" });
-    header.createEl("h2", { text: "Execution History" });
+    header.createEl("h2", { text: "Execution history" });
   }
 
   private renderFilters(container: HTMLElement): void {
@@ -142,12 +142,12 @@ export class HistoryPanelModal extends Modal {
       navigator.clipboard.writeText(data).then(() => {
         exportBtn.textContent = "Copied!";
         setTimeout(() => { exportBtn.textContent = "Export JSON"; }, 2000);
-      });
+      }).catch(() => { /* ignore clipboard errors */ });
     });
 
     const clearBtn = footer.createEl("button", {
       cls: "pa-btn-cancel",
-      text: "Clear History",
+      text: "Clear history",
     });
     clearBtn.addEventListener("click", () => {
       this.history.clearHistory();

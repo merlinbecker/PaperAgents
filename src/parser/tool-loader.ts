@@ -4,7 +4,7 @@
  * Konvertiert diese zu Agent-Objekten
  */
 
-import { App, TFile, TFolder, TAbstractFile, Vault } from "obsidian";
+import { App, TFile, TFolder, TAbstractFile } from "obsidian";
 import { Agent, LoadToolsResult, ToolFile } from "../types";
 import YAMLParser from "./yaml-parser";
 import ParameterValidator from "./validator";
@@ -24,15 +24,14 @@ export class CustomToolLoader {
     const toolFiles: ToolFile[] = [];
 
     try {
-      const root = this.app.vault.getRoot();
       const folder = this.app.vault.getAbstractFileByPath(basePath);
 
-      if (!folder || !("children" in folder)) {
+      if (!(folder instanceof TFolder)) {
         console.warn(`Tool folder not found: ${basePath}`);
         return [];
       }
 
-      this.collectMarkdownFiles(folder as TFolder, toolFiles);
+      this.collectMarkdownFiles(folder, toolFiles);
     } catch (error) {
       console.error(`Error discovering tools in ${basePath}:`, error);
     }
@@ -109,7 +108,7 @@ export class CustomToolLoader {
       const toolFiles = await this.discoverTools(basePath);
 
       if (toolFiles.length === 0) {
-        console.log(`No tool files found in ${basePath}`);
+        console.debug(`No tool files found in ${basePath}`);
         return result;
       }
 
@@ -141,7 +140,7 @@ export class CustomToolLoader {
         }
       }
 
-      console.log(
+      console.debug(
         `Loaded ${result.successful.length} tools, ${result.failed.length} failed`
       );
     } catch (error) {
@@ -158,20 +157,20 @@ export class CustomToolLoader {
   onToolFileChanged(callback: (toolId: string, action: "create" | "update" | "delete") => void): void {
     // Registriere Vault-Events
     this.app.vault.on("create", (file) => {
-      if (this.isToolFile(file)) {
-        callback((file as TFile).basename, "create");
+      if (this.isToolFile(file) && file instanceof TFile) {
+        callback(file.basename, "create");
       }
     });
 
     this.app.vault.on("modify", (file) => {
-      if (this.isToolFile(file)) {
-        callback((file as TFile).basename, "update");
+      if (this.isToolFile(file) && file instanceof TFile) {
+        callback(file.basename, "update");
       }
     });
 
     this.app.vault.on("delete", (file) => {
-      if (this.isToolFile(file)) {
-        callback((file as TFile).basename, "delete");
+      if (this.isToolFile(file) && file instanceof TFile) {
+        callback(file.basename, "delete");
       }
     });
   }

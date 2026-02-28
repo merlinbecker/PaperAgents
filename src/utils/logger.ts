@@ -79,7 +79,7 @@ export class Logger {
     // Konsole ausgeben (für Development)
     const levelName = LogLevel[level];
     const contextStr = context ? JSON.stringify(context) : "";
-    console.log(`[${levelName}] ${message}`, contextStr);
+    console.debug(`[${levelName}] ${message}`, contextStr);
   }
 
   /**

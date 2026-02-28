@@ -139,16 +139,16 @@ export class QuickJSSandbox {
     const result = this.context.evalCode(wrappedCode, filename);
 
     if (result.error) {
-      const errorMsg = this.context.dump(result.error);
+      const errorMsg: unknown = this.context.dump(result.error) as unknown;
       result.error.dispose();
       // Convert error to string properly
-      const errorStr = typeof errorMsg === 'string' ? errorMsg : 
-                       (errorMsg && typeof errorMsg === 'object' && 'message' in errorMsg) ? 
-                       errorMsg.message : JSON.stringify(errorMsg);
+      const errorStr: string = typeof errorMsg === 'string' ? errorMsg :
+                       (errorMsg !== null && typeof errorMsg === 'object' && 'message' in errorMsg) ?
+                       String((errorMsg as { message: unknown }).message) : JSON.stringify(errorMsg);
       throw new Error(errorStr);
     }
 
-    const returnValue = this.context.dump(result.value);
+    const returnValue: unknown = this.context.dump(result.value) as unknown;
     result.value.dispose();
     return returnValue;
   }

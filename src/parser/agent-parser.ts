@@ -28,10 +28,9 @@ import {
   ParsedAgentFile,
   MemoryConfig,
   MemoryType,
-  LoadAgentsResult,
   YAMLPrimitive,
 } from "../types";
-import { YAMLParser, YAMLParseError } from "./yaml-parser";
+import { YAMLParseError } from "./yaml-parser";
 
 export class AgentParseError extends Error {
   field?: string;

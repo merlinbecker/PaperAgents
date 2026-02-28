@@ -40,7 +40,7 @@ export class PaperAgentsSidebar extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Paper Agents";
+    return "Paper agents";
   }
 
   getIcon(): string {
@@ -86,7 +86,7 @@ export class PaperAgentsSidebar extends ItemView {
   private renderHeader(container: HTMLElement): void {
     const header = container.createDiv({ cls: "pa-header" });
 
-    const title = header.createEl("h2", { text: "Paper Agents" });
+    const title = header.createEl("h2", { text: "Paper agents" });
     title.addClass("pa-title");
 
     const refreshBtn = header.createEl("button", { text: "↻" });
@@ -199,7 +199,7 @@ export class PaperAgentsSidebar extends ItemView {
     }
 
     // Parameter Count Badge
-    const badge = toolItem.createSpan({
+    toolItem.createSpan({
       text: `${tool.parameters.length} params`,
       cls: "pa-tool-badge",
     });
@@ -300,7 +300,7 @@ export class PaperAgentsSidebar extends ItemView {
       desc.addClass("pa-tool-description");
     }
 
-    const badge = toolItem.createSpan({
+    toolItem.createSpan({
       text: agent.model || "default",
       cls: "pa-tool-badge",
     });
@@ -347,7 +347,7 @@ export class PaperAgentsSidebar extends ItemView {
     this.examplesContainer.empty();
 
     const header = this.examplesContainer.createDiv({ cls: "pa-examples-header" });
-    header.createEl("h3", { text: "Getting Started" });
+    header.createEl("h3", { text: "Getting started" });
 
     const toggleBtn = header.createEl("button", {
       text: this.examplesExpanded ? "Hide" : "Show",
@@ -431,24 +431,23 @@ class ExampleDetailModal extends Modal {
     const buttons = contentEl.createDiv({ cls: "pa-example-modal-buttons" });
 
     const installBtn = buttons.createEl("button", {
-      text: `Install to Vault`,
+      text: `Install to vault`,
       cls: "pa-btn-install",
     });
-    installBtn.addEventListener("click", async () => {
-      await this.installExample();
+    installBtn.addEventListener("click", () => {
+      void this.installExample();
     });
 
     const copyBtn = buttons.createEl("button", {
-      text: "Copy to Clipboard",
+      text: "Copy to clipboard",
       cls: "pa-btn-close-example",
     });
-    copyBtn.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(this.example.content);
+    copyBtn.addEventListener("click", () => {
+      void navigator.clipboard.writeText(this.example.content).then(() => {
         new Notice("Copied to clipboard");
-      } catch {
+      }).catch(() => {
         new Notice("Could not copy — try installing the example instead");
-      }
+      });
     });
 
     const closeBtn = buttons.createEl("button", {

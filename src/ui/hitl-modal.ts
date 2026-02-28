@@ -72,9 +72,9 @@ export class HITLModal extends Modal {
   private renderHeader(container: HTMLElement): void {
     const header = container.createDiv({ cls: "pa-hitl-header" });
 
-    const icon = header.createSpan({ text: "⚠️", cls: "pa-hitl-icon" });
+    header.createSpan({ text: "⚠️", cls: "pa-hitl-icon" });
 
-    const title = header.createEl("h2", { text: "Approval Required" });
+    const title = header.createEl("h2", { text: "Approval required" });
     title.addClass("pa-hitl-title");
   }
 
@@ -130,7 +130,7 @@ export class HITLModal extends Modal {
       return JSON.stringify(value, null, 2);
     }
 
-    return String(value);
+    return String(value as string | number | boolean | bigint | symbol);
   }
 
   /**
@@ -139,7 +139,7 @@ export class HITLModal extends Modal {
   private renderWarning(container: HTMLElement): void {
     const warningDiv = container.createDiv({ cls: "pa-hitl-warning" });
 
-    warningDiv.createEl("h3", { text: "⚠️ Warning" });
+    warningDiv.createEl("h3", { text: "⚠️ warning" });
 
     const warningText = warningDiv.createEl("p");
     warningText.setText(this.getWarningMessage());
@@ -190,14 +190,14 @@ export class HITLModal extends Modal {
     const buttonContainer = container.createDiv({ cls: "pa-hitl-buttons" });
 
     // Reject Button (links, weniger prominent)
-    const rejectBtn = buttonContainer.createEl("button", { text: "❌ Reject" });
+    const rejectBtn = buttonContainer.createEl("button", { text: "❌ reject" });
     rejectBtn.addClass("pa-btn-reject");
     rejectBtn.addEventListener("click", () => {
       this.handleReject();
     });
 
     // Approve Button (rechts, prominent)
-    const approveBtn = buttonContainer.createEl("button", { text: "✅ Approve" });
+    const approveBtn = buttonContainer.createEl("button", { text: "✅ approve" });
     approveBtn.addClass("pa-btn-approve");
     approveBtn.addEventListener("click", () => {
       this.handleApprove();

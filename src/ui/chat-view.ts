@@ -10,7 +10,7 @@
  * the assistant response will be populated once the LLM layer is wired up.
  */
 
-import { ItemView, WorkspaceLeaf, Notice, TFile } from "obsidian";
+import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
 import { conversationManager } from "../core/conversation";
 import { ConversationFileManager } from "../core/conversation-file-manager";
 import type { Conversation, Message } from "../types";
@@ -117,21 +117,21 @@ export class ChatView extends ItemView {
     this.inputEl = inputArea.createEl("textarea", {
       cls: "pa-chat-input",
       attr: { placeholder: "Type your message… (Ctrl+Enter to send)" },
-    }) as HTMLTextAreaElement;
+    });
 
     this.inputEl.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
-        this.handleSend();
+        void this.handleSend();
       }
     });
 
     this.sendBtn = inputArea.createEl("button", {
       text: "Send",
       cls: "pa-chat-send-btn",
-    }) as HTMLButtonElement;
+    });
 
-    this.sendBtn.addEventListener("click", () => this.handleSend());
+    this.sendBtn.addEventListener("click", () => { void this.handleSend(); });
 
     if (this.conversation) {
       this.renderMessages();
@@ -251,7 +251,7 @@ export class ChatView extends ItemView {
 
       // TODO (Phase 4.3): Call OpenRouter LLM here and add assistant response.
       // For now, add a placeholder notice.
-      new Notice("Message saved. LLM integration coming in Phase 4.3.");
+      new Notice("Message saved. Language model integration coming in phase 4.3.");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
       new Notice(`Failed to send message: ${msg}`);
