@@ -299,6 +299,15 @@ export interface Conversation {
   metadata?: Record<string, unknown>;
 }
 
+export interface ConversationFrontmatter {
+  conversation: boolean;
+  id: string;
+  agentId: string;
+  createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
+  [key: string]: unknown;
+}
+
 export interface ConversationContext {
   agent: AgentDefinition;
   conversation: Conversation;

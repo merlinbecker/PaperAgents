@@ -560,4 +560,118 @@ Hello!`;
       expect(result).toBeNull();
     });
   });
+
+  describe("toConversationFile / parseConversationFile / loadFromConversationFile", () => {
+    it("toConversationFile should include YAML frontmatter", () => {
+      manager.createConversation("agent_1", "conv_file_1");
+      manager.addMessage("conv_file_1", "user", "Hello!");
+      manager.addMessage("conv_file_1", "assistant", "Hi there!");
+
+      const file = manager.toConversationFile("conv_file_1");
+
+      expect(file).not.toBeNull();
+      expect(file).toMatch(/^---\n/);
+      expect(file).toContain("conversation: true");
+      expect(file).toContain("id: conv_file_1");
+      expect(file).toContain("agentId: agent_1");
+      expect(file).toContain("createdAt:");
+      expect(file).toContain("updatedAt:");
+      expect(file).toContain("### User");
+      expect(file).toContain("Hello!");
+      expect(file).toContain("### Assistant");
+      expect(file).toContain("Hi there!");
+    });
+
+    it("toConversationFile should return null for non-existent conversation", () => {
+      const result = manager.toConversationFile("nonexistent");
+      expect(result).toBeNull();
+    });
+
+    it("parseConversationFile should parse frontmatter and messages", () => {
+      const fileContent = `---
+conversation: true
+id: conv_parsed
+agentId: test_agent
+createdAt: 2026-01-01T10:00:00.000Z
+updatedAt: 2026-01-01T10:05:00.000Z
+---
+
+### User (2026-01-01T10:00:00.000Z)
+Hello!
+
+### Assistant (2026-01-01T10:00:05.000Z)
+Hi there!
+`;
+
+      const result = manager.parseConversationFile(fileContent);
+
+      expect(result).not.toBeNull();
+      expect(result?.conversation.id).toBe("conv_parsed");
+      expect(result?.conversation.agentId).toBe("test_agent");
+      expect(result?.messages).toHaveLength(2);
+      expect(result?.messages[0]?.role).toBe("user");
+      expect(result?.messages[0]?.content).toBe("Hello!");
+      expect(result?.messages[1]?.role).toBe("assistant");
+      expect(result?.messages[1]?.content).toBe("Hi there!");
+    });
+
+    it("parseConversationFile should return null for non-conversation files", () => {
+      const fileContent = `---
+agent: true
+id: my_agent
+---
+Some content
+`;
+
+      const result = manager.parseConversationFile(fileContent);
+      expect(result).toBeNull();
+    });
+
+    it("parseConversationFile should return null if no frontmatter", () => {
+      const result = manager.parseConversationFile("Just some text\nwithout frontmatter");
+      expect(result).toBeNull();
+    });
+
+    it("loadFromConversationFile should load and register the conversation", () => {
+      const fileContent = `---
+conversation: true
+id: conv_loaded
+agentId: agent_42
+createdAt: 2026-02-01T08:00:00.000Z
+updatedAt: 2026-02-01T08:10:00.000Z
+---
+
+### User (2026-02-01T08:00:00.000Z)
+Test message
+`;
+
+      const conv = manager.loadFromConversationFile(fileContent);
+
+      expect(conv).not.toBeNull();
+      expect(conv?.id).toBe("conv_loaded");
+      expect(conv?.agentId).toBe("agent_42");
+      expect(conv?.messages).toHaveLength(1);
+      expect(conv?.messages[0]?.content).toBe("Test message");
+
+      // Should be retrievable from the manager
+      expect(manager.getConversation("conv_loaded")).toBeDefined();
+    });
+
+    it("should round-trip via toConversationFile and loadFromConversationFile", () => {
+      manager.createConversation("round_trip_agent", "conv_rt");
+      manager.addMessage("conv_rt", "user", "First message");
+      manager.addMessage("conv_rt", "assistant", "Second message");
+
+      const file = manager.toConversationFile("conv_rt")!;
+
+      const manager2 = new ConversationManager();
+      const loaded = manager2.loadFromConversationFile(file);
+
+      expect(loaded).not.toBeNull();
+      expect(loaded?.agentId).toBe("round_trip_agent");
+      expect(loaded?.messages).toHaveLength(2);
+      expect(loaded?.messages[0]?.content).toBe("First message");
+      expect(loaded?.messages[1]?.content).toBe("Second message");
+    });
+  });
 });
