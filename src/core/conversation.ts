@@ -11,6 +11,7 @@
 import type {
   AgentDefinition,
   Conversation,
+  ConversationFrontmatter,
   Message,
   MessageRole,
   MemoryConfig,
@@ -329,6 +330,89 @@ export class ConversationManager {
 
   private generateId(): string {
     return `conv_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+  }
+
+  toConversationFile(conversationId: string): string | null {
+    const conversation = this.conversations.get(conversationId);
+    if (!conversation) {
+      return null;
+    }
+
+    const now = new Date();
+    const frontmatter: ConversationFrontmatter = {
+      conversation: true,
+      id: conversation.id,
+      agentId: conversation.agentId,
+      createdAt: new Date(conversation.createdAt).toISOString(),
+      updatedAt: now.toISOString(),
+    };
+
+    const fm = [
+      "---",
+      `conversation: ${frontmatter.conversation}`,
+      `id: ${frontmatter.id}`,
+      `agentId: ${frontmatter.agentId}`,
+      `createdAt: ${frontmatter.createdAt}`,
+      `updatedAt: ${frontmatter.updatedAt}`,
+      "---",
+      "",
+    ].join("\n");
+
+    return fm + this.toMarkdown(conversationId);
+  }
+
+  parseConversationFile(fileContent: string): { conversation: Partial<Conversation>; messages: Message[] } | null {
+    const frontmatterMatch = fileContent.match(/^---\n([\s\S]*?)\n---\n?/);
+    if (!frontmatterMatch || !frontmatterMatch[1]) {
+      return null;
+    }
+
+    const yamlLines = frontmatterMatch[1].split("\n");
+    const meta: Record<string, any> = {};
+    for (const line of yamlLines) {
+      const colonIdx = line.indexOf(":");
+      if (colonIdx === -1) continue;
+      const key = line.slice(0, colonIdx).trim();
+      const value = line.slice(colonIdx + 1).trim();
+      meta[key] = value;
+    }
+
+    if (meta["conversation"] !== "true") {
+      return null;
+    }
+
+    const body = fileContent.slice(frontmatterMatch[0].length);
+    const messages = this.parseMarkdown(body);
+
+    const createdAt = meta["createdAt"] ? new Date(meta["createdAt"]).getTime() : Date.now();
+    const updatedAt = meta["updatedAt"] ? new Date(meta["updatedAt"]).getTime() : Date.now();
+
+    return {
+      conversation: {
+        id: meta["id"] || this.generateId(),
+        agentId: meta["agentId"] || "",
+        createdAt,
+        updatedAt,
+      },
+      messages,
+    };
+  }
+
+  loadFromConversationFile(fileContent: string): Conversation | null {
+    const parsed = this.parseConversationFile(fileContent);
+    if (!parsed) return null;
+
+    const { conversation: meta, messages } = parsed;
+    const conv: Conversation = {
+      id: meta.id || this.generateId(),
+      agentId: meta.agentId || "",
+      messages,
+      createdAt: meta.createdAt || Date.now(),
+      updatedAt: meta.updatedAt || Date.now(),
+    };
+
+    this.conversations.set(conv.id, conv);
+    return conv;
   }
 
   exportConversation(conversationId: string): string | null {

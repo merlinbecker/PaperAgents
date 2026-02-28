@@ -8,11 +8,13 @@ import { DEFAULT_PATHS } from "./utils/constants";
 
 export interface PaperAgentsSettings {
   customToolsPath: string;
+  conversationsPath: string;
   enableDebugLogging: boolean;
 }
 
 export const DEFAULT_SETTINGS: PaperAgentsSettings = {
   customToolsPath: DEFAULT_PATHS.CUSTOM_TOOLS,
+  conversationsPath: DEFAULT_PATHS.CONVERSATIONS,
   enableDebugLogging: false,
 };
 
@@ -41,6 +43,20 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.customToolsPath)
           .onChange(async (value) => {
             this.plugin.settings.customToolsPath = value || DEFAULT_PATHS.CUSTOM_TOOLS;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    // Conversations Path
+    new Setting(containerEl)
+      .setName("Conversations Path")
+      .setDesc("Folder path where conversation Markdown files are stored")
+      .addText((text) =>
+        text
+          .setPlaceholder(DEFAULT_PATHS.CONVERSATIONS)
+          .setValue(this.plugin.settings.conversationsPath)
+          .onChange(async (value) => {
+            this.plugin.settings.conversationsPath = value || DEFAULT_PATHS.CONVERSATIONS;
             await this.plugin.saveSettings();
           })
       );
