@@ -15,6 +15,7 @@ export const PREDEFINED_TOOL_IDS = {
 export const DEFAULT_PATHS = {
   CUSTOM_TOOLS: "paper-agents-tools",
   AGENTS: "paper-agents-agents",
+  CONVERSATIONS: "paper-agents-conversations",
   LOGS: "/.obsidian/plugins/paper-agents/logs/",
 };
 
