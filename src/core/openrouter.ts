@@ -192,9 +192,6 @@ export class OpenRouterClient {
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
         const params: RequestUrlParam = {
           url: `${API_BASE}/chat/completions`,
           method: "POST",
@@ -203,11 +200,15 @@ export class OpenRouterClient {
           throw: false,
         };
 
+        let timeoutId: ReturnType<typeof setTimeout>;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new OpenRouterError("Request timed out", 0, true)), REQUEST_TIMEOUT);
+        });
         let response;
         try {
-          response = await requestUrl(params);
+          response = await Promise.race([requestUrl(params), timeoutPromise]);
         } finally {
-          clearTimeout(timeoutId);
+          clearTimeout(timeoutId!);
         }
 
         if (response.status >= 200 && response.status < 300) {
@@ -268,9 +269,6 @@ export class OpenRouterClient {
 
     await this.enforceRateLimit();
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT * 2);
-
     const params: RequestUrlParam = {
       url: `${API_BASE}/chat/completions`,
       method: "POST",
@@ -279,13 +277,18 @@ export class OpenRouterClient {
       throw: false,
     };
 
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new OpenRouterError("Stream request timed out", 0, true)), REQUEST_TIMEOUT * 2);
+    });
+
     let response;
     try {
-      response = await requestUrl(params);
+      response = await Promise.race([requestUrl(params), timeoutPromise]);
     } catch (err) {
-      clearTimeout(timeoutId);
-      const error = err instanceof Error && err.name === "AbortError"
-        ? new OpenRouterError("Stream request timed out", 0, true)
+      clearTimeout(timeoutId!);
+      const error = err instanceof OpenRouterError
+        ? err
         : new OpenRouterError(
             `Stream request failed: ${err instanceof Error ? err.message : String(err)}`,
             0,
@@ -293,9 +296,8 @@ export class OpenRouterClient {
           );
       callbacks.onError?.(error);
       throw error;
-    } finally {
-      clearTimeout(timeoutId);
     }
+    clearTimeout(timeoutId!);
 
     if (response.status < 200 || response.status >= 300) {
       const error = new OpenRouterError(

@@ -13,15 +13,9 @@ import { createInterface } from "readline";
  *   npm run release:beta      # Creates beta release
  */
 
-// Resolve command paths dynamically to work across environments
-import { execFileSync } from "child_process";
-
+// Use bare command names and rely on the system PATH for cross-platform resolution
 function resolveCommand(name) {
-	try {
-		return execFileSync("which", [name], { encoding: "utf8" }).trim();
-	} catch {
-		return name; // fallback to bare command
-	}
+	return name;
 }
 
 const GIT_PATH = resolveCommand("git");
