@@ -1,6 +1,6 @@
 {
 	"name": "paperAgents",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"description": "Paper Agents turns Obsidian into an agent sandbox: define, test, and execute workflows and tools in Markdown, with OpenRouter integration and sandboxed JavaScript.",
 	"main": "main.js",
 	"type": "module",

@@ -1,0 +1,85 @@
+name: Create BRAT Beta Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Beta version (e.g., 0.0.4-beta). Leave empty to use version from manifest-beta.json.'
+        required: false
+        default: ''
+
+jobs:
+  create-beta-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            BETA_VERSION="${{ inputs.version }}"
+          else
+            BETA_VERSION=$(node -p "require('./manifest-beta.json').version")
+          fi
+          BASE_VERSION="${BETA_VERSION%-*}"
+          echo "beta_version=${BETA_VERSION}" >> $GITHUB_OUTPUT
+          echo "base_version=${BASE_VERSION}" >> $GITHUB_OUTPUT
+          echo "Creating beta release: ${BETA_VERSION} (base: ${BASE_VERSION})"
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set version in manifests for release
+        run: |
+          BASE_VERSION="${{ steps.version.outputs.base_version }}"
+          BETA_VERSION="${{ steps.version.outputs.beta_version }}"
+          node -e "
+            const fs = require('fs');
+            const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+            manifest.version = '${BASE_VERSION}';
+            fs.writeFileSync('manifest.json', JSON.stringify(manifest, null, '\t') + '\n');
+            const beta = JSON.parse(fs.readFileSync('manifest-beta.json', 'utf8'));
+            beta.version = '${BETA_VERSION}';
+            fs.writeFileSync('manifest-beta.json', JSON.stringify(beta, null, '\t') + '\n');
+          "
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Create beta release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BETA_VERSION="${{ steps.version.outputs.beta_version }}"
+          BASE_VERSION="${{ steps.version.outputs.base_version }}"
+          NAME=$(node -p "require('./manifest.json').name")
+
+          # Generate release notes from recent commits
+          if git describe --tags --abbrev=0 2>/dev/null; then
+            PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null)
+            RELEASE_NOTES=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges)
+          else
+            RELEASE_NOTES="Beta release for BRAT testing"
+          fi
+
+          # Build assets list (styles.css is optional)
+          ASSETS="main.js manifest.json manifest-beta.json"
+          if [ -f styles.css ]; then
+            ASSETS="$ASSETS styles.css"
+          fi
+
+          gh release create "${BETA_VERSION}" \
+            --title "${NAME} ${BETA_VERSION}" \
+            --notes "${RELEASE_NOTES}" \
+            --prerelease \
+            $ASSETS
