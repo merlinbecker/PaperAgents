@@ -1,6 +1,7 @@
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
 import { AgentDefinition } from "../types";
 import { ConversationManager } from "../core/conversation";
+import { ConversationFileManager } from "../core/conversation-file-manager";
 import { Orchestrator, OrchestratorCallbacks } from "../core/orchestrator";
 import { globalLogger } from "../utils/logger";
 
@@ -10,8 +11,10 @@ export class PaperAgentsChatView extends ItemView {
   private agents: AgentDefinition[] = [];
   private selectedAgent: AgentDefinition | null = null;
   private conversationManager: ConversationManager;
+  private fileManager: ConversationFileManager;
   private orchestrator: Orchestrator | null = null;
   private currentConversationId: string | null = null;
+  private currentFilePath: string | null = null;
   private isStreaming = false;
 
   private messagesContainer: HTMLElement | null = null;
@@ -22,17 +25,21 @@ export class PaperAgentsChatView extends ItemView {
 
   private onGetAgents: () => AgentDefinition[];
   private onGetOrchestrator: () => Orchestrator | null;
+  private getConversationsPath: () => string;
 
   constructor(
     leaf: WorkspaceLeaf,
     conversationManager: ConversationManager,
     getAgents: () => AgentDefinition[],
-    getOrchestrator: () => Orchestrator | null
+    getOrchestrator: () => Orchestrator | null,
+    getConversationsPath: () => string
   ) {
     super(leaf);
     this.conversationManager = conversationManager;
+    this.fileManager = new ConversationFileManager(this.app);
     this.onGetAgents = getAgents;
     this.onGetOrchestrator = getOrchestrator;
+    this.getConversationsPath = getConversationsPath;
   }
 
   getViewType(): string {
@@ -88,7 +95,7 @@ export class PaperAgentsChatView extends ItemView {
       text: "New chat",
     });
     newChatBtn.addEventListener("click", () => {
-      this.startNewConversation();
+      void this.startNewConversation();
     });
 
     this.updateAgentSelect();
@@ -161,19 +168,49 @@ export class PaperAgentsChatView extends ItemView {
         this.currentConversationId = existingConvs[0].id;
         this.restoreConversationUI(existingConvs[0].id);
       } else {
-        this.startNewConversation();
+        void this.startNewConversation();
       }
     }
   }
 
-  private startNewConversation(): void {
+  private async startNewConversation(): Promise<void> {
     if (!this.selectedAgent) return;
 
     const conv = this.conversationManager.createConversation(this.selectedAgent.id);
     this.currentConversationId = conv.id;
+    this.currentFilePath = null;
 
     this.clearMessages();
     this.addSystemMessage(`Started new conversation with ${this.selectedAgent.name}`);
+
+    // Create markdown file for this conversation
+    await this.createConversationFile();
+  }
+
+  private async createConversationFile(): Promise<void> {
+    if (!this.currentConversationId || !this.selectedAgent) return;
+    try {
+      const conversationsPath = this.getConversationsPath();
+      const filePath = await this.fileManager.createConversationFile(
+        this.selectedAgent.id,
+        conversationsPath,
+        this.selectedAgent.name
+      );
+      this.currentFilePath = filePath;
+      globalLogger.info(`Conversation file created: ${filePath}`);
+    } catch (error) {
+      globalLogger.error("Failed to create conversation file", { error });
+    }
+  }
+
+  private async saveConversation(): Promise<void> {
+    if (!this.currentConversationId || !this.currentFilePath) return;
+    try {
+      await this.fileManager.saveConversation(this.currentFilePath, this.currentConversationId);
+    } catch (error) {
+      new Notice("Failed to save conversation to file");
+      globalLogger.error("Failed to save conversation", { error });
+    }
   }
 
   private restoreConversationUI(conversationId: string): void {
@@ -240,6 +277,8 @@ export class PaperAgentsChatView extends ItemView {
         message,
         callbacks
       );
+      // Persist conversation to markdown after each exchange
+      await this.saveConversation();
     } catch (error) {
       globalLogger.error("Chat send error", { error });
       this.addErrorMessage(error instanceof Error ? error : new Error(String(error)));
