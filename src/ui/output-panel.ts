@@ -1,4 +1,4 @@
-import { Modal, App } from "obsidian";
+import { Modal, App, Notice } from "obsidian";
 import { ExecutionResult, ToolExecution } from "../types";
 
 export class OutputPanelModal extends Modal {
@@ -84,6 +84,10 @@ export class OutputPanelModal extends Modal {
       navigator.clipboard.writeText(outputData).then(() => {
         copyBtn.textContent = "Copied!";
         setTimeout(() => { copyBtn.textContent = "Copy to Clipboard"; }, 2000);
+      }).catch(() => {
+        copyBtn.textContent = "Copy failed";
+        setTimeout(() => { copyBtn.textContent = "Copy to Clipboard"; }, 2000);
+        new Notice("Failed to copy to clipboard");
       });
     });
   }
@@ -153,6 +157,10 @@ export class OutputPanelModal extends Modal {
       navigator.clipboard.writeText(fullResult).then(() => {
         copyAllBtn.textContent = "Copied!";
         setTimeout(() => { copyAllBtn.textContent = "Copy Full Result"; }, 2000);
+      }).catch(() => {
+        copyAllBtn.textContent = "Copy failed";
+        setTimeout(() => { copyAllBtn.textContent = "Copy Full Result"; }, 2000);
+        new Notice("Failed to copy to clipboard");
       });
     });
 

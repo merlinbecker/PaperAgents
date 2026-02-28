@@ -1,7 +1,7 @@
 # Paper Agents – Abschließender Status & Offene Punkte
 
 **Stand**: 27. Februar 2026
-**Version**: 0.0.2
+**Version**: 0.0.3
 **Basis**: Implementierung aller Phasen aus `openPhases.md`
 
 ---
@@ -149,6 +149,6 @@ Alle in `openPhases.md` definierten Bereiche (Kritisch, Hoch, Mittel, Niedrig) w
 **Größte verbleibende Risiken:**
 1. **QuickJS-Dependency** (`@jitl/quickjs-singlefile-cjs-release-sync`) muss korrekt eingebunden werden, damit Pre/Post-Processing im Production-Build funktioniert
 2. **Mobile-Verifikation** steht aus – WASM-Sandbox auf iOS/Android-WebKit ungetestet
-3. **Chat-Konversationen** sind nur in-memory, gehen beim Plugin-Neustart verloren
+3. **Chat-Konversationen** werden im Vault persistiert; Migrations-/Backwards-Kompatibilität für zukünftige Schema-Änderungen ist noch offen
 
 **Empfohlener nächster Schritt:** Q1 (QuickJS-Mock) + R1–R4 (Release-Vorbereitung) abschließen, dann Beta-Release via BRAT ausrollen.
