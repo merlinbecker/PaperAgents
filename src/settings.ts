@@ -160,6 +160,10 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.agentsPath)
           .onChange(async (value) => {
             this.plugin.settings.agentsPath = value || DEFAULT_PATHS.AGENTS;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // Conversations Path
     new Setting(containerEl)
       .setName("Conversations Path")
