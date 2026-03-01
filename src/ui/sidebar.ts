@@ -27,6 +27,8 @@ export class PaperAgentsSidebar extends ItemView {
   private onOpenChat: (() => void) | null = null;
   private onReloadTools: (() => Promise<void>) | null = null;
   private examplesExpanded = true;
+  private toolsPath = "";
+  private agentsPath = "";
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -134,14 +136,56 @@ export class PaperAgentsSidebar extends ItemView {
     const toolCount = this.toolRegistry.listTools().length;
     const agentCount = this.agents.length;
 
-    this.countsContainer.createSpan({
+    const agentBadge = this.countsContainer.createSpan({
       cls: "pa-count-badge",
       text: `🤖 ${agentCount} agent${agentCount !== 1 ? "s" : ""}`,
     });
-    this.countsContainer.createSpan({
+    if (this.agentsPath) {
+      const agentLink = agentBadge.createEl("a", {
+        cls: "pa-count-folder-link",
+        title: `Open folder: ${this.agentsPath}`,
+        text: " 📂",
+      });
+      agentLink.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.openFolderInExplorer(this.agentsPath);
+      });
+    }
+
+    const toolBadge = this.countsContainer.createSpan({
       cls: "pa-count-badge",
       text: `🔧 ${toolCount} tool${toolCount !== 1 ? "s" : ""}`,
     });
+    if (this.toolsPath) {
+      const toolLink = toolBadge.createEl("a", {
+        cls: "pa-count-folder-link",
+        title: `Open folder: ${this.toolsPath}`,
+        text: " 📂",
+      });
+      toolLink.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.openFolderInExplorer(this.toolsPath);
+      });
+    }
+  }
+
+  /**
+   * Opens a folder in Obsidian's file explorer.
+   * Shows a Notice if the folder does not exist in the vault.
+   * If the file-explorer leaf is not available, the call is silently ignored.
+   */
+  private openFolderInExplorer(folderPath: string): void {
+    const abstractFile = this.app.vault.getAbstractFileByPath(folderPath);
+    if (!abstractFile) {
+      new Notice(`Folder not found: ${folderPath}`);
+      return;
+    }
+    const fileExplorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
+    if (fileExplorer?.view) {
+      void this.app.workspace.revealLeaf(fileExplorer);
+      // revealInFolder is an internal Obsidian API available on the file-explorer view
+      (fileExplorer.view as { revealInFolder?: (f: unknown) => void }).revealInFolder?.(abstractFile);
+    }
   }
 
   /**
@@ -162,12 +206,12 @@ export class PaperAgentsSidebar extends ItemView {
     const tools = this.toolRegistry.listTools();
     const grouped = this.groupToolsByCategory(tools);
 
-    // Predefined Tools zuerst
-    if (grouped[TOOL_CATEGORIES.PREDEFINED]) {
+    // System/Built-in Tools first
+    if (grouped[TOOL_CATEGORIES.SYSTEM]) {
       this.renderToolCategory(
         this.toolsContainer,
-        TOOL_CATEGORIES.PREDEFINED,
-        grouped[TOOL_CATEGORIES.PREDEFINED] || []
+        TOOL_CATEGORIES.SYSTEM,
+        grouped[TOOL_CATEGORIES.SYSTEM] || []
       );
     }
 
@@ -235,7 +279,8 @@ export class PaperAgentsSidebar extends ItemView {
    * Rendert ein einzelnes Tool-Item
    */
   private renderToolItem(container: HTMLElement, tool: ToolMetadata): void {
-    const toolItem = container.createDiv({ cls: "pa-tool-item" });
+    const wrapper = container.createDiv({ cls: "pa-tool-wrapper" });
+    const toolItem = wrapper.createDiv({ cls: "pa-tool-item" });
 
     // Icon
     const icon = toolItem.createSpan({ cls: "pa-tool-icon" });
@@ -252,11 +297,39 @@ export class PaperAgentsSidebar extends ItemView {
       desc.addClass("pa-tool-description");
     }
 
-    // Parameter Count Badge
-    toolItem.createSpan({
-      text: `${tool.parameters.length} params`,
-      cls: "pa-tool-badge",
-    });
+    // Parameter badge – expandable when there are parameters
+    if (tool.parameters.length > 0) {
+      const count = tool.parameters.length;
+      const paramsBadgeText = (expanded: boolean): string =>
+        `${expanded ? "▼" : "▶"} ${count} param${count !== 1 ? "s" : ""}`;
+
+      const paramsPanel = wrapper.createDiv({ cls: "pa-tool-params-panel pa-hidden" });
+      for (const param of tool.parameters) {
+        const row = paramsPanel.createDiv({ cls: "pa-tool-param-row" });
+        const nameEl = row.createSpan({ cls: "pa-tool-param-name", text: param.name });
+        if (param.required) {
+          nameEl.createSpan({ cls: "pa-tool-param-required", text: "*" });
+        }
+        row.createSpan({ cls: "pa-tool-param-type", text: `(${param.type})` });
+        if (param.description) {
+          row.createSpan({ cls: "pa-tool-param-desc", text: param.description });
+        }
+      }
+
+      const badge = toolItem.createSpan({ cls: "pa-tool-badge pa-tool-badge-toggle" });
+      badge.setText(paramsBadgeText(false));
+      badge.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const expanded = !paramsPanel.hasClass("pa-hidden");
+        paramsPanel.toggleClass("pa-hidden", expanded);
+        badge.setText(paramsBadgeText(!expanded));
+      });
+    } else {
+      toolItem.createSpan({
+        text: `0 params`,
+        cls: "pa-tool-badge",
+      });
+    }
 
     // Click Handler
     toolItem.addEventListener("click", () => {
@@ -392,6 +465,11 @@ export class PaperAgentsSidebar extends ItemView {
 
   public setOnReloadTools(callback: () => Promise<void>): void {
     this.onReloadTools = callback;
+  }
+
+  public setFolderPaths(toolsPath: string, agentsPath: string): void {
+    this.toolsPath = toolsPath;
+    this.agentsPath = agentsPath;
   }
 
   /**

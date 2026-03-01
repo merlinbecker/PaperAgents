@@ -121,6 +121,81 @@
   white-space: nowrap;
 }
 
+.pa-tool-badge-toggle {
+  cursor: pointer;
+}
+
+.pa-tool-badge-toggle:hover {
+  opacity: 0.8;
+}
+
+/* Tool wrapper with expandable params panel */
+.pa-tool-wrapper {
+  margin-bottom: 8px;
+}
+
+.pa-tool-wrapper > .pa-tool-item {
+  margin-bottom: 0;
+}
+
+.pa-tool-params-panel {
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  padding: 8px 12px;
+}
+
+.pa-tool-params-panel.pa-hidden {
+  display: none;
+}
+
+.pa-tool-param-row {
+  display: flex;
+  gap: 6px;
+  font-size: 0.8em;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--background-modifier-border-hover);
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.pa-tool-param-row:last-child {
+  border-bottom: none;
+}
+
+.pa-tool-param-name {
+  font-weight: 600;
+  color: var(--text-accent);
+  min-width: 80px;
+}
+
+.pa-tool-param-required {
+  color: var(--color-red);
+  margin-left: 1px;
+}
+
+.pa-tool-param-type {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.pa-tool-param-desc {
+  color: var(--text-muted);
+  flex: 1;
+}
+
+/* Folder link in count badges */
+.pa-count-folder-link {
+  cursor: pointer;
+  text-decoration: none;
+  opacity: 0.7;
+}
+
+.pa-count-folder-link:hover {
+  opacity: 1;
+}
+
 /* Status */
 .pa-status {
   margin-top: 20px;

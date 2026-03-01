@@ -140,6 +140,21 @@ class SearchFilesTool implements IExecutableTool {
 export const SearchFilesFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.SEARCH_FILES,
   description: "Search files in vault by name, path, or content",
+  parameters: [
+    {
+      name: "query",
+      type: "string",
+      description: "Search text to match against file names and content",
+      required: true,
+    },
+    {
+      name: "path",
+      type: "string",
+      description: "Base folder to restrict search (e.g., 'notes' or '/notes')",
+      required: false,
+      default: "",
+    },
+  ],
   create: (app?: App) => new SearchFilesTool(requireApp(app, "SearchFilesTool")),
 };
 
@@ -195,6 +210,14 @@ class ReadFileTool implements IExecutableTool {
 export const ReadFileFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.READ_FILE,
   description: "Read file content from vault",
+  parameters: [
+    {
+      name: "filePath",
+      type: "string",
+      description: "Path to file (e.g., '/notes/file.md')",
+      required: true,
+    },
+  ],
   create: (app?: App) => new ReadFileTool(requireApp(app, "ReadFileTool")),
 };
 
@@ -267,6 +290,27 @@ class WriteFileTool implements IExecutableTool {
 export const WriteFileFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.WRITE_FILE,
   description: "Write or modify file in vault",
+  parameters: [
+    {
+      name: "filePath",
+      type: "string",
+      description: "Path to file",
+      required: true,
+    },
+    {
+      name: "content",
+      type: "string",
+      description: "Content to write",
+      required: true,
+    },
+    {
+      name: "overwrite",
+      type: "boolean",
+      description: "Overwrite existing file?",
+      required: false,
+      default: false,
+    },
+  ],
   create: (app?: App) => new WriteFileTool(requireApp(app, "WriteFileTool")),
 };
 
@@ -346,6 +390,34 @@ class RestRequestTool implements IExecutableTool {
 export const RestRequestFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.REST_REQUEST,
   description: "Make HTTP requests to APIs",
+  parameters: [
+    {
+      name: "url",
+      type: "string",
+      description: "Target URL",
+      required: true,
+    },
+    {
+      name: "method",
+      type: "string",
+      description: "HTTP method (GET, POST, PUT, DELETE)",
+      required: true,
+      default: "GET",
+    },
+    {
+      name: "headers",
+      type: "object",
+      description: "HTTP headers (JSON format)",
+      required: false,
+      default: {},
+    },
+    {
+      name: "body",
+      type: "string",
+      description: "Request body (JSON string)",
+      required: false,
+    },
+  ],
   create: (app?: App) => new RestRequestTool(requireApp(app, "RestRequestTool")),
 };
 

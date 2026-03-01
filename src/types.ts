@@ -122,6 +122,7 @@ export interface IExecutableTool {
 export interface IToolFactory {
   name: string;
   description: string;
+  parameters?: Parameter[];
   create(app?: App): IExecutableTool;
 }
 

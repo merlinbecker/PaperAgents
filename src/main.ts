@@ -69,6 +69,10 @@ export default class PaperAgents extends Plugin {
           await this.loadCustomToolsFromVault();
           await this.loadAgentsFromVault();
         });
+        sidebar.setFolderPaths(
+          this.settings.customToolsPath || DEFAULT_PATHS.CUSTOM_TOOLS,
+          this.settings.agentsPath || DEFAULT_PATHS.AGENTS
+        );
         return sidebar;
       }
     );
