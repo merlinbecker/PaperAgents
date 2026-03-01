@@ -4,9 +4,49 @@
  */
 
 import { App, TFile, requestUrl } from "obsidian";
-import type { IExecutableTool, IToolFactory, Parameter, ExecutionContext, ExecutionResult } from "../types";
+import type { IExecutableTool, IToolFactory, Parameter, ExecutionContext, ExecutionResult, ToolExecution } from "../types";
 import { PREDEFINED_TOOL_IDS } from "../utils/constants";
 import { globalLogger } from "../utils/logger";
+
+// ============================================================================
+// SHARED HELPERS
+// ============================================================================
+
+/** Strip leading slash so vault-relative paths and /absolute paths compare equal. */
+function normPath(p: string): string {
+  return p.replace(/^\//, "");
+}
+
+/** Build a single ToolExecution log entry. */
+function buildLogEntry(
+  toolName: string,
+  parameters: Record<string, unknown>,
+  output?: unknown
+): ToolExecution {
+  return { toolName, parameters, output, timestamp: Date.now() };
+}
+
+/** Build a standardised error ExecutionResult from a caught value. */
+function buildErrorResult(
+  toolName: string,
+  parameters: Record<string, unknown>,
+  error: unknown
+): ExecutionResult {
+  const message = error instanceof Error ? error.message : "Unknown error";
+  return {
+    success: false,
+    error: message,
+    log: [{ toolName, parameters, error: message, timestamp: Date.now() }],
+  };
+}
+
+/** Assert that the App instance is present; throws if not. */
+function requireApp(app: App | undefined, toolName: string): App {
+  if (!app) {
+    throw new Error(`${toolName} requires App instance`);
+  }
+  return app;
+}
 
 // ============================================================================
 // SEARCH_FILES TOOL
@@ -18,15 +58,15 @@ class SearchFilesTool implements IExecutableTool {
     {
       name: "query",
       type: "string",
-      description: "Search text or glob pattern",
+      description: "Search text to match against file names and content",
       required: true,
     },
     {
       name: "path",
       type: "string",
-      description: "Base folder (e.g., '/notes')",
+      description: "Base folder to restrict search (e.g., 'notes' or '/notes')",
       required: false,
-      default: "/",
+      default: "",
     },
   ];
 
@@ -35,55 +75,56 @@ class SearchFilesTool implements IExecutableTool {
   async execute(ctx: ExecutionContext): Promise<ExecutionResult> {
     try {
       const query = ctx.parameters.query as string;
-      const basePath = (ctx.parameters.path as string) || "/";
+      const basePath = (ctx.parameters.path as string) || "";
 
       const results: Array<{ name: string; path: string; size: number }> = [];
 
-      // Hole alle Markdown-Dateien
+      // Get all Markdown files from vault
       const files = this.app.vault.getMarkdownFiles();
 
+      const normalizedBase = normPath(basePath);
+      const lowerQuery = query.toLowerCase();
+
       for (const file of files) {
-        // Filter nach Pfad
-        if (!file.path.startsWith(basePath)) {
+        // Filter by path prefix (normalize to handle leading slashes)
+        if (normalizedBase && !normPath(file.path).startsWith(normalizedBase)) {
           continue;
         }
 
-        // Filter nach Query (einfacher String-Match)
-        if (file.name.toLowerCase().includes(query.toLowerCase())) {
+        // Match against file name first
+        if (file.name.toLowerCase().includes(lowerQuery)) {
           results.push({
             name: file.name,
             path: file.path,
             size: file.stat.size,
           });
+          continue;
+        }
+
+        // Also search within file content
+        try {
+          const content = await this.app.vault.read(file);
+          if (content.toLowerCase().includes(lowerQuery)) {
+            results.push({
+              name: file.name,
+              path: file.path,
+              size: file.stat.size,
+            });
+          }
+        } catch (err) {
+          // skip files that cannot be read
+          globalLogger.debug("search_files: could not read file", { path: file.path, error: err instanceof Error ? err.message : String(err) });
         }
       }
 
       return {
         success: true,
         data: { results, count: results.length },
-        log: [
-          {
-            toolName: this.name,
-            parameters: ctx.parameters,
-            output: { results, count: results.length },
-            timestamp: Date.now(),
-          },
-        ],
+        log: [buildLogEntry(this.name, ctx.parameters, { results, count: results.length })],
       };
     } catch (error) {
       globalLogger.error("search_files tool error", { error });
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-        log: [
-          {
-            toolName: this.name,
-            parameters: ctx.parameters,
-            error: error instanceof Error ? error.message : "Unknown error",
-            timestamp: Date.now(),
-          },
-        ],
-      };
+      return buildErrorResult(this.name, ctx.parameters, error);
     }
   }
 
@@ -94,13 +135,8 @@ class SearchFilesTool implements IExecutableTool {
 
 export const SearchFilesFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.SEARCH_FILES,
-  description: "Search files in vault by name or path",
-  create: (app?: App) => {
-    if (!app) {
-      throw new Error("SearchFilesTool requires App instance");
-    }
-    return new SearchFilesTool(app);
-  },
+  description: "Search files in vault by name, path, or content",
+  create: (app?: App) => new SearchFilesTool(requireApp(app, "SearchFilesTool")),
 };
 
 // ============================================================================
@@ -139,29 +175,11 @@ class ReadFileTool implements IExecutableTool {
           size: file.stat.size,
           modified: new Date(file.stat.mtime).toISOString(),
         },
-        log: [
-          {
-            toolName: this.name,
-            parameters: ctx.parameters,
-            output: { size: file.stat.size },
-            timestamp: Date.now(),
-          },
-        ],
+        log: [buildLogEntry(this.name, ctx.parameters, { size: file.stat.size })],
       };
     } catch (error) {
       globalLogger.error("read_file tool error", { error });
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-        log: [
-          {
-            toolName: this.name,
-            parameters: ctx.parameters,
-            error: error instanceof Error ? error.message : "Unknown error",
-            timestamp: Date.now(),
-          },
-        ],
-      };
+      return buildErrorResult(this.name, ctx.parameters, error);
     }
   }
 
@@ -173,12 +191,7 @@ class ReadFileTool implements IExecutableTool {
 export const ReadFileFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.READ_FILE,
   description: "Read file content from vault",
-  create: (app?: App) => {
-    if (!app) {
-      throw new Error("ReadFileTool requires App instance");
-    }
-    return new ReadFileTool(app);
-  },
+  create: (app?: App) => new ReadFileTool(requireApp(app, "ReadFileTool")),
 };
 
 // ============================================================================
@@ -234,29 +247,11 @@ class WriteFileTool implements IExecutableTool {
       return {
         success: true,
         data: { filePath, size: content.length },
-        log: [
-          {
-            toolName: this.name,
-            parameters: ctx.parameters,
-            output: { filePath, size: content.length },
-            timestamp: Date.now(),
-          },
-        ],
+        log: [buildLogEntry(this.name, ctx.parameters, { filePath, size: content.length })],
       };
     } catch (error) {
       globalLogger.error("write_file tool error", { error });
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-        log: [
-          {
-            toolName: this.name,
-            parameters: ctx.parameters,
-            error: error instanceof Error ? error.message : "Unknown error",
-            timestamp: Date.now(),
-          },
-        ],
-      };
+      return buildErrorResult(this.name, ctx.parameters, error);
     }
   }
 
@@ -268,12 +263,7 @@ class WriteFileTool implements IExecutableTool {
 export const WriteFileFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.WRITE_FILE,
   description: "Write or modify file in vault",
-  create: (app?: App) => {
-    if (!app) {
-      throw new Error("WriteFileTool requires App instance");
-    }
-    return new WriteFileTool(app);
-  },
+  create: (app?: App) => new WriteFileTool(requireApp(app, "WriteFileTool")),
 };
 
 // ============================================================================
@@ -334,29 +324,11 @@ class RestRequestTool implements IExecutableTool {
           status: response.status,
           body: response.text,
         },
-        log: [
-          {
-            toolName: this.name,
-            parameters: ctx.parameters,
-            output: { status: response.status },
-            timestamp: Date.now(),
-          },
-        ],
+        log: [buildLogEntry(this.name, ctx.parameters, { status: response.status })],
       };
     } catch (error) {
       globalLogger.error("rest_request tool error", { error });
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-        log: [
-          {
-            toolName: this.name,
-            parameters: ctx.parameters,
-            error: error instanceof Error ? error.message : "Unknown error",
-            timestamp: Date.now(),
-          },
-        ],
-      };
+      return buildErrorResult(this.name, ctx.parameters, error);
     }
   }
 
@@ -370,12 +342,7 @@ class RestRequestTool implements IExecutableTool {
 export const RestRequestFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.REST_REQUEST,
   description: "Make HTTP requests to APIs",
-  create: (app?: App) => {
-    if (!app) {
-      throw new Error("RestRequestTool requires App instance");
-    }
-    return new RestRequestTool(app);
-  },
+  create: (app?: App) => new RestRequestTool(requireApp(app, "RestRequestTool")),
 };
 
 // ============================================================================
