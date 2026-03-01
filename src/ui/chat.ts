@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Notice } from "obsidian";
+import { ItemView, WorkspaceLeaf, Notice, TFile } from "obsidian";
 import { AgentDefinition } from "../types";
 import { ConversationManager } from "../core/conversation";
 import { ConversationFileManager } from "../core/conversation-file-manager";
@@ -16,11 +16,16 @@ export class PaperAgentsChatView extends ItemView {
   private currentConversationId: string | null = null;
   private currentFilePath: string | null = null;
   private isStreaming = false;
+  private isSaving = false;
 
   private messagesContainer: HTMLElement | null = null;
   private inputEl: HTMLTextAreaElement | null = null;
   private sendBtn: HTMLElement | null = null;
-  private agentSelect: HTMLSelectElement | null = null;
+  private conversationSelect: HTMLSelectElement | null = null;
+  private newChatPanel: HTMLElement | null = null;
+  private agentSelectEl: HTMLSelectElement | null = null;
+  private createConvBtn: HTMLButtonElement | null = null;
+  private noAgentsHint: HTMLElement | null = null;
   private streamingEl: HTMLElement | null = null;
 
   private onGetAgents: () => AgentDefinition[];
@@ -65,36 +70,131 @@ export class PaperAgentsChatView extends ItemView {
     this.renderMessages(container as HTMLElement);
     this.renderInput(container as HTMLElement);
 
-    this.refreshAgents();
+    this.refreshConversations();
+    await this.autoLoadMostRecentConversation();
+
+    // Reload when the currently open markdown file is modified externally
+    this.registerEvent(
+      this.app.vault.on("modify", (file) => {
+        if (
+          !this.isSaving &&
+          file instanceof TFile &&
+          file.extension === "md" &&
+          file.path === this.currentFilePath
+        ) {
+          void this.reloadCurrentConversation();
+        }
+      })
+    );
+
+    // Refresh the file list when markdown files are created or deleted in the conversations folder
+    const isInConversationsFolder = (path: string) =>
+      path.startsWith(this.getConversationsPath() + "/");
+
+    this.registerEvent(
+      this.app.vault.on("create", (file) => {
+        if (file instanceof TFile && file.extension === "md" && isInConversationsFolder(file.path)) {
+          this.refreshConversations();
+        }
+      })
+    );
+    this.registerEvent(
+      this.app.vault.on("delete", (file) => {
+        if (file instanceof TFile && isInConversationsFolder(file.path)) {
+          this.refreshConversations();
+        }
+      })
+    );
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        if (file instanceof TFile) {
+          // If the currently open conversation file was renamed, update the tracked path
+          if (oldPath === this.currentFilePath) {
+            this.currentFilePath = file.path;
+          }
+          if (isInConversationsFolder(file.path) || isInConversationsFolder(oldPath)) {
+            this.refreshConversations();
+          }
+        }
+      })
+    );
   }
 
   async onClose(): Promise<void> {
     this.containerEl.empty();
   }
 
-  /**
-   * Load an existing conversation from a Markdown file and resume it with full LLM support.
-   * Called by the plugin when the user opens a conversation file via the "open-file-as-chat" command.
-   */
-  async loadConversationFromFile(filePath: string): Promise<void> {
+  private refreshAgents(): void {
+    this.agents = this.onGetAgents();
+    this.orchestrator = this.onGetOrchestrator();
+    this.updateAgentSelectOptions();
+  }
+
+  // ============================================================================
+  // Conversations list
+  // ============================================================================
+
+  private refreshConversations(): void {
+    const files = this.fileManager.listConversationFiles(this.getConversationsPath());
+    this.updateConversationSelect(files);
+  }
+
+  private updateConversationSelect(files: { path: string; title: string }[]): void {
+    if (!this.conversationSelect) return;
+
+    const currentValue = this.currentFilePath;
+    this.conversationSelect.empty();
+
+    const placeholder = this.conversationSelect.createEl("option", {
+      text: "-- select conversation --",
+      attr: { value: "" },
+    });
+
+    for (const f of files) {
+      const opt = this.conversationSelect.createEl("option", {
+        text: f.title,
+        attr: { value: f.path },
+      });
+      if (f.path === currentValue) opt.selected = true;
+    }
+
+    if (!currentValue) placeholder.selected = true;
+  }
+
+  private async onConversationSelected(): Promise<void> {
+    if (!this.conversationSelect) return;
+    const path = this.conversationSelect.value;
+    if (path) {
+      await this.selectConversationFile(path);
+    } else {
+      this.currentConversationId = null;
+      this.currentFilePath = null;
+      this.clearMessages();
+    }
+  }
+
+  async selectConversationFile(filePath: string): Promise<void> {
     try {
-      const conversation = await this.fileManager.loadConversation(filePath);
-      if (!conversation) {
+      const conv = await this.fileManager.loadConversation(filePath);
+      if (!conv) {
         new Notice("Not a conversation file");
         return;
       }
 
-      this.agents = this.onGetAgents();
-      this.orchestrator = this.onGetOrchestrator();
-      this.currentConversationId = conversation.id;
+      this.currentConversationId = conv.id;
       this.currentFilePath = filePath;
 
-      const matchingAgent = this.agents.find((a) => a.id === conversation.agentId) ?? null;
-      this.selectedAgent = matchingAgent;
-      this.updateAgentSelect();
+      this.agents = this.onGetAgents();
+      this.selectedAgent = this.agents.find((a) => a.id === conv.agentId) ?? null;
+      this.orchestrator = this.onGetOrchestrator();
 
-      this.restoreConversationUI(conversation.id);
-      globalLogger.info(`Loaded conversation ${conversation.id} from ${filePath}`);
+      // Sync dropdown selection
+      if (this.conversationSelect) {
+        this.conversationSelect.value = filePath;
+      }
+
+      this.restoreConversationUI(conv.id);
+      globalLogger.info(`Loaded conversation ${conv.id} from ${filePath}`);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
       new Notice(`Failed to load conversation: ${msg}`);
@@ -102,20 +202,31 @@ export class PaperAgentsChatView extends ItemView {
     }
   }
 
-  refreshAgents(): void {
-    this.agents = this.onGetAgents();
-    this.orchestrator = this.onGetOrchestrator();
-
-    // Auto-select the only available agent when none is selected yet
-    if (!this.selectedAgent && this.agents.length === 1) {
-      this.selectedAgent = this.agents[0] ?? null;
-      if (this.selectedAgent) {
-        void this.startNewConversation();
-      }
-    }
-
-    this.updateAgentSelect();
+  private async reloadCurrentConversation(): Promise<void> {
+    if (!this.currentFilePath) return;
+    await this.selectConversationFile(this.currentFilePath);
   }
+
+  /**
+   * On view open, automatically load the most recently created conversation file.
+   * Files are listed alphabetically; date-prefixed names (YYYY-MM-DD-...) mean the
+   * last entry is typically the newest conversation.
+   */
+  private async autoLoadMostRecentConversation(): Promise<void> {
+    const files = this.fileManager.listConversationFiles(this.getConversationsPath());
+    if (files.length === 0) return;
+
+    // Files are sorted alphabetically; date-prefixed names (YYYY-MM-DD-...) mean
+    // the last entry is typically the newest conversation.
+    const mostRecent = files[files.length - 1];
+    if (!mostRecent) return;
+
+    await this.selectConversationFile(mostRecent.path);
+  }
+
+  // ============================================================================
+  // UI Building
+  // ============================================================================
 
   private renderHeader(container: HTMLElement): void {
     const header = container.createDiv({ cls: "pa-chat-header" });
@@ -124,9 +235,9 @@ export class PaperAgentsChatView extends ItemView {
 
     const controls = header.createDiv({ cls: "pa-chat-controls" });
 
-    this.agentSelect = controls.createEl("select", { cls: "pa-chat-agent-select" });
-    this.agentSelect.addEventListener("change", () => {
-      this.onAgentSelected();
+    this.conversationSelect = controls.createEl("select", { cls: "pa-chat-conversation-select" });
+    this.conversationSelect.addEventListener("change", () => {
+      void this.onConversationSelected();
     });
 
     const newChatBtn = controls.createEl("button", {
@@ -134,17 +245,100 @@ export class PaperAgentsChatView extends ItemView {
       text: "New chat",
     });
     newChatBtn.addEventListener("click", () => {
-      void this.startNewConversation();
+      this.toggleNewChatPanel();
     });
 
-    this.updateAgentSelect();
+    // Inline new-conversation panel (hidden by default)
+    this.newChatPanel = header.createDiv({ cls: "pa-chat-new-panel" });
+    this.newChatPanel.style.display = "none";
+
+    const panelLabel = this.newChatPanel.createEl("span", {
+      text: "Agent: ",
+      cls: "pa-chat-new-label",
+    });
+    panelLabel.style.marginRight = "4px";
+
+    this.agentSelectEl = this.newChatPanel.createEl("select", { cls: "pa-chat-agent-select" });
+
+    this.noAgentsHint = this.newChatPanel.createEl("span", {
+      cls: "pa-chat-no-agents-hint",
+      text: "No agents loaded. Reload agents in the sidebar first.",
+    });
+    this.noAgentsHint.style.display = "none";
+
+    this.createConvBtn = this.newChatPanel.createEl("button", {
+      cls: "pa-chat-create-btn",
+      text: "Create",
+    });
+    this.createConvBtn.addEventListener("click", () => {
+      void this.createNewConversation();
+    });
+
+    const cancelBtn = this.newChatPanel.createEl("button", {
+      cls: "pa-chat-cancel-btn",
+      text: "Cancel",
+    });
+    cancelBtn.addEventListener("click", () => {
+      this.hideNewChatPanel();
+    });
+
+    this.updateAgentSelectOptions();
+  }
+
+  private toggleNewChatPanel(): void {
+    this.agents = this.onGetAgents();
+    this.updateAgentSelectOptions();
+    if (this.newChatPanel) {
+      const isHidden = this.newChatPanel.style.display === "none";
+      this.newChatPanel.style.display = isHidden ? "" : "none";
+    }
+  }
+
+  private hideNewChatPanel(): void {
+    if (this.newChatPanel) {
+      this.newChatPanel.style.display = "none";
+    }
+  }
+
+  private updateAgentSelectOptions(): void {
+    if (!this.agentSelectEl) return;
+
+    this.agentSelectEl.empty();
+
+    const noAgents = this.agents.length === 0;
+
+    if (noAgents) {
+      // Show hint, hide select, disable create button
+      this.agentSelectEl.style.display = "none";
+      if (this.noAgentsHint) this.noAgentsHint.style.display = "";
+      if (this.createConvBtn) this.createConvBtn.disabled = true;
+      return;
+    }
+
+    this.agentSelectEl.style.display = "";
+    if (this.noAgentsHint) this.noAgentsHint.style.display = "none";
+    if (this.createConvBtn) this.createConvBtn.disabled = false;
+
+    const defaultOpt = this.agentSelectEl.createEl("option", {
+      text: "-- select agent --",
+      attr: { value: "" },
+    });
+    if (!this.selectedAgent) defaultOpt.selected = true;
+
+    for (const agent of this.agents) {
+      const opt = this.agentSelectEl.createEl("option", {
+        text: agent.name,
+        attr: { value: agent.id },
+      });
+      if (this.selectedAgent?.id === agent.id) opt.selected = true;
+    }
   }
 
   private renderMessages(container: HTMLElement): void {
     this.messagesContainer = container.createDiv({ cls: "pa-chat-messages" });
 
     const placeholder = this.messagesContainer.createDiv({ cls: "pa-chat-placeholder" });
-    placeholder.createEl("p", { text: "Select an agent and start chatting" });
+    placeholder.createEl("p", { text: "Select a conversation or create a new one" });
   }
 
   private renderInput(container: HTMLElement): void {
@@ -171,86 +365,51 @@ export class PaperAgentsChatView extends ItemView {
     });
   }
 
-  private updateAgentSelect(): void {
-    if (!this.agentSelect) return;
+  // ============================================================================
+  // New conversation
+  // ============================================================================
 
-    this.agentSelect.empty();
+  private async createNewConversation(): Promise<void> {
+    if (!this.agentSelectEl) return;
 
-    const defaultOpt = this.agentSelect.createEl("option", {
-      text: "-- select agent --",
-      attr: { value: "" },
-    });
-    if (!this.selectedAgent) defaultOpt.selected = true;
-
-    for (const agent of this.agents) {
-      const opt = this.agentSelect.createEl("option", {
-        text: agent.name,
-        attr: { value: agent.id },
-      });
-      if (this.selectedAgent?.id === agent.id) opt.selected = true;
+    const agentId = this.agentSelectEl.value;
+    const agent = this.agents.find((a) => a.id === agentId);
+    if (!agent) {
+      new Notice("Please select an agent first");
+      return;
     }
-  }
 
-  private onAgentSelected(): void {
-    if (!this.agentSelect) return;
+    this.selectedAgent = agent;
+    this.hideNewChatPanel();
 
-    const agentId = this.agentSelect.value;
-    this.selectedAgent = this.agents.find((a) => a.id === agentId) || null;
-
-    if (this.selectedAgent) {
-      // Try to resume the most recent existing conversation for this agent
-      const existingConvs = this.conversationManager
-        .listConversations(this.selectedAgent.id)
-        .sort((a, b) => b.updatedAt - a.updatedAt);
-
-      if (existingConvs.length > 0 && existingConvs[0]) {
-        this.currentConversationId = existingConvs[0].id;
-        this.restoreConversationUI(existingConvs[0].id);
-      } else {
-        void this.startNewConversation();
-      }
-    }
-  }
-
-  private async startNewConversation(): Promise<void> {
-    if (!this.selectedAgent) return;
-
-    const conv = this.conversationManager.createConversation(this.selectedAgent.id);
+    const conv = this.conversationManager.createConversation(agent.id);
     this.currentConversationId = conv.id;
     this.currentFilePath = null;
 
     this.clearMessages();
-    this.addSystemMessage(`Started new conversation with ${this.selectedAgent.name}`);
 
-    // Create markdown file for this conversation
-    await this.createConversationFile();
-  }
-
-  private async createConversationFile(): Promise<void> {
-    if (!this.currentConversationId || !this.selectedAgent) return;
+    const conversationsPath = this.getConversationsPath();
     try {
-      const conversationsPath = this.getConversationsPath();
       const filePath = await this.fileManager.createConversationFile(
-        this.currentConversationId,
+        conv.id,
         conversationsPath,
-        this.selectedAgent.name
+        agent.name
       );
       this.currentFilePath = filePath;
-      globalLogger.info(`Conversation file created: ${filePath}`);
+      this.refreshConversations();
+      // Select the new file in the dropdown
+      if (this.conversationSelect) {
+        this.conversationSelect.value = filePath;
+      }
+      globalLogger.info(`Created new conversation file: ${filePath}`);
     } catch (error) {
       globalLogger.error("Failed to create conversation file", { error });
     }
   }
 
-  private async saveConversation(): Promise<void> {
-    if (!this.currentConversationId || !this.currentFilePath) return;
-    try {
-      await this.fileManager.saveConversation(this.currentFilePath, this.currentConversationId);
-    } catch (error) {
-      new Notice("Failed to save conversation to file");
-      globalLogger.error("Failed to save conversation", { error });
-    }
-  }
+  // ============================================================================
+  // Message rendering
+  // ============================================================================
 
   private restoreConversationUI(conversationId: string): void {
     this.clearMessages();
@@ -272,9 +431,16 @@ export class PaperAgentsChatView extends ItemView {
     }
 
     if (messages.length === 0) {
-      this.addSystemMessage(`Resumed conversation with ${this.selectedAgent?.name}`);
+      if (this.messagesContainer) {
+        const empty = this.messagesContainer.createDiv({ cls: "pa-chat-placeholder" });
+        empty.createEl("p", { text: "No messages yet. Start the conversation!" });
+      }
     }
   }
+
+  // ============================================================================
+  // Send logic
+  // ============================================================================
 
   private async sendMessage(): Promise<void> {
     if (!this.inputEl || !this.selectedAgent || !this.currentConversationId || this.isStreaming) return;
@@ -316,7 +482,6 @@ export class PaperAgentsChatView extends ItemView {
         message,
         callbacks
       );
-      // Persist conversation to markdown after each exchange
       await this.saveConversation();
     } catch (error) {
       globalLogger.error("Chat send error", { error });
@@ -326,6 +491,23 @@ export class PaperAgentsChatView extends ItemView {
       this.setStreaming(false);
     }
   }
+
+  private async saveConversation(): Promise<void> {
+    if (!this.currentConversationId || !this.currentFilePath) return;
+    try {
+      this.isSaving = true;
+      await this.fileManager.saveConversation(this.currentFilePath, this.currentConversationId);
+    } catch (error) {
+      new Notice("Failed to save conversation to file");
+      globalLogger.error("Failed to save conversation", { error });
+    } finally {
+      this.isSaving = false;
+    }
+  }
+
+  // ============================================================================
+  // UI helpers
+  // ============================================================================
 
   private addMessageToUI(role: string, content: string): void {
     if (!this.messagesContainer) return;
@@ -348,9 +530,6 @@ export class PaperAgentsChatView extends ItemView {
     this.addMessageToUI("system", content);
   }
 
-  /**
-   * Classifies an error and displays a user-friendly message in the chat.
-   */
   private addErrorMessage(error: Error): void {
     const msg = error.message.toLowerCase();
     let userMessage: string;

@@ -7,7 +7,7 @@ import { customJSExecutor } from "./core/sandbox";
 import { ConversationManager } from "./core/conversation";
 import { Orchestrator } from "./core/orchestrator";
 import { executionHistory } from "./core/history";
-import { initializeHistoryPersistence, initializeConversationPersistence } from "./core/persistence";
+import { initializeHistoryPersistence } from "./core/persistence";
 
 import PredefinedToolsFactory from "./tools/predefined";
 
@@ -18,7 +18,6 @@ import { AgentDefinition, LoadAgentsResult } from "./types";
 
 import { PaperAgentsSidebar, VIEW_TYPE_PAPER_AGENTS } from "./ui/sidebar";
 import { PaperAgentsChatView, VIEW_TYPE_PAPER_AGENTS_CHAT } from "./ui/chat";
-import { ChatView, VIEW_TYPE_CHAT } from "./ui/chat-view";
 import { ToolFormModal } from "./ui/forms";
 import { OutputPanelModal } from "./ui/output-panel";
 import { showHITLModal } from "./ui/hitl-modal";
@@ -49,8 +48,6 @@ export default class PaperAgents extends Plugin {
 
     this.initializeOrchestrator();
     await initializeHistoryPersistence(this.app.vault);
-    await initializeConversationPersistence(this.app.vault, this.conversationManager);
-    await this.restoreConversationsFromFiles();
 
     try {
       await customJSExecutor.initialize();
@@ -88,37 +85,11 @@ export default class PaperAgents extends Plugin {
         )
     );
 
-    this.registerView(
-      VIEW_TYPE_CHAT,
-      (leaf) => new ChatView(leaf)
-    );
-
     this.addRibbonIcon("bot", "Paper agents", () => {
       void this.activateSidebar();
     });
 
     registerCommands(this);
-
-    this.addCommand({
-      id: "open-file-as-chat",
-      name: "Open current file as conversation chat",
-      checkCallback: (checking) => {
-        const file = this.app.workspace.getActiveFile();
-        if (!file || !file.path.endsWith(".md")) return false;
-        if (!checking) {
-          void this.openChatView(file.path);
-        }
-        return true;
-      },
-    });
-
-    this.addCommand({
-      id: "new-conversation",
-      name: "New conversation",
-      callback: async () => {
-        await this.createNewConversation();
-      },
-    });
 
     // Add Settings Tab
     this.addSettingTab(new PaperAgentsSettingTab(this.app, this));
@@ -131,7 +102,6 @@ export default class PaperAgents extends Plugin {
   onunload() {
     globalLogger.info("Paper Agents plugin unloading...");
 
-    void this.conversationManager.saveToStorage();
     void customJSExecutor.destroy();
 
     globalLogger.info("Paper Agents plugin unloaded");
@@ -373,72 +343,6 @@ export default class PaperAgents extends Plugin {
       }
     );
     globalLogger.debug("HITL callbacks registered");
-  }
-
-  /**
-   * Opens a conversation Markdown file in PaperAgentsChatView with full LLM support.
-   */
-  private async openChatView(filePath: string): Promise<void> {
-    await this.activateChat();
-
-    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_PAPER_AGENTS_CHAT);
-    const leaf = leaves[0];
-    if (!leaf) {
-      new Notice("Failed to open chat view");
-      return;
-    }
-
-    const view = leaf.view as PaperAgentsChatView;
-    await view.loadConversationFromFile(filePath);
-  }
-
-  /**
-   * Scans the conversations folder for Markdown files and loads any conversation
-   * that is not already present in the ConversationManager (e.g. after conversations.json
-   * was cleared or a conversation was only stored as a Markdown file).
-   */
-  private async restoreConversationsFromFiles(): Promise<void> {
-    const conversationsPath = this.settings.conversationsPath || DEFAULT_PATHS.CONVERSATIONS;
-    const folder = this.app.vault.getAbstractFileByPath(conversationsPath);
-    if (!folder || !("children" in folder)) return;
-
-    const mdFiles: TFile[] = [];
-    this.collectMarkdownFiles(folder, mdFiles);
-
-    let loaded = 0;
-    for (const file of mdFiles) {
-      try {
-        const content = await this.app.vault.read(file);
-        const parsed = this.conversationManager.parseConversationFile(content);
-        if (!parsed) continue;
-
-        const convId = parsed.conversation.id;
-        if (convId) {
-          const existing = this.conversationManager.getConversation(convId);
-          if (existing) {
-            // Newest-wins: prefer the Markdown file if it was updated more recently
-            const markdownUpdatedAt = parsed.conversation.updatedAt ?? 0;
-            if (markdownUpdatedAt <= existing.updatedAt) continue;
-          }
-        }
-
-        this.conversationManager.loadFromConversationFile(content);
-        loaded++;
-      } catch (error) {
-        globalLogger.debug(`Skipping file during conversation restore: ${file.path}`, { error });
-      }
-    }
-
-    if (loaded > 0) {
-      globalLogger.info(`Restored ${loaded} conversation(s) from Markdown files`);
-    }
-  }
-
-  /**
-   * Creates a new conversation Markdown file and opens PaperAgentsChatView.
-   */
-  private async createNewConversation(): Promise<void> {
-    await this.activateChat();
   }
 
   async loadSettings() {

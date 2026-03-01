@@ -5,12 +5,10 @@
 
 import { TFile, Vault } from "obsidian";
 import { executionHistory } from "./history";
-import { ConversationManager } from "./conversation";
 import { globalLogger } from "../utils/logger";
 
 const PLUGIN_FOLDER_NAME = "plugins/paper-agents";
 const HISTORY_FILE = "history.json";
-const CONVERSATIONS_FILE = "conversations.json";
 
 function getPluginDataFolder(vault: Vault): string {
   return `${vault.configDir}/${PLUGIN_FOLDER_NAME}`;
@@ -59,22 +57,4 @@ export async function initializeHistoryPersistence(vault: Vault): Promise<void> 
 
   await executionHistory.loadFromStorage();
   globalLogger.debug("History persistence initialized");
-}
-
-/**
- * Initialize conversation persistence
- */
-export async function initializeConversationPersistence(
-  vault: Vault,
-  conversationManager: ConversationManager
-): Promise<void> {
-  const folder = getPluginDataFolder(vault);
-  const conversationsPath = `${folder}/${CONVERSATIONS_FILE}`;
-  conversationManager.setPersistence(
-    createVaultSaver(vault, conversationsPath, folder),
-    createVaultLoader(vault, conversationsPath)
-  );
-
-  await conversationManager.loadFromStorage();
-  globalLogger.debug("Conversation persistence initialized");
 }

@@ -22,79 +22,9 @@ import type {
 const CHARS_PER_TOKEN = 4;
 const DEFAULT_MAX_MESSAGES = 50;
 const DEFAULT_MAX_TOKENS = 4000;
-const MAX_PERSISTED_CONVERSATIONS = 50;
 
 export class ConversationManager {
   private conversations: Map<string, Conversation> = new Map();
-  private saveFn: ((data: string) => Promise<void>) | null = null;
-  private loadFn: (() => Promise<string | null>) | null = null;
-  private saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-  /**
-   * Set persistence callbacks for saving/loading conversations
-   */
-  setPersistence(
-    save: (data: string) => Promise<void>,
-    load: () => Promise<string | null>
-  ): void {
-    this.saveFn = save;
-    this.loadFn = load;
-  }
-
-  /**
-   * Load conversations from persistent storage
-   */
-  async loadFromStorage(): Promise<void> {
-    if (!this.loadFn) return;
-
-    try {
-      const raw = await this.loadFn();
-      if (!raw) return;
-
-      const data = JSON.parse(raw) as Conversation[];
-      if (!Array.isArray(data)) return;
-
-      for (const conv of data) {
-        if (conv.id && conv.agentId && Array.isArray(conv.messages)) {
-          this.conversations.set(conv.id, conv);
-        }
-      }
-    } catch {
-      // Ignore corrupt data
-    }
-  }
-
-  /**
-   * Save conversations to persistent storage (debounced)
-   */
-  private scheduleSave(): void {
-    if (!this.saveFn) return;
-
-    if (this.saveDebounceTimer) {
-      clearTimeout(this.saveDebounceTimer);
-    }
-
-    this.saveDebounceTimer = setTimeout(() => {
-      void this.saveToStorage();
-    }, 1000);
-  }
-
-  /**
-   * Immediately save conversations to persistent storage
-   */
-  async saveToStorage(): Promise<void> {
-    if (!this.saveFn) return;
-
-    try {
-      const all = Array.from(this.conversations.values())
-        .sort((a, b) => b.updatedAt - a.updatedAt)
-        .slice(0, MAX_PERSISTED_CONVERSATIONS);
-
-      await this.saveFn(JSON.stringify(all, null, 2));
-    } catch {
-      // Silently fail - don't break the plugin over persistence
-    }
-  }
 
   createConversation(agentId: string, id?: string): Conversation {
     const conversationId = id || this.generateId();
@@ -109,7 +39,6 @@ export class ConversationManager {
     };
 
     this.conversations.set(conversationId, conversation);
-    this.scheduleSave();
     return conversation;
   }
 
@@ -119,7 +48,6 @@ export class ConversationManager {
 
   deleteConversation(id: string): boolean {
     const result = this.conversations.delete(id);
-    if (result) this.scheduleSave();
     return result;
   }
 
@@ -151,7 +79,6 @@ export class ConversationManager {
 
     conversation.messages.push(message);
     conversation.updatedAt = Date.now();
-    this.scheduleSave();
 
     return message;
   }
@@ -168,7 +95,6 @@ export class ConversationManager {
     }
     conversation.messages = [];
     conversation.updatedAt = Date.now();
-    this.scheduleSave();
     return true;
   }
 
@@ -511,5 +437,3 @@ export class ConversationManager {
     }
   }
 }
-
-export const conversationManager = new ConversationManager();
