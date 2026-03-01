@@ -41,6 +41,18 @@ describe("Predefined tools integration (mocked vault)", () => {
       expect((res.data as any).count).toBe(1);
       expect((res.data as any).results[0].path).toBe("/notes/a.md");
     });
+
+    it("returns error result when query parameter is missing", async () => {
+      const res = await tool.execute(makeCtx({}));
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/query/);
+    });
+
+    it("returns error result when query parameter is null", async () => {
+      const res = await tool.execute(makeCtx({ query: null }));
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/query/);
+    });
   });
 
   describe("read_file", () => {
