@@ -19,10 +19,13 @@ export class PaperAgentsSidebar extends ItemView {
   private agentsContainer: HTMLElement | null = null;
   private examplesContainer: HTMLElement | null = null;
   private statusContainer: HTMLElement | null = null;
+  private countsContainer: HTMLElement | null = null;
   private toolRegistry: IToolRegistry;
   private onToolClick: (toolId: string) => void;
   private agents: AgentDefinition[] = [];
   private onAgentClick: ((agentId: string) => void) | null = null;
+  private onOpenChat: (() => void) | null = null;
+  private onReloadTools: (() => Promise<void>) | null = null;
   private examplesExpanded = true;
 
   constructor(
@@ -57,6 +60,10 @@ export class PaperAgentsSidebar extends ItemView {
     // Header
     this.renderHeader(container as HTMLElement);
 
+    // Counts bar
+    this.countsContainer = container.createDiv({ cls: "pa-counts-bar" });
+    this.renderCounts();
+
     // Tools Section
     this.toolsContainer = container.createDiv({ cls: "pa-tools-section" });
     this.renderTools();
@@ -81,7 +88,7 @@ export class PaperAgentsSidebar extends ItemView {
   }
 
   /**
-   * Rendert Header mit Title und Refresh-Button
+   * Rendert Header mit Title und Action-Buttons
    */
   private renderHeader(container: HTMLElement): void {
     const header = container.createDiv({ cls: "pa-header" });
@@ -89,12 +96,59 @@ export class PaperAgentsSidebar extends ItemView {
     const title = header.createEl("h2", { text: "Paper agents" });
     title.addClass("pa-title");
 
-    const refreshBtn = header.createEl("button", { text: "↻" });
-    refreshBtn.addClass("pa-refresh-btn");
-    refreshBtn.addEventListener("click", () => {
-      this.renderTools();
-      globalLogger.debug("Tools refreshed");
+    const actions = header.createDiv({ cls: "pa-header-actions" });
+
+    const chatBtn = actions.createEl("button", { text: "💬" });
+    chatBtn.addClass("pa-header-btn");
+    chatBtn.setAttribute("aria-label", "Open chat");
+    chatBtn.title = "Open chat";
+    chatBtn.addEventListener("click", () => {
+      if (this.onOpenChat) {
+        this.onOpenChat();
+      }
+      globalLogger.debug("Open chat clicked");
     });
+
+    const reloadBtn = actions.createEl("button", { text: "↻" });
+    reloadBtn.addClass("pa-header-btn");
+    reloadBtn.setAttribute("aria-label", "Reload tools and agents");
+    reloadBtn.title = "Reload tools & agents";
+    reloadBtn.addEventListener("click", () => {
+      if (this.onReloadTools) {
+        reloadBtn.disabled = true;
+        void this.onReloadTools().finally(() => {
+          reloadBtn.disabled = false;
+        });
+      }
+      globalLogger.debug("Reload tools clicked");
+    });
+  }
+
+  /**
+   * Rendert Zähler für Agenten und Tools
+   */
+  private renderCounts(): void {
+    if (!this.countsContainer) return;
+    this.countsContainer.empty();
+
+    const toolCount = this.toolRegistry.listTools().length;
+    const agentCount = this.agents.length;
+
+    this.countsContainer.createSpan({
+      cls: "pa-count-badge",
+      text: `🤖 ${agentCount} agent${agentCount !== 1 ? "s" : ""}`,
+    });
+    this.countsContainer.createSpan({
+      cls: "pa-count-badge",
+      text: `🔧 ${toolCount} tool${toolCount !== 1 ? "s" : ""}`,
+    });
+  }
+
+  /**
+   * Aktualisiert die Zähler-Anzeige
+   */
+  public updateCounts(): void {
+    this.renderCounts();
   }
 
   /**
@@ -325,10 +379,19 @@ export class PaperAgentsSidebar extends ItemView {
   public setAgents(agents: AgentDefinition[]): void {
     this.agents = agents;
     this.renderAgents();
+    this.renderCounts();
   }
 
   public setOnAgentClick(callback: (agentId: string) => void): void {
     this.onAgentClick = callback;
+  }
+
+  public setOnOpenChat(callback: () => void): void {
+    this.onOpenChat = callback;
+  }
+
+  public setOnReloadTools(callback: () => Promise<void>): void {
+    this.onReloadTools = callback;
   }
 
   /**
@@ -336,10 +399,12 @@ export class PaperAgentsSidebar extends ItemView {
    */
   public refreshTools(): void {
     this.renderTools();
+    this.renderCounts();
   }
 
   public refreshAgents(): void {
     this.renderAgents();
+    this.renderCounts();
   }
 
   private renderExamples(): void {

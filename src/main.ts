@@ -67,6 +67,11 @@ export default class PaperAgents extends Plugin {
         );
         sidebar.setAgents(this.loadedAgents);
         sidebar.setOnAgentClick(() => { void this.activateChat(); });
+        sidebar.setOnOpenChat(() => { void this.activateChat(); });
+        sidebar.setOnReloadTools(async () => {
+          await this.loadCustomToolsFromVault();
+          await this.loadAgentsFromVault();
+        });
         return sidebar;
       }
     );
