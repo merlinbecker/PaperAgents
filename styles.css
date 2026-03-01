@@ -14,27 +14,48 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 8px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.pa-title {
-  margin: 0;
-  font-size: 1.2em;
+.pa-header-actions {
+  display: flex;
+  gap: 4px;
 }
 
-.pa-refresh-btn {
-  padding: 5px 10px;
+.pa-header-btn {
+  padding: 4px 8px;
   cursor: pointer;
   background: var(--interactive-normal);
   border: 1px solid var(--background-modifier-border);
   border-radius: 4px;
-  font-size: 1.2em;
+  font-size: 1em;
 }
 
-.pa-refresh-btn:hover {
+.pa-header-btn:hover {
   background: var(--interactive-hover);
+}
+
+.pa-header-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pa-counts-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.pa-count-badge {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  padding: 2px 8px;
 }
 
 /* Tool Categories */
