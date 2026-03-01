@@ -126,20 +126,32 @@ Datum: {{current_date}}
 Vault: {{vault_path}}
 ```
 
-### Konversations-Format (Markdown, Round-trip-fähig)
+### Konversations-Dateiformat (Markdown, round-trip-fähig, speicherbar)
+
+Das vollständige Dateiformat für Conversation-Dateien kombiniert YAML-Frontmatter mit Message-Blöcken:
 
 ```markdown
-### User (2026-01-29T10:30:00.000Z)
+---
+conversation: true
+id: conv_1234567890_abcdefghi
+agentId: research_assistant
+createdAt: 2026-01-01T10:00:00.000Z
+updatedAt: 2026-01-01T10:05:00.000Z
+---
+
+### User (2026-01-01T10:00:00.000Z)
 Nachrichtentext
 
-### Assistant (2026-01-29T10:30:05.000Z)
+### Assistant (2026-01-01T10:01:00.000Z)
 Antworttext
 
-### Tool (2026-01-29T10:30:10.000Z)
+### Tool (2026-01-01T10:02:00.000Z)
 <!-- tool:read_file -->
-<!-- params:{"path":"/test.md"} -->
+<!-- params:{"filePath":"/test.md"} -->
 Result: "Dateiinhalt"
 ```
+
+Dateien werden im konfigurierten Conversations-Ordner abgelegt (Standard: `paper-agents-conversations/`) und können direkt in Obsidian geöffnet und bearbeitet werden. Das Format ist round-trip-fähig: Gespeicherte Dateien können über `open-file-as-chat` wieder in `PaperAgentsChatView` geladen werden.
 
 ### Memory-Strategien
 
@@ -205,14 +217,16 @@ onload():
   6. Agents aus Vault laden
   7. Orchestrator initialisieren
   8. History-Persistenz initialisieren
-  9. Conversation-Persistenz initialisieren (loadFromStorage)
-  10. Sandbox initialisieren (QuickJS)
-  11. Sidebar View registrieren
-  12. Chat View registrieren
-  13. Ribbon Icon hinzufügen
-  14. Commands registrieren (via registerCommands())
-  15. Settings-Tab registrieren
-  16. HITL Callbacks registrieren
+  9. Conversation-Persistenz initialisieren (loadFromStorage aus conversations.json)
+  10. Conversations aus Markdown-Dateien wiederherstellen (newest-wins bei Konflikten)
+  11. Sandbox initialisieren (QuickJS)
+  12. Sidebar View registrieren
+  13. Chat View (PaperAgentsChatView) registrieren
+  14. Chat-File View (ChatView) registrieren (Fallback/Rückwärtskompatibilität)
+  15. Ribbon Icon hinzufügen
+  16. Commands registrieren (via registerCommands())
+  17. Settings-Tab registrieren
+  18. HITL Callbacks registrieren
 
 onunload():
   1. Conversations speichern (force flush – saveToStorage)
@@ -223,14 +237,23 @@ onunload():
 
 ## 8.8 Vault-Persistenz
 
-- **Speicherort**: `.obsidian/plugins/paper-agents/`
+- **Speicherort JSON**: `.obsidian/plugins/paper-agents/`
 - **Dateien**: `conversations.json` (Chat-Konversationen), `history.json` (Execution-History)
 - **Debounced Saves**: Während der Laufzeit werden Änderungen mit 1 s Delay gespeichert (vermeidet exzessive I/O)
 - **Force-Save bei Unload**: Beim Plugin-Stopp wird explizit `saveToStorage()` aufgerufen
 - **Factory-Funktionen**: `createVaultSaver()`, `createVaultLoader()` in `src/core/persistence.ts`
-- **Limits**: Max. 50 persistierte Konversationen
+- **Limits**: Max. 50 persistierte Konversationen in `conversations.json`
 - **Fehlertoleranz**: Korrupte Daten werden geloggt und ignoriert (kein Plugin-Crash)
 - **Datenschutz**: Alle Daten lokal im Vault – kein Cloud-Sync der Gespräche
+
+### Markdown-Persistenz für Conversations
+
+- **Speicherort**: Konfigurierbarer Pfad (Standard: `paper-agents-conversations/`)
+- **Format**: Markdown mit YAML-Frontmatter (`conversation: true`, `id`, `agentId`, `createdAt`, `updatedAt`) und `### Role (timestamp)` Nachrichtenblöcken
+- **Schreiben**: Nach jeder Nachricht in `PaperAgentsChatView.sendMessage()` via `ConversationFileManager.saveConversation()`
+- **Datei anlegen**: Beim Start einer neuen Konversation in `PaperAgentsChatView.startNewConversation()` via `ConversationFileManager.createConversationFile()`
+- **Laden**: Via Command `open-file-as-chat` → `PaperAgentsChatView.loadConversationFromFile()` – öffnet mit voller LLM-Integration
+- **Startup-Wiederherstellung**: `restoreConversationsFromFiles()` in `main.ts` scannt den Conversations-Ordner beim Plugin-Start und lädt Markdown-Dateien, die nicht in `conversations.json` vorhanden sind. Bei Konflikten gilt: **neuere `updatedAt` gewinnt** (Markdown kann `conversations.json` überschreiben)
 
 ---
 

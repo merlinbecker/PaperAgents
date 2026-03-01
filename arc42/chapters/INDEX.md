@@ -67,6 +67,7 @@ Diese Dokumentation beschreibt die Architektur von **Paper Agents**, einem Obsid
    - ADR-3: OpenRouter als LLM-Gateway
    - ADR-4: Factory Pattern für Tool-Registry
    - ADR-5: Approximatives Token-Counting
+   - ADR-6: Zweischichtige Conversation-Persistenz (JSON + Markdown)
 
 10. **[Qualitätsanforderungen](10-qualitaetsanforderungen.md)**
     - Qualitätsbaum
@@ -87,29 +88,43 @@ Diese Dokumentation beschreibt die Architektur von **Paper Agents**, einem Obsid
 
 ```
 src/
-  main.ts                 # Plugin-Einstiegspunkt
-  settings.ts            # Einstellungen und Defaults
-  types.ts               # TypeScript-Typen
-  core/                  # Ausführungs-Engine
-    conversation.ts      # Konversations-Management
-    sandbox.ts           # QuickJS WASM Sandbox
-    tool-executor.ts     # Tool-Ausführung (3-Phasen)
-    tool-registry.ts     # Tool-Registrierung (Factory Pattern)
-  parser/                # Parsing und Validierung
-    agent-parser.ts      # Agent-Definition Parsing
-    placeholder.ts       # Placeholder-Auflösung
-    tool-loader.ts       # Custom Tool Discovery
-    validator.ts         # Parameter-Validierung
-    yaml-parser.ts       # YAML Frontmatter Parsing
+  main.ts                      # Plugin-Einstiegspunkt, Lifecycle, Startup-Restore
+  settings.ts                  # Einstellungen und Defaults
+  types.ts                     # TypeScript-Typen
+  core/                        # Ausführungs-Engine
+    conversation.ts            # Konversations-Management + JSON-Persistenz
+    conversation-file-manager.ts # Markdown-Persistenz für einzelne Conversations
+    sandbox.ts                 # QuickJS WASM Sandbox
+    tool-executor.ts           # Tool-Ausführung (3-Phasen)
+    tool-registry.ts           # Tool-Registrierung (Factory Pattern)
+    orchestrator.ts            # LLM-Orchestrierung (OpenRouter, SSE, Tool-Calling)
+    openrouter.ts              # OpenRouter API-Client
+    history.ts                 # Execution-History
+    persistence.ts             # Vault-Persistenz-Helpers
+  parser/                      # Parsing und Validierung
+    agent-parser.ts            # Agent-Definition Parsing
+    placeholder.ts             # Placeholder-Auflösung
+    tool-loader.ts             # Custom Tool Discovery
+    validator.ts               # Parameter-Validierung
+    yaml-parser.ts             # YAML Frontmatter Parsing
   tools/
-    predefined.ts        # 4 vordefinierte Tools
-  ui/                    # Benutzeroberfläche
-    hitl-modal.ts        # Human-in-the-Loop Dialog
-    sidebar.ts           # Sidebar View
-    forms.ts             # Dynamische Formulare
+    predefined.ts              # 4 vordefinierte Tools
+  ui/                          # Benutzeroberfläche
+    chat.ts                    # PaperAgentsChatView (vollständig, mit LLM)
+    chat-view.ts               # ChatView (Fallback-Viewer, Rückwärtskompatibilität)
+    hitl-modal.ts              # Human-in-the-Loop Dialog
+    sidebar.ts                 # Sidebar View
+    forms.ts                   # Dynamische Formulare
+    output-panel.ts            # Tool-Ergebnis-Anzeige
+    history-panel.ts           # Execution-History-Anzeige
+    template-browser.ts        # Template-Auswahl
+    workflow-view.ts           # Workflow-Visualisierung
+  commands/
+    index.ts                   # Command-Registrierung
   utils/
-    constants.ts         # Konstanten
-    logger.ts            # Logging
+    constants.ts               # Konstanten
+    logger.ts                  # Logging
+    metrics.ts                 # Metriken und Tracing
 ```
 
 ### Wichtigste Konzepte

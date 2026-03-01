@@ -55,8 +55,8 @@ C4Container
 
 #### Core Execution Layer
 
-- **Verantwortung**: Tool-Ausführung, Tool-Verwaltung, Konversations-State, LLM-Orchestrierung, API-Kommunikation, Execution History
-- **Dateien**: `src/core/tool-executor.ts`, `src/core/tool-registry.ts`, `src/core/conversation.ts`, `src/core/sandbox.ts`, `src/core/openrouter.ts`, `src/core/orchestrator.ts`, `src/core/history.ts`, `src/core/persistence.ts`
+- **Verantwortung**: Tool-Ausführung, Tool-Verwaltung, Konversations-State, LLM-Orchestrierung, API-Kommunikation, Execution History, Markdown-Persistierung von Conversations
+- **Dateien**: `src/core/tool-executor.ts`, `src/core/tool-registry.ts`, `src/core/conversation.ts`, `src/core/conversation-file-manager.ts`, `src/core/sandbox.ts`, `src/core/openrouter.ts`, `src/core/orchestrator.ts`, `src/core/history.ts`, `src/core/persistence.ts`
 - **Schnittstellen**: Parser-Layer (Eingabe), Tools-Layer (Ausführung), UI-Layer (Ergebnisse), OpenRouter API (LLM)
 
 #### Parser & Validation Layer
@@ -123,9 +123,19 @@ Input-Parameter
 - **Vault-Persistenz**: `setPersistence()`, `loadFromStorage()`, `saveToStorage()` mit debounced saves (1 s Delay). Speicherung nach `.obsidian/plugins/paper-agents/conversations.json`. Max. 50 persistierte Konversationen.
 - **Token-Counting**: Approximativ (4 Zeichen ≈ 1 Token)
 - **Memory-Strategien**: `conversation` (letzte N Nachrichten), `summary` (Zusammenfassung), `none`
-- **Markdown-Export/Import**: Round-trip-fähig mit ISO 8601 Timestamps
+- **Markdown-Export/Import**: Round-trip-fähig mit ISO 8601 Timestamps (`toConversationFile()`, `loadFromConversationFile()`, `parseConversationFile()`)
 - **LLM-Formatierung**: `formatMessagesForLLM()` für OpenRouter-API
 - **Coverage**: 97.47%
+
+### ConversationFileManager (`conversation-file-manager.ts`)
+
+- **Markdown-Persistenz** für einzelne Conversation-Dateien im Vault
+- Konstruktor akzeptiert eine `ConversationManager`-Instanz (kein globaler Singleton)
+- `saveConversation(filePath, conversationId)`: Schreibt Conversation als Markdown-Datei (erstellt oder überschreibt)
+- `loadConversation(filePath)`: Liest Conversation aus Markdown-Datei und registriert sie im Manager
+- `createConversationFile(conversationId, conversationsPath, title?)`: Legt initiale Markdown-Datei für eine bestehende Conversation an
+- `isConversationFile(filePath)`: Prüft `conversation: true` Frontmatter
+- **Speicherformat**: YAML-Frontmatter (id, agentId, createdAt, updatedAt) + `### Role (timestamp)` Nachrichtenblöcke
 
 ### Orchestrator (`orchestrator.ts`)
 

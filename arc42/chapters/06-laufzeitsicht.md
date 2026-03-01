@@ -74,20 +74,45 @@ Nutzer               Chat-UI            Orchestrator        OpenRouter API      
 ## 6.5 Chat-Persistenz
 
 ```
-Plugin (onload)     Persistence          Vault (.obsidian/plugins/paper-agents/)
-  │                    │                    │
-  ├─initPersistence───▶│                    │
-  │                    ├─loadFromStorage───▶│ conversations.json
-  │                    │◀─Loaded Data──────┤
-  │                    │                    │
+Plugin (onload)     Persistence          Vault (.obsidian/plugins/paper-agents/)    Conversations-Ordner
+  │                    │                    │                                            │
+  ├─initPersistence───▶│                    │                                            │
+  │                    ├─loadFromStorage───▶│ conversations.json                         │
+  │                    │◀─Loaded Data──────┤                                            │
+  │                    │                    │                                            │
+  ├─restoreFromFiles───────────────────────────────────────────────────────────────────▶│
+  │                    │                    │◀─Markdown-Dateien (*.md)──────────────────┤
+  │  (newest-wins: Markdown überschreibt JSON wenn updatedAt neuer)                     │
+  │                    │                    │                                            │
 (Nutzer chattet...)
-  │                    ├─scheduleSave()────▶│ (debounced, 1s)
-  │                    │                    │
+  ├─nach jeder Nachricht──────────────────────────────────────────────────────────────▶│
+  │                    │                    │         saveConversation(filePath, id)     │
+  │                    ├─scheduleSave()────▶│ (debounced, 1s)                           │
+  │                    │                    │                                            │
 Plugin (onunload)
   │                    ├─saveToStorage─────▶│ (force flush)
 ```
 
-## 6.6 Streaming Error Handling
+## 6.6 Conversation aus Datei laden (open-file-as-chat)
+
+```
+Nutzer              Plugin (main.ts)    PaperAgentsChatView    ConversationFileManager    ConversationManager
+  │                    │                    │                        │                        │
+  ├─open-file-as-chat─▶│                    │                        │                        │
+  │                    ├─activateChat()────▶│                        │                        │
+  │                    ├─loadConvFromFile──▶│                        │                        │
+  │                    │                    ├─loadConversation──────▶│                        │
+  │                    │                    │                        ├─read(file)              │
+  │                    │                    │                        ├─loadFromConvFile───────▶│
+  │                    │                    │                        │◀─Conversation──────────┤
+  │                    │                    │◀─conversation─────────┤                        │
+  │                    │                    ├─find matching agent    │                        │
+  │                    │                    ├─updateAgentSelect()    │                        │
+  │                    │                    ├─restoreConversationUI()│                        │
+  │◀──Chat-UI mit History────────────────┤                        │                        │
+```
+
+## 6.7 Streaming Error Handling
 
 ```
 Orchestrator         Chat-UI (onError)       Nutzer
