@@ -118,7 +118,7 @@ export class ToolRegistry {
         name: factory.name,
         description: factory.description,
         type: "predefined",
-        parameters: [], // Wird bei Bedarf geladen
+        parameters: factory.parameters ?? [],
         category: TOOL_CATEGORIES.SYSTEM,
         icon: TOOL_ICONS.SYSTEM,
       });
