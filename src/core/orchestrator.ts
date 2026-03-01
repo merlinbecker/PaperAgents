@@ -77,7 +77,7 @@ export class Orchestrator {
           onError: callbacks?.onError,
         };
 
-        const response = await this.client.chatStream(messages, streamCallbacks, tools);
+        const response = await this.client.chatStream(messages, streamCallbacks, tools, agent.model);
 
         const choice = response.choices[0];
         if (!choice) break;

@@ -121,7 +121,7 @@ Test prompt for conversion.
       expect(agent.memory.type).toBe("summary");
       expect(agent.memory.maxMessages).toBe(10);
       expect(agent.systemPrompt).toBe("Test prompt for conversion.");
-      expect(agent.model).toBe("openai/gpt-4o-mini");
+      expect(agent.model).toBeUndefined();
     });
 
     it("should throw error for missing id", () => {
@@ -165,6 +165,41 @@ Nur Kontext, kein System Prompt.
 
       const parsed = AgentParser.parseAgentFile(content);
       expect(() => AgentParser.toAgentDefinition(parsed)).toThrow("Missing System Prompt section");
+    });
+
+    it("should use model from frontmatter when specified", () => {
+      const content = `---
+agent: true
+id: model_test
+name: "Model Test"
+model: anthropic/claude-3-opus
+---
+
+## System Prompt
+Test.
+`;
+
+      const parsed = AgentParser.parseAgentFile(content);
+      const agent = AgentParser.toAgentDefinition(parsed);
+
+      expect(agent.model).toBe("anthropic/claude-3-opus");
+    });
+
+    it("should leave model undefined when not specified in frontmatter", () => {
+      const content = `---
+agent: true
+id: no_model_test
+name: "No Model Test"
+---
+
+## System Prompt
+Test.
+`;
+
+      const parsed = AgentParser.parseAgentFile(content);
+      const agent = AgentParser.toAgentDefinition(parsed);
+
+      expect(agent.model).toBeUndefined();
     });
 
     it("should use default memory config when not specified", () => {

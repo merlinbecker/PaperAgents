@@ -129,10 +129,11 @@ export class OpenRouterClient {
   private buildRequestBody(
     messages: LLMMessage[],
     tools?: LLMToolDefinition[],
-    stream = false
+    stream = false,
+    modelOverride?: string
   ): Record<string, unknown> {
     const body: Record<string, unknown> = {
-      model: this.config.model,
+      model: modelOverride ?? this.config.model,
       messages,
       temperature: this.config.temperature,
       max_tokens: this.config.maxTokens,
@@ -263,9 +264,10 @@ export class OpenRouterClient {
   async chatStream(
     messages: LLMMessage[],
     callbacks: StreamCallbacks,
-    tools?: LLMToolDefinition[]
+    tools?: LLMToolDefinition[],
+    modelOverride?: string
   ): Promise<OpenRouterResponse> {
-    const body = this.buildRequestBody(messages, tools, true);
+    const body = this.buildRequestBody(messages, tools, true, modelOverride);
 
     await this.enforceRateLimit();
 

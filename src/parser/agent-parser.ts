@@ -231,7 +231,7 @@ export class AgentParser {
       id: String(fm.id),
       name: String(fm.name),
       description: fm.description ? String(fm.description) : undefined,
-      model: fm.model ? String(fm.model) : this.DEFAULT_MODEL,
+      model: fm.model ? String(fm.model) : undefined,
       tools,
       memory,
       systemPrompt: parsed.systemPrompt,
