@@ -193,6 +193,45 @@ id: c1
     });
   });
 
+  describe("listConversationFiles", () => {
+    it("should return empty array for a non-existent folder", () => {
+      const result = fileManager.listConversationFiles("nonexistent-folder");
+      expect(result).toEqual([]);
+    });
+
+    it("should return markdown files sorted by title", async () => {
+      await app.vault.create("chat-convs/2026-01-01-Beta.md", "content");
+      await app.vault.create("chat-convs/2026-01-01-Alpha.md", "content");
+
+      const result = fileManager.listConversationFiles("chat-convs");
+
+      expect(result).toHaveLength(2);
+      expect(result[0]?.title).toBe("2026-01-01-Alpha");
+      expect(result[1]?.title).toBe("2026-01-01-Beta");
+    });
+
+    it("should return path and title (basename without extension) for each file", async () => {
+      await app.vault.create("my-convs/2026-03-01-Test.md", "content");
+
+      const result = fileManager.listConversationFiles("my-convs");
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.path).toBe("my-convs/2026-03-01-Test.md");
+      expect(result[0]?.title).toBe("2026-03-01-Test");
+    });
+
+    it("should return files created via createConversationFile", async () => {
+      manager.createConversation("agent_1", "conv_list_test");
+
+      await fileManager.createConversationFile("conv_list_test", "list-convs", "My Agent");
+
+      const result = fileManager.listConversationFiles("list-convs");
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.title).toContain("My-Agent");
+    });
+  });
+
   describe("round-trip: createConversationFile → saveConversation → loadConversation", () => {
     it("should persist and reload messages correctly", async () => {
       manager.createConversation("round_trip_agent", "conv_rt");

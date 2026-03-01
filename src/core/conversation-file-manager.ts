@@ -20,7 +20,7 @@
  * Hi there!
  */
 
-import { App, TFile } from "obsidian";
+import { App, TFile, TFolder } from "obsidian";
 import type { Conversation } from "../types";
 import { ConversationManager } from "./conversation";
 import { globalLogger } from "../utils/logger";
@@ -111,6 +111,23 @@ export class ConversationFileManager {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * List all Markdown files in a folder as conversation file descriptors.
+   * Returns an array of { path, title } sorted alphabetically by title.
+   */
+  listConversationFiles(folderPath: string): { path: string; title: string }[] {
+    const folder = this.app.vault.getAbstractFileByPath(folderPath);
+    if (!folder || !(folder instanceof TFolder)) return [];
+
+    const results: { path: string; title: string }[] = [];
+    for (const child of folder.children) {
+      if (child instanceof TFile && child.extension === "md") {
+        results.push({ path: child.path, title: child.basename });
+      }
+    }
+    return results.sort((a, b) => a.title.localeCompare(b.title));
   }
 
   /**
