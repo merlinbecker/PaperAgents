@@ -551,8 +551,7 @@
 
 .pa-chat-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--background-modifier-border);
@@ -568,6 +567,7 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .pa-chat-agent-select {
@@ -577,7 +577,9 @@
   background: var(--background-primary);
   color: var(--text-normal);
   font-size: 0.9em;
-  max-width: 200px;
+  flex: 1;
+  min-width: 0;
+  max-width: 240px;
 }
 
 .pa-chat-new-btn {
@@ -663,8 +665,30 @@
   font-size: 0.7em;
   text-transform: uppercase;
   font-weight: 600;
-  margin-bottom: 4px;
   opacity: 0.7;
+}
+
+.pa-chat-message-role-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.pa-chat-regen-btn {
+  font-size: 0.75em;
+  padding: 1px 5px;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.6;
+  color: inherit;
+  line-height: 1.2;
+}
+
+.pa-chat-regen-btn:hover {
+  opacity: 1;
 }
 
 .pa-chat-message-content {
@@ -827,6 +851,34 @@
   border-top: 1px solid var(--background-modifier-border);
   flex-shrink: 0;
   align-items: flex-end;
+}
+
+.pa-chat-btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.pa-chat-resend-btn {
+  padding: 4px 10px;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1em;
+  height: 30px;
+  text-align: center;
+}
+
+.pa-chat-resend-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+.pa-chat-resend-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .pa-chat-input {
@@ -1142,6 +1194,15 @@
 
   .pa-chat-controls {
     flex-wrap: wrap;
+  }
+
+  .pa-chat-agent-select {
+    max-width: none;
+    width: 100%;
+  }
+
+  .pa-chat-btn-group {
+    flex-direction: row;
   }
 
   .pa-output-summary {

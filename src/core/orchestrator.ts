@@ -47,15 +47,22 @@ export class Orchestrator {
     userMessage: string,
     callbacks?: OrchestratorCallbacks
   ): Promise<string> {
+    this.conversationManager.addMessage(conversationId, "user", userMessage);
+    return this.continueConversation(agent, conversationId, callbacks);
+  }
+
+  async continueConversation(
+    agent: AgentDefinition,
+    conversationId: string,
+    callbacks?: OrchestratorCallbacks
+  ): Promise<string> {
     const traceId = globalMetrics.generateTraceId();
-    const span = globalMetrics.startTrace(traceId, "orchestrator.sendMessage", undefined, {
+    const span = globalMetrics.startTrace(traceId, "orchestrator.continueConversation", undefined, {
       agentId: agent.id,
       conversationId,
     });
 
     try {
-      this.conversationManager.addMessage(conversationId, "user", userMessage);
-
       const tools = this.buildToolDefinitions(agent);
       let round = 0;
       let finalContent = "";
@@ -112,14 +119,14 @@ export class Orchestrator {
 
       callbacks?.onComplete?.(finalContent);
       globalMetrics.endTrace(span, "success");
-      globalMetrics.recordExecution("orchestrator.message", Date.now() - span.startTime, true);
+      globalMetrics.recordExecution("orchestrator.continueConversation", Date.now() - span.startTime, true);
 
       return finalContent;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       globalLogger.error("Orchestrator error", { error: errorMsg, traceId });
       globalMetrics.endTrace(span, "error", { error: errorMsg });
-      globalMetrics.recordExecution("orchestrator.message", Date.now() - span.startTime, false);
+      globalMetrics.recordExecution("orchestrator.continueConversation", Date.now() - span.startTime, false);
 
       this.conversationManager.addMessage(
         conversationId,
