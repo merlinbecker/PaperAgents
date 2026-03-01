@@ -74,8 +74,12 @@ class SearchFilesTool implements IExecutableTool {
 
   async execute(ctx: ExecutionContext): Promise<ExecutionResult> {
     try {
-      const query = ctx.parameters.query as string;
-      const basePath = (ctx.parameters.path as string) || "";
+      const rawQuery = ctx.parameters.query;
+      if (rawQuery === undefined || rawQuery === null) {
+        throw new Error("search_files: required parameter 'query' is missing");
+      }
+      const query = rawQuery as string;
+      const basePath = (ctx.parameters.path as string) ?? "";
 
       const results: Array<{ name: string; path: string; size: number }> = [];
 
@@ -91,8 +95,8 @@ class SearchFilesTool implements IExecutableTool {
           continue;
         }
 
-        // Match against file name first
-        if (file.name.toLowerCase().includes(lowerQuery)) {
+        // Match against file name first (guard against undefined name)
+        if (file.name && file.name.toLowerCase().includes(lowerQuery)) {
           results.push({
             name: file.name,
             path: file.path,
