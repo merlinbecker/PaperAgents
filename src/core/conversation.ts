@@ -437,5 +437,3 @@ export class ConversationManager {
     }
   }
 }
-
-export const conversationManager = new ConversationManager();

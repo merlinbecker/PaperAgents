@@ -24,6 +24,8 @@ export class PaperAgentsChatView extends ItemView {
   private conversationSelect: HTMLSelectElement | null = null;
   private newChatPanel: HTMLElement | null = null;
   private agentSelectEl: HTMLSelectElement | null = null;
+  private createConvBtn: HTMLButtonElement | null = null;
+  private noAgentsHint: HTMLElement | null = null;
   private streamingEl: HTMLElement | null = null;
 
   private onGetAgents: () => AgentDefinition[];
@@ -69,6 +71,7 @@ export class PaperAgentsChatView extends ItemView {
     this.renderInput(container as HTMLElement);
 
     this.refreshConversations();
+    await this.autoLoadMostRecentConversation();
 
     // Reload when the currently open markdown file is modified externally
     this.registerEvent(
@@ -121,7 +124,7 @@ export class PaperAgentsChatView extends ItemView {
     this.containerEl.empty();
   }
 
-  refreshAgents(): void {
+  private refreshAgents(): void {
     this.agents = this.onGetAgents();
     this.orchestrator = this.onGetOrchestrator();
     this.updateAgentSelectOptions();
@@ -204,6 +207,23 @@ export class PaperAgentsChatView extends ItemView {
     await this.selectConversationFile(this.currentFilePath);
   }
 
+  /**
+   * On view open, automatically load the most recently created conversation file.
+   * Files are listed alphabetically; date-prefixed names (YYYY-MM-DD-...) mean the
+   * last entry is typically the newest conversation.
+   */
+  private async autoLoadMostRecentConversation(): Promise<void> {
+    const files = this.fileManager.listConversationFiles(this.getConversationsPath());
+    if (files.length === 0) return;
+
+    // Files are sorted alphabetically; date-prefixed names (YYYY-MM-DD-...) mean
+    // the last entry is typically the newest conversation.
+    const mostRecent = files[files.length - 1];
+    if (!mostRecent) return;
+
+    await this.selectConversationFile(mostRecent.path);
+  }
+
   // ============================================================================
   // UI Building
   // ============================================================================
@@ -239,13 +259,18 @@ export class PaperAgentsChatView extends ItemView {
     panelLabel.style.marginRight = "4px";
 
     this.agentSelectEl = this.newChatPanel.createEl("select", { cls: "pa-chat-agent-select" });
-    this.updateAgentSelectOptions();
 
-    const createBtn = this.newChatPanel.createEl("button", {
+    this.noAgentsHint = this.newChatPanel.createEl("span", {
+      cls: "pa-chat-no-agents-hint",
+      text: "No agents loaded. Reload agents in the sidebar first.",
+    });
+    this.noAgentsHint.style.display = "none";
+
+    this.createConvBtn = this.newChatPanel.createEl("button", {
       cls: "pa-chat-create-btn",
       text: "Create",
     });
-    createBtn.addEventListener("click", () => {
+    this.createConvBtn.addEventListener("click", () => {
       void this.createNewConversation();
     });
 
@@ -256,14 +281,16 @@ export class PaperAgentsChatView extends ItemView {
     cancelBtn.addEventListener("click", () => {
       this.hideNewChatPanel();
     });
+
+    this.updateAgentSelectOptions();
   }
 
   private toggleNewChatPanel(): void {
     this.agents = this.onGetAgents();
     this.updateAgentSelectOptions();
     if (this.newChatPanel) {
-      this.newChatPanel.style.display =
-        this.newChatPanel.style.display === "none" ? "" : "none";
+      const isHidden = this.newChatPanel.style.display === "none";
+      this.newChatPanel.style.display = isHidden ? "" : "none";
     }
   }
 
@@ -277,6 +304,20 @@ export class PaperAgentsChatView extends ItemView {
     if (!this.agentSelectEl) return;
 
     this.agentSelectEl.empty();
+
+    const noAgents = this.agents.length === 0;
+
+    if (noAgents) {
+      // Show hint, hide select, disable create button
+      this.agentSelectEl.style.display = "none";
+      if (this.noAgentsHint) this.noAgentsHint.style.display = "";
+      if (this.createConvBtn) this.createConvBtn.disabled = true;
+      return;
+    }
+
+    this.agentSelectEl.style.display = "";
+    if (this.noAgentsHint) this.noAgentsHint.style.display = "none";
+    if (this.createConvBtn) this.createConvBtn.disabled = false;
 
     const defaultOpt = this.agentSelectEl.createEl("option", {
       text: "-- select agent --",

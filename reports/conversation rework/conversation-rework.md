@@ -17,8 +17,9 @@ Konversationen sollen im Chat-Fenster ausschließlich über Markdown-Dateien gel
 - Wählt der Benutzer eine Datei aus, wird die Konversation exklusiv aus dieser Markdown-Datei geladen.
 - Jede gesendete Nachricht wird sofort in die Markdown-Datei zurückgeschrieben.
 - Vault-Event-Listener `vault.on('modify')` erkennt externe Änderungen an der aktuell geöffneten Datei und lädt die Konversation automatisch neu (bidirektionale Synchronisierung). Ein `isSaving`-Flag verhindert einen Reload-Loop bei eigenem Speichern.
-- Vault-Events `create`, `delete`, `rename` aktualisieren das Conversation-Dropdown.
+- Vault-Events `create`, `delete`, `rename` aktualisieren das Conversation-Dropdown – gefiltert auf den Conversations-Ordner.
 - **„New Chat"**-Button öffnet ein Inline-Panel zur Agenten-Auswahl und erstellt eine neue Markdown-Datei, die danach direkt ausgewählt wird.
+- Beim Öffnen der Chat-View wird automatisch die neueste Konversationsdatei geladen.
 - Methode `selectConversationFile(path)` ist public, damit externe Aufrufer (z. B. Plugin-Commands) eine Konversation direkt laden können.
 
 ### 2. `src/core/conversation-file-manager.ts` – neue Methode `listConversationFiles`
@@ -27,11 +28,12 @@ Konversationen sollen im Chat-Fenster ausschließlich über Markdown-Dateien gel
 listConversationFiles(folderPath: string): { path: string; title: string }[]
 ```
 
-Gibt alle `.md`-Dateien im angegebenen Ordner als `{ path, title }` zurück, alphabetisch nach Titel sortiert. Wird von `PaperAgentsChatView` verwendet, um das Dropdown zu befüllen.
+Gibt alle `.md`-Dateien im angegebenen Ordner als `{ path, title }` zurück, alphabetisch nach Titel sortiert. Wird von `PaperAgentsChatView` verwendet, um das Dropdown zu befüllen sowie beim Auto-Load.
 
-### 3. `src/core/conversation.ts` – JSON-Persistenz entfernt
+### 3. `src/core/conversation.ts` – JSON-Persistenz und ungenutzter Singleton entfernt
 
-Die Methoden `setPersistence`, `scheduleSave`, `saveToStorage` und `loadFromStorage` wurden entfernt, da Markdown jetzt die einzige Quelle der Wahrheit ist. Aufrufe von `this.scheduleSave()` in `createConversation`, `deleteConversation`, `addMessage` und `clearMessages` wurden ebenfalls entfernt.
+- Die Methoden `setPersistence`, `scheduleSave`, `saveToStorage` und `loadFromStorage` wurden entfernt, da Markdown jetzt die einzige Quelle der Wahrheit ist.
+- Der global exportierte Singleton `export const conversationManager` wurde entfernt, da er nach dem Löschen von `chat-view.ts` keine Importeure mehr hatte.
 
 ### 4. `src/core/persistence.ts` – `initializeConversationPersistence` entfernt
 
@@ -61,12 +63,29 @@ Vier neue Unit-Tests für `listConversationFiles` in `tests/unit/core/conversati
 
 ---
 
+## Gelöste offene Punkte
+
+### ✅ 1. Vault-Event-Granularität (gelöst)
+
+Die Events `create`, `delete` und `rename` werden jetzt gegen den konfigurierten Conversations-Ordnerpfad gefiltert. Nur Änderungen an `.md`-Dateien innerhalb dieses Ordners lösen ein Dropdown-Refresh aus. Der `modify`-Handler prüft zusätzlich, ob es sich um eine `.md`-Datei handelt.
+
+### ✅ 2. Neue Konversation ohne Agenten (gelöst)
+
+Wenn kein Agent geladen ist:
+- Das Agenten-Dropdown wird ausgeblendet.
+- Ein Hinweistext „No agents loaded. Reload agents in the sidebar first." wird angezeigt.
+- Der „Create"-Button wird deaktiviert, bis mindestens ein Agent verfügbar ist.
+
+### ✅ 3. Dateiumbenennungen (gelöst)
+
+Der `vault.on('rename')`-Handler aktualisiert `currentFilePath` automatisch, wenn die aktuell geöffnete Konversationsdatei umbenannt wird. Das Dropdown wird ebenfalls aktualisiert.
+
+### ✅ 4. Kein automatisches Laden beim Öffnen (gelöst)
+
+Beim Öffnen der Chat-View wird die zuletzt alphabetisch geordnete (typischerweise neueste) Konversationsdatei automatisch ausgewählt und geladen. Dateien ohne Konversationsdatei im Ordner zeigen weiterhin den Platzhaltertext.
+
+---
+
 ## Offene Punkte
 
-1. **Vault-Event-Granularität:** `vault.on('create')` / `delete` / `rename` lösen ein vollständiges Refresh des Conversation-Dropdowns aus, auch wenn die betroffene Datei nicht im Conversations-Ordner liegt. Für große Vaults könnte eine Pfadfilterung sinnvoll sein.
-
-2. **Neue Konversation ohne Agenten:** Wenn kein Agent geladen ist (leer oder keine Agents-Dateien im Vault), bleibt das „Create"-Panel ohne auswählbaren Agenten. Ein klareres Nutzerfeedback (Hinweistext, deaktivierter Button) wäre wünschenswert.
-
-3. **Dateiumbenennungen:** Bei Umbenennung einer aktuell geöffneten Konversationsdatei außerhalb des Chat-Views wird `currentFilePath` nun automatisch aktualisiert via `vault.on('rename')`. Das Dropdown wird ebenfalls aktualisiert.
-
-4. **Kein automatisches Laden beim Öffnen:** Beim Öffnen der Chat-View wird keine Konversation automatisch ausgewählt. Sinnvoll wäre es, die zuletzt verwendete Konversation (gespeichert im Plugin-State) automatisch zu laden.
+Alle bekannten offenen Punkte wurden implementiert.
