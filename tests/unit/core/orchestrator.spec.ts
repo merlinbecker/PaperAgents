@@ -152,4 +152,48 @@ describe("Orchestrator", () => {
     expect(messagesAfter[messagesAfter.length - 1]?.role).toBe("assistant");
   });
 
+  it("uses agent model when specified in agent definition", async () => {
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      text: [
+        'data: {"id":"gen-5","choices":[{"index":0,"delta":{"role":"assistant","content":"OK"},"finish_reason":null}]}',
+        'data: {"id":"gen-5","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+        "data: [DONE]",
+      ].join("\n"),
+    } as never);
+
+    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
+    const agent = { ...makeAgent(), model: "anthropic/claude-3-opus" };
+    const convId = "conv-model";
+    conversationManager.createConversation(convId, agent.id);
+
+    await orchestrator.sendMessage(agent, convId, "Test");
+
+    const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
+    const body = JSON.parse(call.body as string) as Record<string, unknown>;
+    expect(body.model).toBe("anthropic/claude-3-opus");
+  });
+
+  it("uses client default model when agent has no model specified", async () => {
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      text: [
+        'data: {"id":"gen-6","choices":[{"index":0,"delta":{"role":"assistant","content":"OK"},"finish_reason":null}]}',
+        'data: {"id":"gen-6","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+        "data: [DONE]",
+      ].join("\n"),
+    } as never);
+
+    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
+    const agent = makeAgent(); // no model set
+    const convId = "conv-default-model";
+    conversationManager.createConversation(convId, agent.id);
+
+    await orchestrator.sendMessage(agent, convId, "Test");
+
+    const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
+    const body = JSON.parse(call.body as string) as Record<string, unknown>;
+    expect(body.model).toBe("openai/gpt-4"); // from makeOrchestratorConfig
+  });
+
 });
