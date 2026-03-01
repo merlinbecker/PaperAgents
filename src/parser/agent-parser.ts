@@ -48,8 +48,6 @@ export class AgentParser {
     maxMessages: 50,
   };
 
-  private static readonly DEFAULT_MODEL = "openai/gpt-4o-mini";
-
   static parseAgentFile(content: string): ParsedAgentFile {
     const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
     

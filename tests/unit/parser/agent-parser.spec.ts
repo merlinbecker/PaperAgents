@@ -5,6 +5,10 @@
 import { describe, it, expect } from "vitest";
 import { AgentParser, AgentParseError } from "../../../src/parser/agent-parser";
 
+/** Builds a minimal valid agent file string. */
+const makeContent = (frontmatterLines: string, systemPrompt = "Test.") =>
+  `---\nagent: true\n${frontmatterLines}\n---\n\n## System Prompt\n${systemPrompt}\n`;
+
 describe("AgentParser", () => {
   describe("parseAgentFile", () => {
     it("should parse a valid agent file", () => {
@@ -45,32 +49,17 @@ Datum: {{current_date}}
     });
 
     it("should throw error for missing frontmatter", () => {
-      const content = `# No frontmatter here`;
-      
-      expect(() => AgentParser.parseAgentFile(content)).toThrow(AgentParseError);
+      expect(() => AgentParser.parseAgentFile("# No frontmatter here")).toThrow(AgentParseError);
     });
 
     it("should throw error for non-agent file", () => {
-      const content = `---
-tool: true
-id: not_an_agent
----`;
-      
-      expect(() => AgentParser.parseAgentFile(content)).toThrow("File is not an agent definition");
+      expect(() => AgentParser.parseAgentFile("---\ntool: true\nid: not_an_agent\n---")).toThrow(
+        "File is not an agent definition"
+      );
     });
 
     it("should parse agent with minimal frontmatter", () => {
-      const content = `---
-agent: true
-id: minimal
-name: "Minimal Agent"
----
-
-## System Prompt
-Einfacher Prompt.
-`;
-
-      const parsed = AgentParser.parseAgentFile(content);
+      const parsed = AgentParser.parseAgentFile(makeContent('id: minimal\nname: "Minimal Agent"', "Einfacher Prompt."));
       expect(parsed.frontmatter.id).toBe("minimal");
       expect(parsed.frontmatter.name).toBe("Minimal Agent");
       expect(parsed.systemPrompt).toBe("Einfacher Prompt.");
@@ -89,7 +78,6 @@ You are a helpful assistant.
 ## Context
 Date: {{current_date}}
 `;
-
       const parsed = AgentParser.parseAgentFile(content);
       expect(parsed.contextTemplate).toBe("Date: {{current_date}}");
     });
@@ -97,23 +85,11 @@ Date: {{current_date}}
 
   describe("toAgentDefinition", () => {
     it("should convert parsed file to AgentDefinition", () => {
-      const content = `---
-agent: true
-id: converter_test
-name: "Converter Test"
-tools:
-  - write_file
-memory:
-  type: summary
-  maxMessages: 10
----
-
-## System Prompt
-Test prompt for conversion.
-`;
-
-      const parsed = AgentParser.parseAgentFile(content);
-      const agent = AgentParser.toAgentDefinition(parsed);
+      const content = makeContent(
+        'id: converter_test\nname: "Converter Test"\ntools:\n  - write_file\nmemory:\n  type: summary\n  maxMessages: 10',
+        "Test prompt for conversion."
+      );
+      const agent = AgentParser.parse(content);
 
       expect(agent.id).toBe("converter_test");
       expect(agent.name).toBe("Converter Test");
@@ -124,139 +100,48 @@ Test prompt for conversion.
       expect(agent.model).toBeUndefined();
     });
 
+    it("should use model from frontmatter when specified", () => {
+      const agent = AgentParser.parse(
+        makeContent('id: model_test\nname: "Model Test"\nmodel: anthropic/claude-3-opus')
+      );
+      expect(agent.model).toBe("anthropic/claude-3-opus");
+    });
+
     it("should throw error for missing id", () => {
-      const content = `---
-agent: true
-name: "No ID"
----
-
-## System Prompt
-Test.
-`;
-
-      const parsed = AgentParser.parseAgentFile(content);
+      const parsed = AgentParser.parseAgentFile(makeContent('name: "No ID"'));
       expect(() => AgentParser.toAgentDefinition(parsed)).toThrow("Missing required field: id");
     });
 
     it("should throw error for missing name", () => {
-      const content = `---
-agent: true
-id: no_name
----
-
-## System Prompt
-Test.
-`;
-
-      const parsed = AgentParser.parseAgentFile(content);
+      const parsed = AgentParser.parseAgentFile(makeContent("id: no_name"));
       expect(() => AgentParser.toAgentDefinition(parsed)).toThrow("Missing required field: name");
     });
 
     it("should throw error for missing system prompt", () => {
-      const content = `---
-agent: true
-id: no_prompt
-name: "No Prompt"
----
-
-## Kontext
-Nur Kontext, kein System Prompt.
-`;
-
+      const content = "---\nagent: true\nid: no_prompt\nname: \"No Prompt\"\n---\n\n## Kontext\nNur Kontext, kein System Prompt.\n";
       const parsed = AgentParser.parseAgentFile(content);
       expect(() => AgentParser.toAgentDefinition(parsed)).toThrow("Missing System Prompt section");
     });
 
-    it("should use model from frontmatter when specified", () => {
-      const content = `---
-agent: true
-id: model_test
-name: "Model Test"
-model: anthropic/claude-3-opus
----
-
-## System Prompt
-Test.
-`;
-
-      const parsed = AgentParser.parseAgentFile(content);
-      const agent = AgentParser.toAgentDefinition(parsed);
-
-      expect(agent.model).toBe("anthropic/claude-3-opus");
-    });
-
-    it("should leave model undefined when not specified in frontmatter", () => {
-      const content = `---
-agent: true
-id: no_model_test
-name: "No Model Test"
----
-
-## System Prompt
-Test.
-`;
-
-      const parsed = AgentParser.parseAgentFile(content);
-      const agent = AgentParser.toAgentDefinition(parsed);
-
-      expect(agent.model).toBeUndefined();
-    });
-
     it("should use default memory config when not specified", () => {
-      const content = `---
-agent: true
-id: default_memory
-name: "Default Memory"
----
-
-## System Prompt
-Test.
-`;
-
-      const parsed = AgentParser.parseAgentFile(content);
-      const agent = AgentParser.toAgentDefinition(parsed);
-
+      const agent = AgentParser.parse(makeContent('id: default_memory\nname: "Default Memory"'));
       expect(agent.memory.type).toBe("conversation");
       expect(agent.memory.maxMessages).toBe(50);
     });
 
     it("should handle memory with snake_case keys", () => {
-      const content = `---
-agent: true
-id: snake_case
-name: "Snake Case Memory"
-memory:
-  type: conversation
-  max_messages: 15
----
-
-## System Prompt
-Test.
-`;
-
-      const parsed = AgentParser.parseAgentFile(content);
-      const agent = AgentParser.toAgentDefinition(parsed);
-
+      const agent = AgentParser.parse(
+        makeContent('id: snake_case\nname: "Snake Case Memory"\nmemory:\n  type: conversation\n  max_messages: 15')
+      );
       expect(agent.memory.maxMessages).toBe(15);
     });
   });
 
   describe("parse", () => {
     it("should parse content directly to AgentDefinition", () => {
-      const content = `---
-agent: true
-id: direct_parse
-name: "Direct Parse"
-tools:
-  - search_files
----
-
-## System Prompt
-Direct parsing test.
-`;
-
-      const agent = AgentParser.parse(content);
-
+      const agent = AgentParser.parse(
+        makeContent('id: direct_parse\nname: "Direct Parse"\ntools:\n  - search_files', "Direct parsing test.")
+      );
       expect(agent.id).toBe("direct_parse");
       expect(agent.name).toBe("Direct Parse");
       expect(agent.tools).toEqual(["search_files"]);
@@ -266,87 +151,39 @@ Direct parsing test.
 
   describe("isAgentFile", () => {
     it("should return true for agent files", () => {
-      const content = `---
-agent: true
-id: test
-name: "Test"
----`;
-
-      expect(AgentParser.isAgentFile(content)).toBe(true);
+      expect(AgentParser.isAgentFile("---\nagent: true\nid: test\nname: \"Test\"\n---")).toBe(true);
     });
 
     it("should return false for tool files", () => {
-      const content = `---
-tool: true
-id: test
-name: "Test"
----`;
-
-      expect(AgentParser.isAgentFile(content)).toBe(false);
+      expect(AgentParser.isAgentFile("---\ntool: true\nid: test\nname: \"Test\"\n---")).toBe(false);
     });
 
     it("should return false for files without frontmatter", () => {
-      const content = `# Just markdown`;
-
-      expect(AgentParser.isAgentFile(content)).toBe(false);
+      expect(AgentParser.isAgentFile("# Just markdown")).toBe(false);
     });
   });
 
   describe("validateAgentDefinition", () => {
     it("should validate a correct agent definition", () => {
-      const content = `---
-agent: true
-id: valid_agent
-name: "Valid Agent"
-tools:
-  - read_file
----
-
-## System Prompt
-Valid prompt.
-`;
-
-      const agent = AgentParser.parse(content);
-      const result = AgentParser.validateAgentDefinition(agent);
-
+      const result = AgentParser.validateAgentDefinition(
+        AgentParser.parse(makeContent('id: valid_agent\nname: "Valid Agent"\ntools:\n  - read_file', "Valid prompt."))
+      );
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
     it("should detect invalid temperature", () => {
-      const content = `---
-agent: true
-id: invalid_temp
-name: "Invalid Temp"
-temperature: 3.0
----
-
-## System Prompt
-Test.
-`;
-
-      const agent = AgentParser.parse(content);
-      const result = AgentParser.validateAgentDefinition(agent);
-
+      const result = AgentParser.validateAgentDefinition(
+        AgentParser.parse(makeContent('id: invalid_temp\nname: "Invalid Temp"\ntemperature: 3.0'))
+      );
       expect(result.valid).toBe(false);
       expect(result.errors).toContain("Temperature must be between 0 and 2");
     });
 
     it("should detect invalid maxTokens", () => {
-      const content = `---
-agent: true
-id: invalid_tokens
-name: "Invalid Tokens"
-maxTokens: 0
----
-
-## System Prompt
-Test.
-`;
-
-      const agent = AgentParser.parse(content);
-      const result = AgentParser.validateAgentDefinition(agent);
-
+      const result = AgentParser.validateAgentDefinition(
+        AgentParser.parse(makeContent('id: invalid_tokens\nname: "Invalid Tokens"\nmaxTokens: 0'))
+      );
       expect(result.valid).toBe(false);
       expect(result.errors).toContain("Max tokens must be at least 1");
     });
@@ -354,39 +191,14 @@ Test.
 
   describe("memory types", () => {
     it("should handle 'none' memory type", () => {
-      const content = `---
-agent: true
-id: no_memory
-name: "No Memory"
-memory:
-  type: none
----
-
-## System Prompt
-Stateless agent.
-
-`;
-
-      const agent = AgentParser.parse(content);
+      const agent = AgentParser.parse(makeContent('id: no_memory\nname: "No Memory"\nmemory:\n  type: none', "Stateless agent."));
       expect(agent.memory.type).toBe("none");
     });
 
     it("should handle 'summary' memory type", () => {
-      const content = `---
-agent: true
-id: summary_memory
-name: "Summary Memory"
-memory:
-  type: summary
-  summarizeAfter: 10
----
-
-## System Prompt
-Summarizing agent.
-
-`;
-
-      const agent = AgentParser.parse(content);
+      const agent = AgentParser.parse(
+        makeContent('id: summary_memory\nname: "Summary Memory"\nmemory:\n  type: summary\n  summarizeAfter: 10', "Summarizing agent.")
+      );
       expect(agent.memory.type).toBe("summary");
     });
   });
