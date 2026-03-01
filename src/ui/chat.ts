@@ -12,7 +12,6 @@ export class PaperAgentsChatView extends ItemView {
   private selectedAgent: AgentDefinition | null = null;
   private conversationManager: ConversationManager;
   private fileManager: ConversationFileManager;
-  private orchestrator: Orchestrator | null = null;
   private currentConversationId: string | null = null;
   private currentFilePath: string | null = null;
   private isStreaming = false;
@@ -21,6 +20,7 @@ export class PaperAgentsChatView extends ItemView {
   private messagesContainer: HTMLElement | null = null;
   private inputEl: HTMLTextAreaElement | null = null;
   private sendBtn: HTMLElement | null = null;
+  private resendBtn: HTMLButtonElement | null = null;
   private conversationSelect: HTMLSelectElement | null = null;
   private newChatPanel: HTMLElement | null = null;
   private agentSelectEl: HTMLSelectElement | null = null;
@@ -72,8 +72,21 @@ export class PaperAgentsChatView extends ItemView {
 
     this.refreshConversations();
     await this.autoLoadMostRecentConversation();
+    this.registerVaultEvents();
+  }
 
-    // Reload when the currently open markdown file is modified externally
+  async onClose(): Promise<void> {
+    this.containerEl.empty();
+  }
+
+  // ============================================================================
+  // Vault events
+  // ============================================================================
+
+  private registerVaultEvents(): void {
+    const isInConversationsFolder = (path: string) =>
+      path.startsWith(this.getConversationsPath() + "/");
+
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
         if (
@@ -86,11 +99,6 @@ export class PaperAgentsChatView extends ItemView {
         }
       })
     );
-
-    // Refresh the file list when markdown files are created or deleted in the conversations folder
-    const isInConversationsFolder = (path: string) =>
-      path.startsWith(this.getConversationsPath() + "/");
-
     this.registerEvent(
       this.app.vault.on("create", (file) => {
         if (file instanceof TFile && file.extension === "md" && isInConversationsFolder(file.path)) {
@@ -108,26 +116,13 @@ export class PaperAgentsChatView extends ItemView {
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
         if (file instanceof TFile) {
-          // If the currently open conversation file was renamed, update the tracked path
-          if (oldPath === this.currentFilePath) {
-            this.currentFilePath = file.path;
-          }
+          if (oldPath === this.currentFilePath) this.currentFilePath = file.path;
           if (isInConversationsFolder(file.path) || isInConversationsFolder(oldPath)) {
             this.refreshConversations();
           }
         }
       })
     );
-  }
-
-  async onClose(): Promise<void> {
-    this.containerEl.empty();
-  }
-
-  private refreshAgents(): void {
-    this.agents = this.onGetAgents();
-    this.orchestrator = this.onGetOrchestrator();
-    this.updateAgentSelectOptions();
   }
 
   // ============================================================================
@@ -151,10 +146,7 @@ export class PaperAgentsChatView extends ItemView {
     });
 
     for (const f of files) {
-      const opt = this.conversationSelect.createEl("option", {
-        text: f.title,
-        attr: { value: f.path },
-      });
+      const opt = this.conversationSelect.createEl("option", { text: f.title, attr: { value: f.path } });
       if (f.path === currentValue) opt.selected = true;
     }
 
@@ -176,23 +168,14 @@ export class PaperAgentsChatView extends ItemView {
   async selectConversationFile(filePath: string): Promise<void> {
     try {
       const conv = await this.fileManager.loadConversation(filePath);
-      if (!conv) {
-        new Notice("Not a conversation file");
-        return;
-      }
+      if (!conv) { new Notice("Not a conversation file"); return; }
 
       this.currentConversationId = conv.id;
       this.currentFilePath = filePath;
-
       this.agents = this.onGetAgents();
       this.selectedAgent = this.agents.find((a) => a.id === conv.agentId) ?? null;
-      this.orchestrator = this.onGetOrchestrator();
 
-      // Sync dropdown selection
-      if (this.conversationSelect) {
-        this.conversationSelect.value = filePath;
-      }
-
+      if (this.conversationSelect) this.conversationSelect.value = filePath;
       this.restoreConversationUI(conv.id);
       globalLogger.info(`Loaded conversation ${conv.id} from ${filePath}`);
     } catch (error) {
@@ -203,25 +186,13 @@ export class PaperAgentsChatView extends ItemView {
   }
 
   private async reloadCurrentConversation(): Promise<void> {
-    if (!this.currentFilePath) return;
-    await this.selectConversationFile(this.currentFilePath);
+    if (this.currentFilePath) await this.selectConversationFile(this.currentFilePath);
   }
 
-  /**
-   * On view open, automatically load the most recently created conversation file.
-   * Files are listed alphabetically; date-prefixed names (YYYY-MM-DD-...) mean the
-   * last entry is typically the newest conversation.
-   */
   private async autoLoadMostRecentConversation(): Promise<void> {
     const files = this.fileManager.listConversationFiles(this.getConversationsPath());
-    if (files.length === 0) return;
-
-    // Files are sorted alphabetically; date-prefixed names (YYYY-MM-DD-...) mean
-    // the last entry is typically the newest conversation.
     const mostRecent = files[files.length - 1];
-    if (!mostRecent) return;
-
-    await this.selectConversationFile(mostRecent.path);
+    if (mostRecent) await this.selectConversationFile(mostRecent.path);
   }
 
   // ============================================================================
@@ -230,32 +201,19 @@ export class PaperAgentsChatView extends ItemView {
 
   private renderHeader(container: HTMLElement): void {
     const header = container.createDiv({ cls: "pa-chat-header" });
-
     header.createEl("h3", { cls: "pa-chat-title", text: "Agent chat" });
 
     const controls = header.createDiv({ cls: "pa-chat-controls" });
-
     this.conversationSelect = controls.createEl("select", { cls: "pa-chat-conversation-select" });
-    this.conversationSelect.addEventListener("change", () => {
-      void this.onConversationSelected();
-    });
+    this.conversationSelect.addEventListener("change", () => void this.onConversationSelected());
 
-    const newChatBtn = controls.createEl("button", {
-      cls: "pa-chat-new-btn",
-      text: "New chat",
-    });
-    newChatBtn.addEventListener("click", () => {
-      this.toggleNewChatPanel();
-    });
+    controls.createEl("button", { cls: "pa-chat-new-btn", text: "New chat" })
+      .addEventListener("click", () => this.toggleNewChatPanel());
 
-    // Inline new-conversation panel (hidden by default)
     this.newChatPanel = header.createDiv({ cls: "pa-chat-new-panel" });
     this.newChatPanel.style.display = "none";
 
-    const panelLabel = this.newChatPanel.createEl("span", {
-      text: "Agent: ",
-      cls: "pa-chat-new-label",
-    });
+    const panelLabel = this.newChatPanel.createEl("span", { text: "Agent: ", cls: "pa-chat-new-label" });
     panelLabel.style.marginRight = "4px";
 
     this.agentSelectEl = this.newChatPanel.createEl("select", { cls: "pa-chat-agent-select" });
@@ -266,21 +224,11 @@ export class PaperAgentsChatView extends ItemView {
     });
     this.noAgentsHint.style.display = "none";
 
-    this.createConvBtn = this.newChatPanel.createEl("button", {
-      cls: "pa-chat-create-btn",
-      text: "Create",
-    });
-    this.createConvBtn.addEventListener("click", () => {
-      void this.createNewConversation();
-    });
+    this.createConvBtn = this.newChatPanel.createEl("button", { cls: "pa-chat-create-btn", text: "Create" });
+    this.createConvBtn.addEventListener("click", () => void this.createNewConversation());
 
-    const cancelBtn = this.newChatPanel.createEl("button", {
-      cls: "pa-chat-cancel-btn",
-      text: "Cancel",
-    });
-    cancelBtn.addEventListener("click", () => {
-      this.hideNewChatPanel();
-    });
+    this.newChatPanel.createEl("button", { cls: "pa-chat-cancel-btn", text: "Cancel" })
+      .addEventListener("click", () => this.hideNewChatPanel());
 
     this.updateAgentSelectOptions();
   }
@@ -289,26 +237,19 @@ export class PaperAgentsChatView extends ItemView {
     this.agents = this.onGetAgents();
     this.updateAgentSelectOptions();
     if (this.newChatPanel) {
-      const isHidden = this.newChatPanel.style.display === "none";
-      this.newChatPanel.style.display = isHidden ? "" : "none";
+      this.newChatPanel.style.display = this.newChatPanel.style.display === "none" ? "" : "none";
     }
   }
 
   private hideNewChatPanel(): void {
-    if (this.newChatPanel) {
-      this.newChatPanel.style.display = "none";
-    }
+    if (this.newChatPanel) this.newChatPanel.style.display = "none";
   }
 
   private updateAgentSelectOptions(): void {
     if (!this.agentSelectEl) return;
-
     this.agentSelectEl.empty();
 
-    const noAgents = this.agents.length === 0;
-
-    if (noAgents) {
-      // Show hint, hide select, disable create button
+    if (this.agents.length === 0) {
       this.agentSelectEl.style.display = "none";
       if (this.noAgentsHint) this.noAgentsHint.style.display = "";
       if (this.createConvBtn) this.createConvBtn.disabled = true;
@@ -319,26 +260,19 @@ export class PaperAgentsChatView extends ItemView {
     if (this.noAgentsHint) this.noAgentsHint.style.display = "none";
     if (this.createConvBtn) this.createConvBtn.disabled = false;
 
-    const defaultOpt = this.agentSelectEl.createEl("option", {
-      text: "-- select agent --",
-      attr: { value: "" },
-    });
+    const defaultOpt = this.agentSelectEl.createEl("option", { text: "-- select agent --", attr: { value: "" } });
     if (!this.selectedAgent) defaultOpt.selected = true;
 
     for (const agent of this.agents) {
-      const opt = this.agentSelectEl.createEl("option", {
-        text: agent.name,
-        attr: { value: agent.id },
-      });
+      const opt = this.agentSelectEl.createEl("option", { text: agent.name, attr: { value: agent.id } });
       if (this.selectedAgent?.id === agent.id) opt.selected = true;
     }
   }
 
   private renderMessages(container: HTMLElement): void {
     this.messagesContainer = container.createDiv({ cls: "pa-chat-messages" });
-
-    const placeholder = this.messagesContainer.createDiv({ cls: "pa-chat-placeholder" });
-    placeholder.createEl("p", { text: "Select a conversation or create a new one" });
+    this.messagesContainer.createDiv({ cls: "pa-chat-placeholder" })
+      .createEl("p", { text: "Select a conversation or create a new one" });
   }
 
   private renderInput(container: HTMLElement): void {
@@ -348,7 +282,6 @@ export class PaperAgentsChatView extends ItemView {
       cls: "pa-chat-input",
       attr: { placeholder: "Type your message... (Enter to send, Shift+Enter for newline)", rows: "3" },
     });
-
     this.inputEl.addEventListener("keydown", (e: KeyboardEvent) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -356,13 +289,17 @@ export class PaperAgentsChatView extends ItemView {
       }
     });
 
-    this.sendBtn = inputArea.createEl("button", {
-      cls: "pa-chat-send-btn",
-      text: "Send",
+    const btnGroup = inputArea.createDiv({ cls: "pa-chat-btn-group" });
+
+    this.resendBtn = btnGroup.createEl("button", {
+      cls: "pa-chat-resend-btn",
+      text: "↺",
+      attr: { title: "Resend conversation history to LLM (no new message)" },
     });
-    this.sendBtn.addEventListener("click", () => {
-      void this.sendMessage();
-    });
+    this.resendBtn.addEventListener("click", () => void this.continueChat());
+
+    this.sendBtn = btnGroup.createEl("button", { cls: "pa-chat-send-btn", text: "Send" });
+    this.sendBtn.addEventListener("click", () => void this.sendMessage());
   }
 
   // ============================================================================
@@ -372,12 +309,9 @@ export class PaperAgentsChatView extends ItemView {
   private async createNewConversation(): Promise<void> {
     if (!this.agentSelectEl) return;
 
-    const agentId = this.agentSelectEl.value;
-    const agent = this.agents.find((a) => a.id === agentId);
-    if (!agent) {
-      new Notice("Please select an agent first");
-      return;
-    }
+    const agentSelect = this.agentSelectEl;
+    const agent = this.agents.find((a) => a.id === agentSelect.value);
+    if (!agent) { new Notice("Please select an agent first"); return; }
 
     this.selectedAgent = agent;
     this.hideNewChatPanel();
@@ -385,22 +319,13 @@ export class PaperAgentsChatView extends ItemView {
     const conv = this.conversationManager.createConversation(agent.id);
     this.currentConversationId = conv.id;
     this.currentFilePath = null;
-
     this.clearMessages();
 
-    const conversationsPath = this.getConversationsPath();
     try {
-      const filePath = await this.fileManager.createConversationFile(
-        conv.id,
-        conversationsPath,
-        agent.name
-      );
+      const filePath = await this.fileManager.createConversationFile(conv.id, this.getConversationsPath(), agent.name);
       this.currentFilePath = filePath;
       this.refreshConversations();
-      // Select the new file in the dropdown
-      if (this.conversationSelect) {
-        this.conversationSelect.value = filePath;
-      }
+      if (this.conversationSelect) this.conversationSelect.value = filePath;
       globalLogger.info(`Created new conversation file: ${filePath}`);
     } catch (error) {
       globalLogger.error("Failed to create conversation file", { error });
@@ -415,26 +340,19 @@ export class PaperAgentsChatView extends ItemView {
     this.clearMessages();
 
     const messages = this.conversationManager.getMessages(conversationId);
-    for (const msg of messages) {
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i]!;
       if (msg.role === "tool" && msg.toolCall) {
         this.addToolCallToUI(msg.toolCall.toolId, msg.toolCall.parameters, true);
-        this.addToolCallToUI(
-          msg.toolCall.toolId,
-          {},
-          false,
-          msg.toolCall.result,
-          msg.toolCall.error
-        );
+        this.addToolCallToUI(msg.toolCall.toolId, {}, false, msg.toolCall.result, msg.toolCall.error);
       } else {
-        this.addMessageToUI(msg.role, msg.content);
+        this.addMessageToUI(msg.role, msg.content, i);
       }
     }
 
     if (messages.length === 0) {
-      if (this.messagesContainer) {
-        const empty = this.messagesContainer.createDiv({ cls: "pa-chat-placeholder" });
-        empty.createEl("p", { text: "No messages yet. Start the conversation!" });
-      }
+      this.messagesContainer?.createDiv({ cls: "pa-chat-placeholder" })
+        .createEl("p", { text: "No messages yet. Start the conversation!" });
     }
   }
 
@@ -442,54 +360,79 @@ export class PaperAgentsChatView extends ItemView {
   // Send logic
   // ============================================================================
 
+  private makeCallbacks(): OrchestratorCallbacks {
+    return {
+      onToken: (token) => this.appendToStreaming(token),
+      onToolCallStart: (toolId, params) => this.addToolCallToUI(toolId, params, true),
+      onToolCallEnd: (toolId, result, error) => this.addToolCallToUI(toolId, {}, false, result, error),
+      onError: (error) => this.addErrorMessage(error),
+    };
+  }
+
+  /**
+   * Shared LLM round: guards, streaming setup, delegates to action, saves and re-renders.
+   */
+  private async runLLMOperation(
+    action: (orch: Orchestrator, agent: AgentDefinition, convId: string) => Promise<void>,
+    errorContext: string
+  ): Promise<void> {
+    const { selectedAgent, currentConversationId } = this;
+    if (!selectedAgent || !currentConversationId || this.isStreaming) return;
+
+    const orchestrator = this.onGetOrchestrator();
+    if (!orchestrator) {
+      this.addSystemMessage("OpenRouter not configured. Please set your API key in Settings.");
+      return;
+    }
+
+    this.setStreaming(true);
+    this.streamingEl = this.addStreamingIndicator();
+
+    try {
+      await action(orchestrator, selectedAgent, currentConversationId);
+      await this.saveConversation();
+      this.streamingEl = null;
+      this.restoreConversationUI(currentConversationId);
+    } catch (error) {
+      globalLogger.error(errorContext, { error });
+      this.addErrorMessage(error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      this.finalizeStreaming();
+      this.setStreaming(false);
+    }
+  }
+
   private async sendMessage(): Promise<void> {
     if (!this.inputEl || !this.selectedAgent || !this.currentConversationId || this.isStreaming) return;
 
     const message = this.inputEl.value.trim();
     if (!message) return;
 
-    this.orchestrator = this.onGetOrchestrator();
-    if (!this.orchestrator) {
-      this.addSystemMessage("OpenRouter not configured. Please set your API key in Settings.");
-      return;
-    }
-
     this.inputEl.value = "";
     this.addMessageToUI("user", message);
-    this.setStreaming(true);
 
-    this.streamingEl = this.addStreamingIndicator();
+    await this.runLLMOperation(
+      (orch, agent, convId) => orch.sendMessage(agent, convId, message, this.makeCallbacks()),
+      "Chat send error"
+    );
+  }
 
-    const callbacks: OrchestratorCallbacks = {
-      onToken: (token) => {
-        this.appendToStreaming(token);
-      },
-      onToolCallStart: (toolId, params) => {
-        this.addToolCallToUI(toolId, params, true);
-      },
-      onToolCallEnd: (toolId, result, error) => {
-        this.addToolCallToUI(toolId, {}, false, result, error);
-      },
-      onError: (error) => {
-        this.addErrorMessage(error);
-      },
-    };
+  private async continueChat(): Promise<void> {
+    await this.runLLMOperation(
+      (orch, agent, convId) => orch.continueConversation(agent, convId, this.makeCallbacks()),
+      "Continue chat error"
+    );
+  }
 
-    try {
-      await this.orchestrator.sendMessage(
-        this.selectedAgent,
-        this.currentConversationId,
-        message,
-        callbacks
-      );
-      await this.saveConversation();
-    } catch (error) {
-      globalLogger.error("Chat send error", { error });
-      this.addErrorMessage(error instanceof Error ? error : new Error(String(error)));
-    } finally {
-      this.finalizeStreaming();
-      this.setStreaming(false);
-    }
+  private async regenerateFrom(messageIndex: number): Promise<void> {
+    if (!this.currentConversationId) return;
+    this.conversationManager.truncateMessages(this.currentConversationId, messageIndex);
+    this.restoreConversationUI(this.currentConversationId);
+
+    await this.runLLMOperation(
+      (orch, agent, convId) => orch.continueConversation(agent, convId, this.makeCallbacks()),
+      "Regenerate error"
+    );
   }
 
   private async saveConversation(): Promise<void> {
@@ -509,20 +452,29 @@ export class PaperAgentsChatView extends ItemView {
   // UI helpers
   // ============================================================================
 
-  private addMessageToUI(role: string, content: string): void {
-    if (!this.messagesContainer) return;
+  private removePlaceholder(): void {
+    this.messagesContainer?.querySelector(".pa-chat-placeholder")?.remove();
+  }
 
-    const placeholder = this.messagesContainer.querySelector(".pa-chat-placeholder");
-    if (placeholder) placeholder.remove();
+  private addMessageToUI(role: string, content: string, messageIndex?: number): void {
+    if (!this.messagesContainer) return;
+    this.removePlaceholder();
 
     const msgEl = this.messagesContainer.createDiv({ cls: `pa-chat-message pa-chat-message-${role}` });
-
-    const roleEl = msgEl.createDiv({ cls: "pa-chat-message-role" });
+    const roleRow = msgEl.createDiv({ cls: "pa-chat-message-role-row" });
+    const roleEl = roleRow.createDiv({ cls: "pa-chat-message-role" });
     roleEl.textContent = role === "user" ? "You" : role === "assistant" ? "Assistant" : "System";
 
-    const contentEl = msgEl.createDiv({ cls: "pa-chat-message-content" });
-    contentEl.textContent = content;
+    if (role === "assistant" && messageIndex !== undefined) {
+      const regenBtn = roleRow.createEl("button", {
+        cls: "pa-chat-regen-btn",
+        text: "↺",
+        attr: { title: "Regenerate this answer" },
+      });
+      regenBtn.addEventListener("click", () => void this.regenerateFrom(messageIndex));
+    }
 
+    msgEl.createDiv({ cls: "pa-chat-message-content" }).textContent = content;
     this.scrollToBottom();
   }
 
@@ -551,15 +503,11 @@ export class PaperAgentsChatView extends ItemView {
     }
 
     if (!this.messagesContainer) return;
-
-    const placeholder = this.messagesContainer.querySelector(".pa-chat-placeholder");
-    if (placeholder) placeholder.remove();
+    this.removePlaceholder();
 
     const msgEl = this.messagesContainer.createDiv({ cls: "pa-chat-message pa-chat-message-error" });
     msgEl.createDiv({ cls: "pa-chat-message-role", text: "Error" });
-    const contentEl = msgEl.createDiv({ cls: "pa-chat-message-content" });
-    contentEl.textContent = userMessage;
-
+    msgEl.createDiv({ cls: "pa-chat-message-content" }).textContent = userMessage;
     this.scrollToBottom();
   }
 
@@ -581,8 +529,7 @@ export class PaperAgentsChatView extends ItemView {
 
       const content = details.createDiv({ cls: "pa-chat-tool-content" });
       content.createEl("h4", { text: "Parameters" });
-      const pre = content.createEl("pre");
-      pre.createEl("code", { text: JSON.stringify(params, null, 2) });
+      content.createEl("pre").createEl("code", { text: JSON.stringify(params, null, 2) });
 
       toolEl.setAttribute("data-tool-id", toolId);
     } else {
@@ -597,15 +544,14 @@ export class PaperAgentsChatView extends ItemView {
         statusEl.addClass(error ? "pa-chat-tool-error" : "pa-chat-tool-success");
       }
 
-      const content = toolEl.querySelector(".pa-chat-tool-content");
+      const content = toolEl.querySelector(".pa-chat-tool-content") as HTMLElement | null;
       if (content) {
         if (error) {
-          (content as HTMLElement).createEl("h4", { text: "Error" });
-          (content as HTMLElement).createDiv({ cls: "pa-output-error-box", text: error });
+          content.createEl("h4", { text: "Error" });
+          content.createDiv({ cls: "pa-output-error-box", text: error });
         } else if (result !== undefined) {
-          (content as HTMLElement).createEl("h4", { text: "Result" });
-          const pre = (content as HTMLElement).createEl("pre");
-          pre.createEl("code", {
+          content.createEl("h4", { text: "Result" });
+          content.createEl("pre").createEl("code", {
             text: typeof result === "string" ? result : JSON.stringify(result, null, 2),
           });
         }
@@ -621,21 +567,16 @@ export class PaperAgentsChatView extends ItemView {
     const msgEl = this.messagesContainer.createDiv({
       cls: "pa-chat-message pa-chat-message-assistant pa-chat-streaming",
     });
-
     msgEl.createDiv({ cls: "pa-chat-message-role", text: "Assistant" });
     msgEl.createDiv({ cls: "pa-chat-message-content" });
-
     this.scrollToBottom();
     return msgEl;
   }
 
   private appendToStreaming(token: string): void {
     if (!this.streamingEl) return;
-
     const content = this.streamingEl.querySelector(".pa-chat-message-content");
-    if (content) {
-      content.textContent = (content.textContent || "") + token;
-    }
+    if (content) content.textContent = (content.textContent || "") + token;
     this.scrollToBottom();
   }
 
@@ -647,25 +588,22 @@ export class PaperAgentsChatView extends ItemView {
   }
 
   private clearMessages(): void {
-    if (this.messagesContainer) {
-      this.messagesContainer.empty();
-    }
+    this.messagesContainer?.empty();
   }
 
   private setStreaming(streaming: boolean): void {
     this.isStreaming = streaming;
     if (this.sendBtn) {
       if (streaming) {
-        this.sendBtn.addClass("pa-chat-send-disabled");
         this.sendBtn.textContent = "...";
+        this.sendBtn.addClass("pa-chat-send-disabled");
       } else {
-        this.sendBtn.removeClass("pa-chat-send-disabled");
         this.sendBtn.textContent = "Send";
+        this.sendBtn.removeClass("pa-chat-send-disabled");
       }
     }
-    if (this.inputEl) {
-      this.inputEl.disabled = streaming;
-    }
+    if (this.resendBtn) this.resendBtn.disabled = streaming;
+    if (this.inputEl) this.inputEl.disabled = streaming;
   }
 
   private scrollToBottom(): void {
@@ -674,3 +612,4 @@ export class PaperAgentsChatView extends ItemView {
     }
   }
 }
+

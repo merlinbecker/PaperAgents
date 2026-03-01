@@ -123,4 +123,33 @@ describe("Orchestrator", () => {
     const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
     orchestrator.updateConfig({ model: "new-model" });
   });
+
+  it("continueConversation sends existing history without adding a user message", async () => {
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      text: [
+        'data: {"id":"gen-2","choices":[{"index":0,"delta":{"role":"assistant","content":"Continuing"},"finish_reason":null}]}',
+        'data: {"id":"gen-2","choices":[{"index":0,"delta":{"content":" response"},"finish_reason":null}]}',
+        'data: {"id":"gen-2","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+        "data: [DONE]",
+      ].join("\n"),
+    } as never);
+
+    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
+    const agent = makeAgent();
+    const convId = "conv-continue";
+    // agentId first, then custom id
+    conversationManager.createConversation(agent.id, convId);
+    conversationManager.addMessage(convId, "user", "Previous message");
+
+    const messagesBefore = conversationManager.getMessages(convId).length;
+    const result = await orchestrator.continueConversation(agent, convId, {});
+
+    expect(result).toBe("Continuing response");
+    // Only the assistant reply was added, not a new user message
+    const messagesAfter = conversationManager.getMessages(convId);
+    expect(messagesAfter.length).toBe(messagesBefore + 1);
+    expect(messagesAfter[messagesAfter.length - 1]?.role).toBe("assistant");
+  });
+
 });

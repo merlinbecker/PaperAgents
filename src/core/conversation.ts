@@ -98,6 +98,16 @@ export class ConversationManager {
     return true;
   }
 
+  truncateMessages(conversationId: string, fromIndex: number): boolean {
+    const conversation = this.conversations.get(conversationId);
+    if (!conversation) {
+      return false;
+    }
+    conversation.messages = conversation.messages.slice(0, fromIndex);
+    conversation.updatedAt = Date.now();
+    return true;
+  }
+
   estimateTokens(text: string): number {
     if (!text) return 0;
     return Math.ceil(text.length / CHARS_PER_TOKEN);

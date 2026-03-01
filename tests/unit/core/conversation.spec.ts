@@ -162,6 +162,36 @@ describe("ConversationManager", () => {
     });
   });
 
+  describe("truncateMessages", () => {
+    it("should remove messages from the given index onward", () => {
+      manager.createConversation("agent_1", "conv_1");
+      manager.addMessage("conv_1", "user", "Hello!");
+      manager.addMessage("conv_1", "assistant", "Hi!");
+      manager.addMessage("conv_1", "user", "How are you?");
+
+      const result = manager.truncateMessages("conv_1", 1);
+      expect(result).toBe(true);
+
+      const messages = manager.getMessages("conv_1");
+      expect(messages).toHaveLength(1);
+      expect(messages[0]?.content).toBe("Hello!");
+    });
+
+    it("should remove all messages when fromIndex is 0", () => {
+      manager.createConversation("agent_1", "conv_1");
+      manager.addMessage("conv_1", "user", "Hello!");
+      manager.addMessage("conv_1", "assistant", "Hi!");
+
+      manager.truncateMessages("conv_1", 0);
+      expect(manager.getMessages("conv_1")).toHaveLength(0);
+    });
+
+    it("should return false for non-existent conversation", () => {
+      const result = manager.truncateMessages("nonexistent", 0);
+      expect(result).toBe(false);
+    });
+  });
+
   describe("estimateTokens", () => {
     it("should estimate tokens for text", () => {
       const tokens = manager.estimateTokens("Hello, world!");
