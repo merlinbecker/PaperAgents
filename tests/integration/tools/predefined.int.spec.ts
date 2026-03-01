@@ -11,13 +11,31 @@ describe("Predefined tools integration (mocked vault)", () => {
     // seed files
     const v = app.vault as any;
     await v.create("/notes/a.md", "alpha");
-    await v.create("/notes/b.md", "beta");
+    await v.create("/notes/b.md", "moon");
     await v.create("/other/c.txt", "gamma");
   });
 
-  it("search_files filters by path and query", async () => {
+  it("search_files filters by path and query (name match)", async () => {
     const tool = SearchFilesFactory.create(app);
     const res = await tool.execute({ parameters: { query: "a", path: "/notes" } } as any);
+    expect(res.success).toBe(true);
+    expect((res.data as any).count).toBe(1);
+    expect((res.data as any).results[0].path).toBe("/notes/a.md");
+  });
+
+  it("search_files finds files by content when name does not match", async () => {
+    const tool = SearchFilesFactory.create(app);
+    // "moon" is the content of b.md; query matches b.md by content, not by name
+    const res = await tool.execute({ parameters: { query: "moon", path: "/notes" } } as any);
+    expect(res.success).toBe(true);
+    expect((res.data as any).count).toBe(1);
+    expect((res.data as any).results[0].path).toBe("/notes/b.md");
+  });
+
+  it("search_files with default (empty) path searches all files", async () => {
+    const tool = SearchFilesFactory.create(app);
+    // "alpha" matches a.md by content; no path filter
+    const res = await tool.execute({ parameters: { query: "alpha" } } as any);
     expect(res.success).toBe(true);
     expect((res.data as any).count).toBe(1);
     expect((res.data as any).results[0].path).toBe("/notes/a.md");

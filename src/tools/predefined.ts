@@ -18,15 +18,15 @@ class SearchFilesTool implements IExecutableTool {
     {
       name: "query",
       type: "string",
-      description: "Search text or glob pattern",
+      description: "Search text to match against file names and content",
       required: true,
     },
     {
       name: "path",
       type: "string",
-      description: "Base folder (e.g., '/notes')",
+      description: "Base folder to restrict search (e.g., 'notes' or '/notes')",
       required: false,
-      default: "/",
+      default: "",
     },
   ];
 
@@ -35,26 +35,49 @@ class SearchFilesTool implements IExecutableTool {
   async execute(ctx: ExecutionContext): Promise<ExecutionResult> {
     try {
       const query = ctx.parameters.query as string;
-      const basePath = (ctx.parameters.path as string) || "/";
+      const basePath = (ctx.parameters.path as string) || "";
 
       const results: Array<{ name: string; path: string; size: number }> = [];
 
-      // Hole alle Markdown-Dateien
+      // Get all Markdown files from vault
       const files = this.app.vault.getMarkdownFiles();
 
+      // Normalize path: strip leading slash for cross-compatibility.
+      // Real Obsidian vault paths have no leading slash (e.g. "notes/file.md"),
+      // but callers may supply a leading slash (e.g. "/notes").
+      const normPath = (p: string) => p.replace(/^\//, "");
+      const normalizedBase = normPath(basePath);
+      const lowerQuery = query.toLowerCase();
+
       for (const file of files) {
-        // Filter nach Pfad
-        if (!file.path.startsWith(basePath)) {
+        // Filter by path prefix (normalize to handle leading slashes)
+        if (normalizedBase && !normPath(file.path).startsWith(normalizedBase)) {
           continue;
         }
 
-        // Filter nach Query (einfacher String-Match)
-        if (file.name.toLowerCase().includes(query.toLowerCase())) {
+        // Match against file name first
+        if (file.name.toLowerCase().includes(lowerQuery)) {
           results.push({
             name: file.name,
             path: file.path,
             size: file.stat.size,
           });
+          continue;
+        }
+
+        // Also search within file content
+        try {
+          const content = await this.app.vault.read(file);
+          if (content.toLowerCase().includes(lowerQuery)) {
+            results.push({
+              name: file.name,
+              path: file.path,
+              size: file.stat.size,
+            });
+          }
+        } catch (err) {
+          // skip files that cannot be read
+          globalLogger.debug("search_files: could not read file", { path: file.path, error: err instanceof Error ? err.message : String(err) });
         }
       }
 
@@ -94,7 +117,7 @@ class SearchFilesTool implements IExecutableTool {
 
 export const SearchFilesFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.SEARCH_FILES,
-  description: "Search files in vault by name or path",
+  description: "Search files in vault by name, path, or content",
   create: (app?: App) => {
     if (!app) {
       throw new Error("SearchFilesTool requires App instance");
