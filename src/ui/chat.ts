@@ -373,7 +373,7 @@ export class PaperAgentsChatView extends ItemView {
    * Shared LLM round: guards, streaming setup, delegates to action, saves and re-renders.
    */
   private async runLLMOperation(
-    action: (orch: Orchestrator, agent: AgentDefinition, convId: string) => Promise<void>,
+    action: (orch: Orchestrator, agent: AgentDefinition, convId: string) => Promise<void | string>,
     errorContext: string
   ): Promise<void> {
     const { selectedAgent, currentConversationId } = this;
