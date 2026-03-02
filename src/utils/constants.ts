@@ -9,6 +9,7 @@ export const PREDEFINED_TOOL_IDS = {
   READ_FILE: "read_file",
   WRITE_FILE: "write_file",
   REST_REQUEST: "rest_request",
+  WEBSEARCH: "websearch",
 };
 
 // Default-Pfade

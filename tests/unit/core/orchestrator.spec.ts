@@ -196,4 +196,71 @@ describe("Orchestrator", () => {
     expect(body.model).toBe("openai/gpt-4"); // from makeOrchestratorConfig
   });
 
+  it("passes plugins array when agent uses websearch tool", async () => {
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      text: [
+        'data: {"id":"gen-ws","choices":[{"index":0,"delta":{"role":"assistant","content":"Search result"},"finish_reason":null}]}',
+        'data: {"id":"gen-ws","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+        "data: [DONE]",
+      ].join("\n"),
+    } as never);
+
+    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
+    const agent = { ...makeAgent(), tools: ["websearch"] };
+    const convId = "conv-websearch";
+    conversationManager.createConversation(convId, agent.id);
+
+    await orchestrator.sendMessage(agent, convId, "Search the web");
+
+    const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
+    const body = JSON.parse(call.body as string) as Record<string, unknown>;
+    expect(body.plugins).toEqual([{ id: "web-search" }]);
+  });
+
+  it("does not include websearch as a function tool definition", async () => {
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      text: [
+        'data: {"id":"gen-ws2","choices":[{"index":0,"delta":{"role":"assistant","content":"Done"},"finish_reason":null}]}',
+        'data: {"id":"gen-ws2","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+        "data: [DONE]",
+      ].join("\n"),
+    } as never);
+
+    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
+    const agent = { ...makeAgent(), tools: ["websearch"] };
+    const convId = "conv-websearch-notools";
+    conversationManager.createConversation(convId, agent.id);
+
+    await orchestrator.sendMessage(agent, convId, "Test");
+
+    const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
+    const body = JSON.parse(call.body as string) as Record<string, unknown>;
+    // tools array should be absent since websearch is a plugin, not a function tool
+    expect(body.tools).toBeUndefined();
+  });
+
+  it("does not include plugins when agent has no websearch tool", async () => {
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      text: [
+        'data: {"id":"gen-nows","choices":[{"index":0,"delta":{"role":"assistant","content":"OK"},"finish_reason":null}]}',
+        'data: {"id":"gen-nows","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+        "data: [DONE]",
+      ].join("\n"),
+    } as never);
+
+    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
+    const agent = makeAgent(); // no tools
+    const convId = "conv-no-websearch";
+    conversationManager.createConversation(convId, agent.id);
+
+    await orchestrator.sendMessage(agent, convId, "Test");
+
+    const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
+    const body = JSON.parse(call.body as string) as Record<string, unknown>;
+    expect(body.plugins).toBeUndefined();
+  });
+
 });

@@ -142,8 +142,9 @@ export default class PaperAgents extends Plugin {
       PredefinedToolsFactory.readFile,
       PredefinedToolsFactory.writeFile,
       PredefinedToolsFactory.restRequest,
+      PredefinedToolsFactory.webSearch,
     ]);
-    globalLogger.info("Predefined tools registered", { count: 4 });
+    globalLogger.info("Predefined tools registered", { count: 5 });
   }
 
   async loadCustomToolsFromVault(): Promise<void> {

@@ -217,4 +217,42 @@ describe("OpenRouterClient", () => {
     const headers = call.headers as Record<string, string>;
     expect(headers["HTTP-Referer"]).toBe("https://example.com");
   });
+
+  it("includes plugins in request body when plugins are provided", async () => {
+    const client = makeClient();
+
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      json: {
+        id: "gen-plugin",
+        choices: [{ index: 0, message: { role: "assistant", content: "Result" }, finish_reason: "stop" }],
+        model: "openai/gpt-4",
+      },
+    } as never);
+
+    await client.chat([{ role: "user", content: "Search the web" }], undefined, ["web-search"]);
+
+    const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
+    const body = JSON.parse(call.body as string) as Record<string, unknown>;
+    expect(body.plugins).toEqual([{ id: "web-search" }]);
+  });
+
+  it("does not include plugins field when no plugins provided", async () => {
+    const client = makeClient();
+
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      json: {
+        id: "gen-noplugin",
+        choices: [{ index: 0, message: { role: "assistant", content: "OK" }, finish_reason: "stop" }],
+        model: "openai/gpt-4",
+      },
+    } as never);
+
+    await client.chat([{ role: "user", content: "Hello" }]);
+
+    const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
+    const body = JSON.parse(call.body as string) as Record<string, unknown>;
+    expect(body.plugins).toBeUndefined();
+  });
 });

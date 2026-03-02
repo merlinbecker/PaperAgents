@@ -422,6 +422,36 @@ export const RestRequestFactory: IToolFactory = {
 };
 
 // ============================================================================
+// WEBSEARCH TOOL (OpenRouter server-side plugin)
+// ============================================================================
+
+class WebSearchTool implements IExecutableTool {
+  name = PREDEFINED_TOOL_IDS.WEBSEARCH;
+  parameters: Parameter[] = [];
+
+  // The websearch tool is handled server-side by the OpenRouter web-search plugin.
+  // This execute method is a fallback and should not be called during normal operation.
+  async execute(_ctx: ExecutionContext): Promise<ExecutionResult> {
+    return {
+      success: false,
+      error: "websearch is a server-side OpenRouter plugin and cannot be executed locally",
+      log: [{ toolName: this.name, parameters: {}, error: "server-side plugin only", timestamp: Date.now() }],
+    };
+  }
+
+  shouldRequireHITL(): boolean {
+    return false;
+  }
+}
+
+export const WebSearchFactory: IToolFactory = {
+  name: PREDEFINED_TOOL_IDS.WEBSEARCH,
+  description: "Enable OpenRouter web-search plugin: the model can search the web for up-to-date information",
+  parameters: [],
+  create: () => new WebSearchTool(),
+};
+
+// ============================================================================
 // EXPORT ALL FACTORIES
 // ============================================================================
 
@@ -430,6 +460,7 @@ export const PredefinedToolsFactory = {
   readFile: ReadFileFactory,
   writeFile: WriteFileFactory,
   restRequest: RestRequestFactory,
+  webSearch: WebSearchFactory,
 };
 
 export default PredefinedToolsFactory;

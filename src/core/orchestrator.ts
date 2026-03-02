@@ -4,6 +4,7 @@ import { OpenRouterClient, LLMMessage, LLMToolDefinition, LLMToolCall, StreamCal
 import ToolRegistry from "./tool-registry";
 import { globalLogger } from "../utils/logger";
 import { globalMetrics } from "../utils/metrics";
+import { PREDEFINED_TOOL_IDS } from "../utils/constants";
 
 const MAX_TOOL_CALL_ROUNDS = 10;
 
@@ -64,6 +65,7 @@ export class Orchestrator {
 
     try {
       const tools = this.buildToolDefinitions(agent);
+      const plugins = this.buildPluginList(agent);
       let round = 0;
       let finalContent = "";
 
@@ -77,7 +79,7 @@ export class Orchestrator {
           onError: callbacks?.onError,
         };
 
-        const response = await this.client.chatStream(messages, streamCallbacks, tools, agent.model);
+        const response = await this.client.chatStream(messages, streamCallbacks, tools, agent.model, plugins);
 
         const choice = response.choices[0];
         if (!choice) break;
@@ -239,6 +241,9 @@ export class Orchestrator {
     const definitions: LLMToolDefinition[] = [];
 
     for (const toolId of agent.tools) {
+      // websearch is a server-side plugin, not a function tool
+      if (toolId === PREDEFINED_TOOL_IDS.WEBSEARCH) continue;
+
       const toolMeta = this.toolRegistry.listTools().find((t) => t.id === toolId);
       if (!toolMeta) continue;
 
@@ -270,6 +275,14 @@ export class Orchestrator {
     }
 
     return definitions;
+  }
+
+  private buildPluginList(agent: AgentDefinition): string[] {
+    const plugins: string[] = [];
+    if (agent.tools.includes(PREDEFINED_TOOL_IDS.WEBSEARCH)) {
+      plugins.push("web-search");
+    }
+    return plugins;
   }
 
   async testConnection(): Promise<{ success: boolean; error?: string }> {
