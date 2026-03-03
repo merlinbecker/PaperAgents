@@ -138,6 +138,16 @@ class SearchFilesTool implements IExecutableTool {
 
   constructor(private app: App) {}
 
+  private async checkFileContent(file: TFile, lowerQuery: string): Promise<boolean> {
+    try {
+      const content = await this.app.vault.read(file);
+      return content.toLowerCase().includes(lowerQuery);
+    } catch (err) {
+      globalLogger.debug("search_files: could not read file", { path: file.path, error: err instanceof Error ? err.message : String(err) });
+      return false;
+    }
+  }
+
   async execute(ctx: ExecutionContext): Promise<ExecutionResult> {
     try {
       const rawQuery = ctx.parameters.query;
@@ -163,27 +173,13 @@ class SearchFilesTool implements IExecutableTool {
 
         // Match against file name first (guard against undefined name)
         if (file.name?.toLowerCase().includes(lowerQuery)) {
-          results.push({
-            name: file.name,
-            path: file.path,
-            size: file.stat.size,
-          });
+          results.push({ name: file.name, path: file.path, size: file.stat.size });
           continue;
         }
 
         // Also search within file content
-        try {
-          const content = await this.app.vault.read(file);
-          if (content.toLowerCase().includes(lowerQuery)) {
-            results.push({
-              name: file.name,
-              path: file.path,
-              size: file.stat.size,
-            });
-          }
-        } catch (err) {
-          // skip files that cannot be read
-          globalLogger.debug("search_files: could not read file", { path: file.path, error: err instanceof Error ? err.message : String(err) });
+        if (await this.checkFileContent(file, lowerQuery)) {
+          results.push({ name: file.name, path: file.path, size: file.stat.size });
         }
       }
 
