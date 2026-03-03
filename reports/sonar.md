@@ -6,8 +6,8 @@ This file documents the SonarQube issues found in the PaperAgents codebase and t
 
 | Status | Count |
 |--------|-------|
-| ✅ Fixed | 87 |
-| ⏳ Deferred | 13 |
+| ✅ Fixed | 88 |
+| ⏳ Deferred | 12 |
 | **Total** | **100** |
 
 ---
@@ -195,6 +195,15 @@ Introduced a `LoopStepContext` parameter object interface. `executeLoopStep` now
 |------|-------|--------|
 | `src/core/tool-executor.ts` | 448 | ✅ Fixed |
 
+### S3776 – Cognitive Complexity too high (`chat`)
+Extracted `performChatRequest` private helper containing the HTTP request, timeout, and response-status logic.
+The `chat` method now delegates a single attempt to `performChatRequest` and only contains the slim retry loop,
+reducing its cognitive complexity from 18 to below the threshold of 15.
+
+| File | Function | Complexity | Status |
+|------|----------|------------|--------|
+| `src/core/openrouter.ts` | `chat` | 18 → <15 | ✅ Fixed |
+
 ---
 
 ## Deferred Issues
@@ -206,8 +215,7 @@ These functions exceed the threshold of 15 and require significant restructuring
 
 | File | Function | Complexity | Status |
 |------|----------|------------|--------|
-| `src/core/openrouter.ts:195` | `chat` | 18 | ⏳ Deferred |
-| `src/core/openrouter.ts:274` | `chatStream` | 56 | ⏳ Deferred |
+| `src/core/openrouter.ts:273` | `chatStream` | 56 | ⏳ Deferred |
 | `src/core/orchestrator.ts:56` | `continueConversation` | 16 | ⏳ Deferred |
 | `src/core/orchestrator.ts:242` | `buildToolDefinitions` | 19 | ⏳ Deferred |
 | `src/core/conversation.ts:233` | `toMarkdown` | 28 | ⏳ Deferred |
@@ -215,9 +223,4 @@ These functions exceed the threshold of 15 and require significant restructuring
 | `src/core/tool-executor.ts:55` | `executeAgent` | 25 | ⏳ Deferred |
 | `src/core/tool-executor.ts:400` | `executeStep` | 16 | ⏳ Deferred |
 | `src/tools/predefined.ts:141` | `execute` (SearchFilesTool) | 16 | ⏳ Deferred |
-| `src/ui/chat.ts:515` | `addToolCallToUI` | 23 | ⏳ Deferred |
-
-### S3776 (additional)
-| File | Function | Complexity | Status |
-|------|----------|------------|--------|
 | `src/ui/chat.ts:515` | `addToolCallToUI` | 23 | ⏳ Deferred |
