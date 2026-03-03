@@ -98,6 +98,16 @@ const MAX_RETRIES = 3;
 const BASE_RETRY_DELAY = 1000;
 const REQUEST_TIMEOUT = 60000;
 const RATE_LIMIT_RPM = 60;
+
+/** Mutable accumulator used while parsing an SSE stream response. */
+interface StreamState {
+  fullContent: string[];
+  toolCallsMap: Map<number, LLMToolCall>;
+  allAnnotations: WebSearchAnnotation[];
+  finishReason: string | null;
+  responseId: string;
+  responseModel: string;
+}
 const RATE_LIMIT_WINDOW_MS = 60000;
 
 export class OpenRouterClient {
@@ -278,9 +288,44 @@ export class OpenRouterClient {
     plugins?: Array<{ id: string } & Record<string, unknown>>
   ): Promise<OpenRouterResponse> {
     const body = this.buildRequestBody(messages, tools, true, modelOverride, plugins);
-
     await this.enforceRateLimit();
 
+    const text = await this.performStreamHttpRequest(body, callbacks);
+    const state = this.collectStreamData(text, callbacks);
+
+    const toolCalls = Array.from(state.toolCallsMap.values());
+    for (const tc of toolCalls) {
+      callbacks.onToolCall?.(tc);
+    }
+
+    if (state.allAnnotations.length > 0) {
+      callbacks.onAnnotations?.(state.allAnnotations);
+    }
+
+    const completeResponse: OpenRouterResponse = {
+      id: state.responseId,
+      choices: [{
+        index: 0,
+        message: {
+          role: "assistant",
+          content: state.fullContent.join("") || null,
+          tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+          annotations: state.allAnnotations.length > 0 ? state.allAnnotations : undefined,
+        },
+        finish_reason: state.finishReason,
+      }],
+      model: state.responseModel || this.config.model,
+    };
+
+    callbacks.onComplete?.(completeResponse);
+    return completeResponse;
+  }
+
+  /** Makes the streaming HTTP request with timeout; returns the raw response text. */
+  private async performStreamHttpRequest(
+    body: Record<string, unknown>,
+    callbacks: StreamCallbacks
+  ): Promise<string> {
     const params: RequestUrlParam = {
       url: `${API_BASE}/chat/completions`,
       method: "POST",
@@ -318,14 +363,21 @@ export class OpenRouterClient {
       throw error;
     }
 
-    const fullContent: string[] = [];
-    const toolCallsMap: Map<number, LLMToolCall> = new Map();
-    const allAnnotations: WebSearchAnnotation[] = [];
-    let finishReason: string | null = null;
-    let responseId = "";
-    let responseModel = "";
+    return response.text;
+  }
 
-    const lines = response.text.split("\n");
+  /** Parses all SSE lines from a stream response and returns the accumulated state. */
+  private collectStreamData(text: string, callbacks: StreamCallbacks): StreamState {
+    const state: StreamState = {
+      fullContent: [],
+      toolCallsMap: new Map(),
+      allAnnotations: [],
+      finishReason: null,
+      responseId: "",
+      responseModel: "",
+    };
+
+    const lines = text.split("\n");
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed?.startsWith("data: ")) continue;
@@ -335,70 +387,55 @@ export class OpenRouterClient {
 
       try {
         const chunk = JSON.parse(data) as StreamChunk;
-        responseId = chunk.id || responseId;
-
+        state.responseId = chunk.id || state.responseId;
         for (const choice of chunk.choices) {
-          if (choice.finish_reason) {
-            finishReason = choice.finish_reason;
-          }
-
-          if (choice.delta.content) {
-            fullContent.push(choice.delta.content);
-            callbacks.onToken?.(choice.delta.content);
-          }
-
-          if (choice.delta.annotations) {
-            allAnnotations.push(...choice.delta.annotations);
-          }
-
-          if (choice.delta.tool_calls) {
-            for (const tc of choice.delta.tool_calls) {
-              const idx = tc.index ?? 0;
-              if (!toolCallsMap.has(idx)) {
-                toolCallsMap.set(idx, {
-                  id: tc.id || "",
-                  type: "function",
-                  function: { name: "", arguments: "" },
-                });
-              }
-              const existing = toolCallsMap.get(idx)!;
-              if (tc.id) existing.id = tc.id;
-              if (tc.function?.name) existing.function.name += tc.function.name;
-              if (tc.function?.arguments) existing.function.arguments += tc.function.arguments;
-            }
-          }
+          this.processStreamChoice(choice, state, callbacks);
         }
       } catch {
         globalLogger.debug("Skipping unparseable SSE chunk", { data });
       }
     }
 
-    const toolCalls = Array.from(toolCallsMap.values());
-    for (const tc of toolCalls) {
-      callbacks.onToolCall?.(tc);
+    return state;
+  }
+
+  /** Processes a single choice delta from a stream chunk, updating the accumulated state. */
+  private processStreamChoice(
+    choice: StreamChunk["choices"][0],
+    state: StreamState,
+    callbacks: StreamCallbacks
+  ): void {
+    if (choice.finish_reason) state.finishReason = choice.finish_reason;
+
+    if (choice.delta.content) {
+      state.fullContent.push(choice.delta.content);
+      callbacks.onToken?.(choice.delta.content);
     }
 
-    if (allAnnotations.length > 0) {
-      callbacks.onAnnotations?.(allAnnotations);
+    if (choice.delta.annotations) {
+      state.allAnnotations.push(...choice.delta.annotations);
     }
 
-    const completeResponse: OpenRouterResponse = {
-      id: responseId,
-      choices: [{
-        index: 0,
-        message: {
-          role: "assistant",
-          content: fullContent.join("") || null,
-          tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
-          annotations: allAnnotations.length > 0 ? allAnnotations : undefined,
-        },
-        finish_reason: finishReason,
-      }],
-      model: responseModel || this.config.model,
-    };
+    if (choice.delta.tool_calls) {
+      for (const tc of choice.delta.tool_calls) {
+        this.mergeToolCallFragment(tc, state.toolCallsMap);
+      }
+    }
+  }
 
-    callbacks.onComplete?.(completeResponse);
-    return completeResponse;
+  /** Merges an incremental tool-call fragment into the accumulation map. */
+  private mergeToolCallFragment(
+    tc: Partial<LLMToolCall> & { index?: number },
+    toolCallsMap: Map<number, LLMToolCall>
+  ): void {
+    const idx = tc.index ?? 0;
+    if (!toolCallsMap.has(idx)) {
+      toolCallsMap.set(idx, { id: tc.id || "", type: "function", function: { name: "", arguments: "" } });
+    }
+    const existing = toolCallsMap.get(idx)!;
+    if (tc.id) existing.id = tc.id;
+    if (tc.function?.name) existing.function.name += tc.function.name;
+    if (tc.function?.arguments) existing.function.arguments += tc.function.arguments;
   }
 
   async testConnection(): Promise<{ success: boolean; error?: string; models?: string[] }> {
