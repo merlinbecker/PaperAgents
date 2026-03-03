@@ -6,8 +6,8 @@ This file documents the SonarQube issues found in the PaperAgents codebase and t
 
 | Status | Count |
 |--------|-------|
-| ✅ Fixed | 91 |
-| ⏳ Deferred | 9 |
+| ✅ Fixed | 92 |
+| ⏳ Deferred | 8 |
 | **Total** | **100** |
 
 ---
@@ -216,6 +216,18 @@ Extracted helper methods to reduce nesting and complexity:
 | `src/core/orchestrator.ts` | `buildToolDefinitions` | 19 → <15 | ✅ Fixed |
 | `src/tools/predefined.ts` | `execute` (SearchFilesTool) | 16 → <15 | ✅ Fixed |
 
+### S3776 – Cognitive Complexity too high (`chatStream`)
+Extracted four private helpers to reduce nesting and complexity:
+- `performStreamHttpRequest`: handles the HTTP request with timeout and error handling, returning the raw response text.
+- `collectStreamData`: iterates over SSE lines and assembles a `StreamState` accumulator by delegating each chunk choice to `processStreamChoice`.
+- `processStreamChoice`: processes a single choice delta (content, annotations, tool calls), delegating tool-call fragment merging to `mergeToolCallFragment`.
+- `mergeToolCallFragment`: merges an incremental tool-call fragment into the accumulation map.
+The outer `chatStream` method now only orchestrates these helpers and builds the final `OpenRouterResponse`.
+
+| File | Function | Complexity | Status |
+|------|----------|------------|--------|
+| `src/core/openrouter.ts` | `chatStream` | 56 → <15 | ✅ Fixed |
+
 ---
 
 ## Deferred Issues
@@ -227,7 +239,7 @@ These functions exceed the threshold of 15 and require significant restructuring
 
 | File | Function | Complexity | Status |
 |------|----------|------------|--------|
-| `src/core/openrouter.ts:273` | `chatStream` | 56 | ⏳ Deferred |
+| `src/core/openrouter.ts:273` | `chatStream` | 56 | ✅ Fixed |
 | `src/core/orchestrator.ts:56` | `continueConversation` | 16 | ✅ Fixed |
 | `src/core/orchestrator.ts:242` | `buildToolDefinitions` | 19 | ✅ Fixed |
 | `src/core/conversation.ts:233` | `toMarkdown` | 28 | ⏳ Deferred |
