@@ -1,4 +1,4 @@
-import { AgentDefinition, ToolCallInfo, WebSearchAnnotation } from "../types";
+import { AgentDefinition, Parameter, ToolCallInfo, WebSearchAnnotation } from "../types";
 import { ConversationManager } from "./conversation";
 import { OpenRouterClient, LLMMessage, LLMToolDefinition, LLMToolCall, StreamCallbacks, OpenRouterConfig } from "./openrouter";
 import ToolRegistry from "./tool-registry";
@@ -72,53 +72,11 @@ export class Orchestrator {
 
       while (round < this.maxToolCallRounds) {
         round++;
-
-        const messages = this.buildLLMMessages(agent, conversationId);
-
-        const streamCallbacks: StreamCallbacks = {
-          onToken: callbacks?.onToken,
-          onAnnotations: callbacks?.onAnnotations,
-          onError: callbacks?.onError,
-        };
-
-        const response = await this.client.chatStream(messages, streamCallbacks, tools, agent.model, plugins);
-
-        const choice = response.choices[0];
-        if (!choice) break;
-
-        const assistantMessage = choice.message;
-
-        if (assistantMessage.content) {
-          finalContent = assistantMessage.content;
-        }
-
-        if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-          this.conversationManager.addMessage(
-            conversationId,
-            "assistant",
-            assistantMessage.content || ""
-          );
-
-          for (const toolCall of assistantMessage.tool_calls) {
-            await this.executeToolCall(
-              conversationId,
-              toolCall,
-              callbacks,
-              traceId,
-              span.spanId
-            );
-          }
-
-          continue;
-        }
-
-        this.conversationManager.addMessage(
-          conversationId,
-          "assistant",
-          assistantMessage.content || ""
+        const { content, done } = await this.processChatRound(
+          agent, conversationId, tools, plugins, callbacks, traceId, span.spanId
         );
-
-        break;
+        if (content !== null) finalContent = content;
+        if (done) break;
       }
 
       callbacks?.onComplete?.(finalContent);
@@ -141,6 +99,41 @@ export class Orchestrator {
       callbacks?.onError?.(error instanceof Error ? error : new Error(errorMsg));
       throw error;
     }
+  }
+
+  private async processChatRound(
+    agent: AgentDefinition,
+    conversationId: string,
+    tools: LLMToolDefinition[],
+    plugins: Array<{ id: string } & Record<string, unknown>>,
+    callbacks: OrchestratorCallbacks | undefined,
+    traceId: string,
+    spanId: string
+  ): Promise<{ content: string | null; done: boolean }> {
+    const messages = this.buildLLMMessages(agent, conversationId);
+    const streamCallbacks: StreamCallbacks = {
+      onToken: callbacks?.onToken,
+      onAnnotations: callbacks?.onAnnotations,
+      onError: callbacks?.onError,
+    };
+
+    const response = await this.client.chatStream(messages, streamCallbacks, tools, agent.model, plugins);
+    const choice = response.choices[0];
+    if (!choice) return { content: null, done: true };
+
+    const assistantMessage = choice.message;
+    const content = assistantMessage.content ?? null;
+
+    if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
+      this.conversationManager.addMessage(conversationId, "assistant", assistantMessage.content || "");
+      for (const toolCall of assistantMessage.tool_calls) {
+        await this.executeToolCall(conversationId, toolCall, callbacks, traceId, spanId);
+      }
+      return { content, done: false };
+    }
+
+    this.conversationManager.addMessage(conversationId, "assistant", assistantMessage.content || "");
+    return { content, done: true };
   }
 
   private async executeToolCall(
@@ -239,6 +232,18 @@ export class Orchestrator {
       }));
   }
 
+  private buildToolParameterSchema(
+    params: Parameter[]
+  ): { properties: Record<string, { type: string; description?: string }>; required: string[] | undefined } {
+    const properties: Record<string, { type: string; description?: string }> = {};
+    const required: string[] = [];
+    for (const param of params) {
+      properties[param.name] = { type: param.type, description: param.description };
+      if (param.required) required.push(param.name);
+    }
+    return { properties, required: required.length > 0 ? required : undefined };
+  }
+
   private buildToolDefinitions(agent: AgentDefinition): LLMToolDefinition[] {
     const definitions: LLMToolDefinition[] = [];
 
@@ -249,29 +254,14 @@ export class Orchestrator {
       const toolMeta = this.toolRegistry.listTools().find((t) => t.id === toolId);
       if (!toolMeta) continue;
 
-      const properties: Record<string, { type: string; description?: string }> = {};
-      const required: string[] = [];
-
-      for (const param of toolMeta.parameters) {
-        properties[param.name] = {
-          type: param.type,
-          description: param.description,
-        };
-        if (param.required) {
-          required.push(param.name);
-        }
-      }
+      const { properties, required } = this.buildToolParameterSchema(toolMeta.parameters);
 
       definitions.push({
         type: "function",
         function: {
           name: toolId,
           description: toolMeta.description || toolMeta.name,
-          parameters: {
-            type: "object",
-            properties,
-            required: required.length > 0 ? required : undefined,
-          },
+          parameters: { type: "object", properties, required },
         },
       });
     }

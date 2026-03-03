@@ -6,8 +6,8 @@ This file documents the SonarQube issues found in the PaperAgents codebase and t
 
 | Status | Count |
 |--------|-------|
-| ✅ Fixed | 88 |
-| ⏳ Deferred | 12 |
+| ✅ Fixed | 91 |
+| ⏳ Deferred | 9 |
 | **Total** | **100** |
 
 ---
@@ -204,6 +204,18 @@ reducing its cognitive complexity from 18 to below the threshold of 15.
 |------|----------|------------|--------|
 | `src/core/openrouter.ts` | `chat` | 18 → <15 | ✅ Fixed |
 
+### S3776 – Cognitive Complexity too high (`continueConversation`, `buildToolDefinitions`, `SearchFilesTool.execute`)
+Extracted helper methods to reduce nesting and complexity:
+- `continueConversation`: extracted `processChatRound` private helper that handles a single LLM round (request, content capture, tool-call dispatching). The outer method now contains only the slim while-loop and trace bookkeeping.
+- `buildToolDefinitions`: extracted `buildToolParameterSchema` private helper that converts a `Parameter[]` array into the `{ properties, required }` schema shape. The outer method now focuses on iterating over tool IDs.
+- `SearchFilesTool.execute`: extracted `checkFileContent` private async helper that reads a file and tests whether its contents match the query (absorbing the inner try/catch). The execute method no longer contains nested try/catch.
+
+| File | Function | Complexity | Status |
+|------|----------|------------|--------|
+| `src/core/orchestrator.ts` | `continueConversation` | 16 → <15 | ✅ Fixed |
+| `src/core/orchestrator.ts` | `buildToolDefinitions` | 19 → <15 | ✅ Fixed |
+| `src/tools/predefined.ts` | `execute` (SearchFilesTool) | 16 → <15 | ✅ Fixed |
+
 ---
 
 ## Deferred Issues
@@ -216,11 +228,11 @@ These functions exceed the threshold of 15 and require significant restructuring
 | File | Function | Complexity | Status |
 |------|----------|------------|--------|
 | `src/core/openrouter.ts:273` | `chatStream` | 56 | ⏳ Deferred |
-| `src/core/orchestrator.ts:56` | `continueConversation` | 16 | ⏳ Deferred |
-| `src/core/orchestrator.ts:242` | `buildToolDefinitions` | 19 | ⏳ Deferred |
+| `src/core/orchestrator.ts:56` | `continueConversation` | 16 | ✅ Fixed |
+| `src/core/orchestrator.ts:242` | `buildToolDefinitions` | 19 | ✅ Fixed |
 | `src/core/conversation.ts:233` | `toMarkdown` | 28 | ⏳ Deferred |
 | `src/core/conversation.ts:278` | `parseMarkdown` | 26 | ⏳ Deferred |
 | `src/core/tool-executor.ts:55` | `executeAgent` | 25 | ⏳ Deferred |
 | `src/core/tool-executor.ts:400` | `executeStep` | 16 | ⏳ Deferred |
-| `src/tools/predefined.ts:141` | `execute` (SearchFilesTool) | 16 | ⏳ Deferred |
+| `src/tools/predefined.ts:141` | `execute` (SearchFilesTool) | 16 | ✅ Fixed |
 | `src/ui/chat.ts:515` | `addToolCallToUI` | 23 | ⏳ Deferred |
