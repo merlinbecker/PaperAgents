@@ -6,8 +6,8 @@ This file documents the SonarQube issues found in the PaperAgents codebase and t
 
 | Status | Count |
 |--------|-------|
-| ✅ Fixed | 86 |
-| ⏳ Deferred | 14 |
+| ✅ Fixed | 87 |
+| ⏳ Deferred | 13 |
 | **Total** | **100** |
 
 ---
@@ -188,6 +188,13 @@ Used environment variable (`INPUT_VERSION`) instead of directly interpolating `$
 |------|-------|--------|
 | `.github/workflows/release-beta.yml` | 23, 24 | ✅ Fixed |
 
+### S107 – Too many parameters (max 7)
+Introduced a `LoopStepContext` parameter object interface. `executeLoopStep` now accepts a single context object instead of 9 individual parameters.
+
+| File | Lines | Status |
+|------|-------|--------|
+| `src/core/tool-executor.ts` | 448 | ✅ Fixed |
+
 ---
 
 ## Deferred Issues
@@ -209,13 +216,6 @@ These functions exceed the threshold of 15 and require significant restructuring
 | `src/core/tool-executor.ts:400` | `executeStep` | 16 | ⏳ Deferred |
 | `src/tools/predefined.ts:141` | `execute` (SearchFilesTool) | 16 | ⏳ Deferred |
 | `src/ui/chat.ts:515` | `addToolCallToUI` | 23 | ⏳ Deferred |
-
-### S107 – Too many parameters (max 7)
-`executeLoopStep` in `src/core/tool-executor.ts` has 9 parameters. Refactoring requires introducing a parameter object type.
-
-| File | Lines | Status |
-|------|-------|--------|
-| `src/core/tool-executor.ts` | 448 | ⏳ Deferred |
 
 ### S3776 (additional)
 | File | Function | Complexity | Status |
