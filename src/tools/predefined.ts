@@ -49,26 +49,92 @@ function requireApp(app: App | undefined, toolName: string): App {
 }
 
 // ============================================================================
+// PARAMETER DEFINITIONS (single source of truth, shared by class + factory)
+// ============================================================================
+
+const SEARCH_FILES_PARAMS: Parameter[] = [
+  {
+    name: "query",
+    type: "string",
+    description: "Search text to match against file names and content",
+    required: true,
+  },
+  {
+    name: "path",
+    type: "string",
+    description: "Base folder to restrict search (e.g., 'notes' or '/notes')",
+    required: false,
+    default: "",
+  },
+];
+
+const READ_FILE_PARAMS: Parameter[] = [
+  {
+    name: "filePath",
+    type: "string",
+    description: "Path to file (e.g., '/notes/file.md')",
+    required: true,
+  },
+];
+
+const WRITE_FILE_PARAMS: Parameter[] = [
+  {
+    name: "filePath",
+    type: "string",
+    description: "Path to file",
+    required: true,
+  },
+  {
+    name: "content",
+    type: "string",
+    description: "Content to write",
+    required: true,
+  },
+  {
+    name: "overwrite",
+    type: "boolean",
+    description: "Overwrite existing file?",
+    required: false,
+    default: false,
+  },
+];
+
+const REST_REQUEST_PARAMS: Parameter[] = [
+  {
+    name: "url",
+    type: "string",
+    description: "Target URL",
+    required: true,
+  },
+  {
+    name: "method",
+    type: "string",
+    description: "HTTP method (GET, POST, PUT, DELETE)",
+    required: true,
+    default: "GET",
+  },
+  {
+    name: "headers",
+    type: "object",
+    description: "HTTP headers (JSON format)",
+    required: false,
+    default: {},
+  },
+  {
+    name: "body",
+    type: "string",
+    description: "Request body (JSON string)",
+    required: false,
+  },
+];
+
+// ============================================================================
 // SEARCH_FILES TOOL
 // ============================================================================
 
 class SearchFilesTool implements IExecutableTool {
   name = PREDEFINED_TOOL_IDS.SEARCH_FILES;
-  parameters: Parameter[] = [
-    {
-      name: "query",
-      type: "string",
-      description: "Search text to match against file names and content",
-      required: true,
-    },
-    {
-      name: "path",
-      type: "string",
-      description: "Base folder to restrict search (e.g., 'notes' or '/notes')",
-      required: false,
-      default: "",
-    },
-  ];
+  parameters = SEARCH_FILES_PARAMS;
 
   constructor(private app: App) {}
 
@@ -140,21 +206,7 @@ class SearchFilesTool implements IExecutableTool {
 export const SearchFilesFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.SEARCH_FILES,
   description: "Search files in vault by name, path, or content",
-  parameters: [
-    {
-      name: "query",
-      type: "string",
-      description: "Search text to match against file names and content",
-      required: true,
-    },
-    {
-      name: "path",
-      type: "string",
-      description: "Base folder to restrict search (e.g., 'notes' or '/notes')",
-      required: false,
-      default: "",
-    },
-  ],
+  parameters: SEARCH_FILES_PARAMS,
   create: (app?: App) => new SearchFilesTool(requireApp(app, "SearchFilesTool")),
 };
 
@@ -164,14 +216,7 @@ export const SearchFilesFactory: IToolFactory = {
 
 class ReadFileTool implements IExecutableTool {
   name = PREDEFINED_TOOL_IDS.READ_FILE;
-  parameters: Parameter[] = [
-    {
-      name: "filePath",
-      type: "string",
-      description: "Path to file (e.g., '/notes/file.md')",
-      required: true,
-    },
-  ];
+  parameters = READ_FILE_PARAMS;
 
   constructor(private app: App) {}
 
@@ -210,14 +255,7 @@ class ReadFileTool implements IExecutableTool {
 export const ReadFileFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.READ_FILE,
   description: "Read file content from vault",
-  parameters: [
-    {
-      name: "filePath",
-      type: "string",
-      description: "Path to file (e.g., '/notes/file.md')",
-      required: true,
-    },
-  ],
+  parameters: READ_FILE_PARAMS,
   create: (app?: App) => new ReadFileTool(requireApp(app, "ReadFileTool")),
 };
 
@@ -227,27 +265,7 @@ export const ReadFileFactory: IToolFactory = {
 
 class WriteFileTool implements IExecutableTool {
   name = PREDEFINED_TOOL_IDS.WRITE_FILE;
-  parameters: Parameter[] = [
-    {
-      name: "filePath",
-      type: "string",
-      description: "Path to file",
-      required: true,
-    },
-    {
-      name: "content",
-      type: "string",
-      description: "Content to write",
-      required: true,
-    },
-    {
-      name: "overwrite",
-      type: "boolean",
-      description: "Overwrite existing file?",
-      required: false,
-      default: false,
-    },
-  ];
+  parameters = WRITE_FILE_PARAMS;
 
   constructor(private app: App) {}
 
@@ -282,7 +300,7 @@ class WriteFileTool implements IExecutableTool {
     }
   }
 
-  shouldRequireHITL(parameters: Record<string, unknown>): boolean {
+  shouldRequireHITL(_parameters: Record<string, unknown>): boolean {
     return true; // Always require HITL for write operations
   }
 }
@@ -290,27 +308,7 @@ class WriteFileTool implements IExecutableTool {
 export const WriteFileFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.WRITE_FILE,
   description: "Write or modify file in vault",
-  parameters: [
-    {
-      name: "filePath",
-      type: "string",
-      description: "Path to file",
-      required: true,
-    },
-    {
-      name: "content",
-      type: "string",
-      description: "Content to write",
-      required: true,
-    },
-    {
-      name: "overwrite",
-      type: "boolean",
-      description: "Overwrite existing file?",
-      required: false,
-      default: false,
-    },
-  ],
+  parameters: WRITE_FILE_PARAMS,
   create: (app?: App) => new WriteFileTool(requireApp(app, "WriteFileTool")),
 };
 
@@ -320,34 +318,7 @@ export const WriteFileFactory: IToolFactory = {
 
 class RestRequestTool implements IExecutableTool {
   name = PREDEFINED_TOOL_IDS.REST_REQUEST;
-  parameters: Parameter[] = [
-    {
-      name: "url",
-      type: "string",
-      description: "Target URL",
-      required: true,
-    },
-    {
-      name: "method",
-      type: "string",
-      description: "HTTP method (GET, POST, PUT, DELETE)",
-      required: true,
-      default: "GET",
-    },
-    {
-      name: "headers",
-      type: "object",
-      description: "HTTP headers (JSON format)",
-      required: false,
-      default: {},
-    },
-    {
-      name: "body",
-      type: "string",
-      description: "Request body (JSON string)",
-      required: false,
-    },
-  ];
+  parameters = REST_REQUEST_PARAMS;
 
   constructor(private app: App) {}
 
@@ -390,34 +361,7 @@ class RestRequestTool implements IExecutableTool {
 export const RestRequestFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.REST_REQUEST,
   description: "Make HTTP requests to APIs",
-  parameters: [
-    {
-      name: "url",
-      type: "string",
-      description: "Target URL",
-      required: true,
-    },
-    {
-      name: "method",
-      type: "string",
-      description: "HTTP method (GET, POST, PUT, DELETE)",
-      required: true,
-      default: "GET",
-    },
-    {
-      name: "headers",
-      type: "object",
-      description: "HTTP headers (JSON format)",
-      required: false,
-      default: {},
-    },
-    {
-      name: "body",
-      type: "string",
-      description: "Request body (JSON string)",
-      required: false,
-    },
-  ],
+  parameters: REST_REQUEST_PARAMS,
   create: (app?: App) => new RestRequestTool(requireApp(app, "RestRequestTool")),
 };
 
@@ -448,6 +392,7 @@ export const WebSearchFactory: IToolFactory = {
   name: PREDEFINED_TOOL_IDS.WEBSEARCH,
   description: "Enable OpenRouter web-search plugin: the model can search the web for up-to-date information",
   parameters: [],
+  isPlugin: true,
   create: () => new WebSearchTool(),
 };
 

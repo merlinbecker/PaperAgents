@@ -206,40 +206,17 @@ export class PaperAgentsSidebar extends ItemView {
     const tools = this.toolRegistry.listTools();
     const grouped = this.groupToolsByCategory(tools);
 
-    // System/Built-in Tools first
-    if (grouped[TOOL_CATEGORIES.SYSTEM]) {
-      this.renderToolCategory(
-        this.toolsContainer,
-        TOOL_CATEGORIES.SYSTEM,
-        grouped[TOOL_CATEGORIES.SYSTEM] || []
-      );
-    }
+    const categoryOrder = [
+      TOOL_CATEGORIES.SYSTEM,
+      TOOL_CATEGORIES.CUSTOM,
+      TOOL_CATEGORIES.CHAINS,
+      TOOL_CATEGORIES.PLUGINS,
+    ];
 
-    // Custom Tools
-    if (grouped[TOOL_CATEGORIES.CUSTOM]) {
-      this.renderToolCategory(
-        this.toolsContainer,
-        TOOL_CATEGORIES.CUSTOM,
-        grouped[TOOL_CATEGORIES.CUSTOM] || []
-      );
-    }
-
-    // Chains
-    if (grouped[TOOL_CATEGORIES.CHAINS]) {
-      this.renderToolCategory(
-        this.toolsContainer,
-        TOOL_CATEGORIES.CHAINS,
-        grouped[TOOL_CATEGORIES.CHAINS] || []
-      );
-    }
-
-    // OpenRouter Plugins
-    if (grouped[TOOL_CATEGORIES.PLUGINS]) {
-      this.renderToolCategory(
-        this.toolsContainer,
-        TOOL_CATEGORIES.PLUGINS,
-        grouped[TOOL_CATEGORIES.PLUGINS] || []
-      );
+    for (const category of categoryOrder) {
+      if (grouped[category]) {
+        this.renderToolCategory(this.toolsContainer, category, grouped[category]);
+      }
     }
 
     globalLogger.debug(`Rendered ${tools.length} tools in sidebar`);
@@ -355,13 +332,13 @@ export class PaperAgentsSidebar extends ItemView {
     }
 
     // Hover Effect
-    toolItem.addEventListener("mouseenter", () => {
-      toolItem.addClass("pa-tool-item-hover");
-    });
+    this.addHoverEffect(toolItem);
+  }
 
-    toolItem.addEventListener("mouseleave", () => {
-      toolItem.removeClass("pa-tool-item-hover");
-    });
+  /** Adds standard pa-tool-item-hover effect to any element. */
+  private addHoverEffect(el: HTMLElement): void {
+    el.addEventListener("mouseenter", () => el.addClass("pa-tool-item-hover"));
+    el.addEventListener("mouseleave", () => el.removeClass("pa-tool-item-hover"));
   }
 
   /**
@@ -456,13 +433,7 @@ export class PaperAgentsSidebar extends ItemView {
       globalLogger.info(`Agent clicked: ${agent.id}`);
     });
 
-    toolItem.addEventListener("mouseenter", () => {
-      toolItem.addClass("pa-tool-item-hover");
-    });
-
-    toolItem.addEventListener("mouseleave", () => {
-      toolItem.removeClass("pa-tool-item-hover");
-    });
+    this.addHoverEffect(toolItem);
   }
 
   public setAgents(agents: AgentDefinition[]): void {

@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf, Notice, TFile } from "obsidian";
-import { AgentDefinition } from "../types";
+import { AgentDefinition, WebSearchAnnotation } from "../types";
 import { ConversationManager } from "../core/conversation";
 import { ConversationFileManager } from "../core/conversation-file-manager";
 import { Orchestrator, OrchestratorCallbacks } from "../core/orchestrator";
@@ -574,7 +574,7 @@ export class PaperAgentsChatView extends ItemView {
     return msgEl;
   }
 
-  private addAnnotationsToStreaming(annotations: import("../types").WebSearchAnnotation[]): void {
+  private addAnnotationsToStreaming(annotations: WebSearchAnnotation[]): void {
     if (!this.streamingEl) return;
     const citations = annotations
       .filter((a) => a.type === "url_citation" && a.url_citation?.url)

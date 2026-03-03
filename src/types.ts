@@ -123,6 +123,7 @@ export interface IToolFactory {
   name: string;
   description: string;
   parameters?: Parameter[];
+  isPlugin?: boolean;
   create(app?: App): IExecutableTool;
 }
 

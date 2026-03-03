@@ -78,14 +78,20 @@ export class AgentParser {
     try {
       const lines = yaml.split("\n");
       const result: Record<string, unknown> = {};
-      
+
       let currentKey: string | null = null;
       let currentArray: unknown[] = [];
       let inArray = false;
-      let inMemory = false;
-      let memoryObj: Record<string, unknown> = {};
-      let inWebsearchConfig = false;
-      let websearchConfigObj: Record<string, unknown> = {};
+      // Generic nested-object state (key → accumulator)
+      let nestedKey: string | null = null;
+      let nestedObj: Record<string, unknown> = {};
+
+      // Keys that trigger nested-object parsing and how they appear in the YAML
+      const nestedKeys: Record<string, string> = {
+        "memory:": "memory",
+        "websearchConfig:": "websearchConfig",
+        "websearch_config:": "websearchConfig",
+      };
 
       for (const line of lines) {
         const trimmed = line.trim();
@@ -94,42 +100,28 @@ export class AgentParser {
         const leadingSpaces = line.search(/\S/);
 
         if (trimmed.startsWith("- ") && inArray && currentKey) {
-          const value = trimmed.slice(2).trim();
-          currentArray.push(this.parseValue(value));
+          currentArray.push(this.parseValue(trimmed.slice(2).trim()));
           continue;
         }
 
-        if (inMemory && leadingSpaces >= 2 && trimmed.includes(":")) {
+        if (nestedKey && leadingSpaces >= 2 && trimmed.includes(":")) {
           const [key, value] = this.parseKeyValue(trimmed);
-          if (key) {
-            memoryObj[key] = value;
-          }
-          continue;
-        }
-
-        if (inWebsearchConfig && leadingSpaces >= 2 && trimmed.includes(":")) {
-          const [key, value] = this.parseKeyValue(trimmed);
-          if (key) {
-            websearchConfigObj[key] = value;
-          }
+          if (key) nestedObj[key] = value;
           continue;
         }
 
         if (leadingSpaces === 0 && trimmed.includes(":")) {
+          // Flush pending array
           if (inArray && currentKey) {
             result[currentKey] = currentArray;
             currentArray = [];
             inArray = false;
           }
-          if (inMemory) {
-            result["memory"] = memoryObj;
-            memoryObj = {};
-            inMemory = false;
-          }
-          if (inWebsearchConfig) {
-            result["websearchConfig"] = websearchConfigObj;
-            websearchConfigObj = {};
-            inWebsearchConfig = false;
+          // Flush pending nested object
+          if (nestedKey) {
+            result[nestedKey] = nestedObj;
+            nestedKey = null;
+            nestedObj = {};
           }
 
           if (trimmed === "tools:") {
@@ -139,15 +131,10 @@ export class AgentParser {
             continue;
           }
 
-          if (trimmed === "memory:") {
-            inMemory = true;
-            memoryObj = {};
-            continue;
-          }
-
-          if (trimmed === "websearchConfig:" || trimmed === "websearch_config:") {
-            inWebsearchConfig = true;
-            websearchConfigObj = {};
+          const nestedTarget = nestedKeys[trimmed];
+          if (nestedTarget !== undefined) {
+            nestedKey = nestedTarget;
+            nestedObj = {};
             continue;
           }
 
@@ -159,15 +146,8 @@ export class AgentParser {
         }
       }
 
-      if (inArray && currentKey) {
-        result[currentKey] = currentArray;
-      }
-      if (inMemory) {
-        result["memory"] = memoryObj;
-      }
-      if (inWebsearchConfig) {
-        result["websearchConfig"] = websearchConfigObj;
-      }
+      if (inArray && currentKey) result[currentKey] = currentArray;
+      if (nestedKey) result[nestedKey] = nestedObj;
 
       return result as AgentFrontmatter;
     } catch (error) {
