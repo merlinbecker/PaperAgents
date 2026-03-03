@@ -28,6 +28,7 @@ import {
   ParsedAgentFile,
   MemoryConfig,
   MemoryType,
+  WebSearchConfig,
   YAMLPrimitive,
 } from "../types";
 import { YAMLParseError } from "./yaml-parser";
@@ -83,6 +84,8 @@ export class AgentParser {
       let inArray = false;
       let inMemory = false;
       let memoryObj: Record<string, unknown> = {};
+      let inWebsearchConfig = false;
+      let websearchConfigObj: Record<string, unknown> = {};
 
       for (const line of lines) {
         const trimmed = line.trim();
@@ -104,6 +107,14 @@ export class AgentParser {
           continue;
         }
 
+        if (inWebsearchConfig && leadingSpaces >= 2 && trimmed.includes(":")) {
+          const [key, value] = this.parseKeyValue(trimmed);
+          if (key) {
+            websearchConfigObj[key] = value;
+          }
+          continue;
+        }
+
         if (leadingSpaces === 0 && trimmed.includes(":")) {
           if (inArray && currentKey) {
             result[currentKey] = currentArray;
@@ -114,6 +125,11 @@ export class AgentParser {
             result["memory"] = memoryObj;
             memoryObj = {};
             inMemory = false;
+          }
+          if (inWebsearchConfig) {
+            result["websearchConfig"] = websearchConfigObj;
+            websearchConfigObj = {};
+            inWebsearchConfig = false;
           }
 
           if (trimmed === "tools:") {
@@ -126,6 +142,12 @@ export class AgentParser {
           if (trimmed === "memory:") {
             inMemory = true;
             memoryObj = {};
+            continue;
+          }
+
+          if (trimmed === "websearchConfig:" || trimmed === "websearch_config:") {
+            inWebsearchConfig = true;
+            websearchConfigObj = {};
             continue;
           }
 
@@ -142,6 +164,9 @@ export class AgentParser {
       }
       if (inMemory) {
         result["memory"] = memoryObj;
+      }
+      if (inWebsearchConfig) {
+        result["websearchConfig"] = websearchConfigObj;
       }
 
       return result as AgentFrontmatter;
@@ -236,7 +261,18 @@ export class AgentParser {
       contextTemplate: parsed.contextTemplate,
       temperature: typeof fm.temperature === "number" ? fm.temperature : undefined,
       maxTokens: typeof fm.maxTokens === "number" ? fm.maxTokens : undefined,
+      websearchConfig: this.parseWebSearchConfig(fm.websearchConfig),
     };
+  }
+
+  private static parseWebSearchConfig(config: unknown): WebSearchConfig | undefined {
+    if (!config || typeof config !== "object") return undefined;
+    const cfg = config as Record<string, unknown>;
+    const maxResults = cfg.maxResults ?? cfg.max_results;
+    if (typeof maxResults === "number" && maxResults > 0 && maxResults <= 100) {
+      return { maxResults };
+    }
+    return undefined;
   }
 
   private static parseMemoryConfig(memory: unknown): MemoryConfig {

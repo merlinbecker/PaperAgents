@@ -2,7 +2,7 @@
 
 ## Zusammenfassung
 
-Dieses Dokument beschreibt die Implementierung des OpenRouter WebSearch-Plugin-Supports für PaperAgents.
+Dieses Dokument beschreibt die vollständige Implementierung des OpenRouter WebSearch-Plugin-Supports für PaperAgents.
 
 ---
 
@@ -16,65 +16,106 @@ Referenz: https://openrouter.ai/docs/guides/features/plugins/web-search
 
 ## Implementierte Änderungen
 
-### 1. `src/utils/constants.ts`
+### Phase 1 (Initial)
+
+#### 1. `src/utils/constants.ts`
 - `WEBSEARCH: "websearch"` zu `PREDEFINED_TOOL_IDS` hinzugefügt
 
-### 2. `src/tools/predefined.ts`
+#### 2. `src/tools/predefined.ts`
 - `WebSearchTool`-Klasse als `IExecutableTool` hinzugefügt (no-op lokale Implementierung, die klarstellt, dass das Plugin serverseitig läuft)
 - `WebSearchFactory` als `IToolFactory` exportiert, mit lesbarer Beschreibung
 - `webSearch` zum `PredefinedToolsFactory`-Export hinzugefügt
 
-### 3. `src/core/openrouter.ts`
-- `buildRequestBody()` erweitert um optionalen `plugins?: string[]`-Parameter
-- Wenn Plugins übergeben werden, wird `body.plugins = plugins.map(id => ({ id }))` gesetzt
-- `chat()` und `chatStream()` akzeptieren jetzt optional `plugins?: string[]`
+#### 3. `src/core/openrouter.ts`
+- `buildRequestBody()` erweitert um optionalen `plugins`-Parameter (typisiert als Plugin-Objekt-Array)
+- `chat()` und `chatStream()` akzeptieren jetzt optional Plugin-Konfigurationen
 
-### 4. `src/core/orchestrator.ts`
+#### 4. `src/core/orchestrator.ts`
 - Import von `PREDEFINED_TOOL_IDS` hinzugefügt
-- Neue private Methode `buildPluginList(agent)`: gibt `["web-search"]` zurück, wenn `websearch` in `agent.tools` enthalten ist
+- Neue private Methode `buildPluginList(agent)`: gibt Plugin-Objekte zurück, wenn `websearch` in `agent.tools` enthalten ist
 - `buildToolDefinitions()` überspringt `websearch` (da es kein Function-Tool ist)
-- `continueConversation()` ruft `buildPluginList()` auf und übergibt die Plugin-Liste an `chatStream()`
+- `continueConversation()` übergibt die Plugin-Liste an `chatStream()`
 
-### 5. `src/main.ts`
-- `WebSearchFactory` wird in `registerPredefinedTools()` registriert (Anzahl von 4 auf 5 erhöht)
+#### 5. `src/main.ts`
+- `WebSearchFactory` wird in `registerPredefinedTools()` registriert
 
-### 6. `src/settings.ts`
+#### 6. `src/settings.ts`
 - Beschreibungstext der vordefinierten Tools um `websearch` ergänzt
 
-### 7. Tests
-- `tests/unit/core/openrouter.spec.ts`: 2 neue Tests für Plugin-Unterstützung im API-Request
-- `tests/unit/core/orchestrator.spec.ts`: 3 neue Tests für WebSearch-Plugin-Integration im Orchestrator
+---
+
+### Phase 2 (Erweiterungen)
+
+#### 7. UI-Kennzeichnung (`src/utils/constants.ts`, `src/core/tool-registry.ts`, `src/ui/sidebar.ts`, `styles.css`)
+- `WEBSEARCH: "🌐"` zu `TOOL_ICONS` hinzugefügt
+- `PLUGINS: "OpenRouter Plugins"` zu `TOOL_CATEGORIES` hinzugefügt
+- `isPlugin?: boolean` zum `ToolMetadata`-Interface hinzugefügt
+- `ToolRegistry.listTools()` weist `websearch` die Kategorie `"OpenRouter Plugins"` und das Icon `🌐` zu
+- Sidebar rendert jetzt eine eigene `"OpenRouter Plugins"`-Sektion mit `🌐 Plugin`-Badge
+- Plugin-Tools öffnen kein Parameterformular (kein Click-Handler nötig)
+- Neuer CSS-Style `.pa-tool-badge-plugin` für den Badge
+
+#### 8. WebSearch-Konfiguration (`src/types.ts`, `src/parser/agent-parser.ts`, `src/core/orchestrator.ts`)
+- `WebSearchConfig`-Interface in `src/types.ts` hinzugefügt (`{ maxResults?: number }`)
+- `websearchConfig?: WebSearchConfig` zu `AgentDefinition` und `AgentFrontmatter` hinzugefügt
+- `AgentParser` parst den Frontmatter-Block `websearchConfig:` / `websearch_config:` und übergibt `maxResults`
+- `buildPluginList()` im Orchestrator berücksichtigt `agent.websearchConfig.maxResults` und fügt `max_results` zum Plugin-Objekt hinzu
+
+  **Verwendung im Agenten-YAML:**
+  ```yaml
+  websearchConfig:
+    maxResults: 5
+  ```
+
+#### 9. Streaming-Annotationen / Quellenangaben (`src/core/openrouter.ts`, `src/core/orchestrator.ts`, `src/ui/chat.ts`, `styles.css`)
+- `WebSearchAnnotation` und `WebSearchUrlCitation`-Interfaces in `src/types.ts` definiert
+- `LLMMessage` erweitert um `annotations?: WebSearchAnnotation[]`
+- `StreamChunk.delta` erweitert um `annotations?: WebSearchAnnotation[]`
+- `StreamCallbacks` erweitert um `onAnnotations?: (annotations: WebSearchAnnotation[]) => void`
+- `chatStream()` sammelt Annotationen aus SSE-Chunks und feuert den `onAnnotations`-Callback
+- `OrchestratorCallbacks` weiterleitet `onAnnotations`
+- Chat-UI rendert Quellenangaben als klickbare Links unterhalb der Antwort (`.pa-chat-annotations`)
 
 ---
 
 ## Verwendung
 
-Um den WebSearch-Support für einen Agenten zu aktivieren, füge `websearch` zur `tools`-Liste in der Agenten-Definitionsdatei hinzu:
+### Grundkonfiguration
 
 ```yaml
 ---
 agent: true
-id: my-agent
-name: My Web-Aware Agent
+id: research-agent
+name: Research Agent
 tools:
   - websearch
 memory:
   type: conversation
 ---
 
-Du bist ein hilfreicher Assistent mit Zugriff auf aktuelle Web-Informationen.
+Du bist ein Forschungsassistent mit Zugriff auf aktuelle Web-Informationen.
 ```
 
-Sobald `websearch` als Tool konfiguriert ist, sendet der Orchestrator automatisch `"plugins": [{"id": "web-search"}]` im OpenRouter-API-Request. Das LLM kann dann aktuelle Webinhalte in seine Antworten einbeziehen.
-
-Das `websearch`-Tool kann mit anderen lokalen Tools kombiniert werden:
+### Mit Konfigurationsoptionen
 
 ```yaml
+---
+agent: true
+id: research-agent
+name: Research Agent
 tools:
   - websearch
   - read_file
-  - write_file
+websearchConfig:
+  maxResults: 5
+memory:
+  type: conversation
+---
+
+Du bist ein Forschungsassistent mit Zugriff auf aktuelle Web-Informationen.
 ```
+
+Sobald `websearch` als Tool konfiguriert ist, sendet der Orchestrator automatisch `"plugins": [{"id": "web-search"}]` (ggf. mit `max_results`) im OpenRouter-API-Request. Das LLM kann dann aktuelle Webinhalte einbeziehen und Quellenangaben werden in der Chat-UI als klickbare Links angezeigt.
 
 ---
 
@@ -84,22 +125,19 @@ tools:
 
 2. **Ausschluss aus Function-Tool-Definitionen**: `buildToolDefinitions()` überspringt `websearch`, sodass es nicht als OpenAI-Function-Call-Schema in den Request eingebettet wird.
 
-3. **Plugin-Liste statt Flag**: Die Implementierung nutzt `string[]` als Plugins-Liste, was eine einfache Erweiterung um weitere OpenRouter-Plugins ermöglicht.
+3. **Typisiertes Plugin-Objekt statt String**: Die Plugins-Liste verwendet `Array<{ id: string } & Record<string, unknown>>`, was optionale Parameter wie `max_results` ermöglicht und zukünftige OpenRouter-Plugins ohne Refactoring unterstützt.
 
-4. **Rückwärtskompatibilität**: Alle bestehenden Methoden bleiben unverändert; `plugins` ist in allen Signaturen optional.
+4. **Rückwärtskompatibilität**: Alle bestehenden Methoden bleiben unverändert; alle neuen Felder sind optional.
 
 ---
 
 ## Testergebnisse
 
-- Alle **280 Tests** bestehen (275 vorher + 5 neue)
+- Alle **283 Tests** bestehen (275 vorher + 8 neue)
 - Keine TypeScript-Fehler in den geänderten Dateien
 
 ---
 
-## Offene Arbeiten / Mögliche Erweiterungen
+## Offene Arbeiten
 
-- **UI-Kennzeichnung**: In der Sidebar / im Agent-Editor könnte `websearch` mit einem speziellen Icon (z. B. 🌐) oder einem Hinweis als Plugin-Tool (nicht als lokales Tool) gekennzeichnet werden.
-- **Weitere OpenRouter-Plugins**: Die Plugin-Infrastruktur (`buildPluginList`) ist generisch gehalten und kann für weitere OpenRouter-Plugins (z. B. `code-interpreter`) leicht erweitert werden.
-- **WebSearch-Konfiguration**: Das OpenRouter Web-Search Plugin unterstützt optionale Parameter (z. B. `max_results`). Diese könnten als Agent-Konfigurationsoptionen in `AgentDefinition` ergänzt werden.
-- **Streaming-Annotationen**: OpenRouter gibt bei WebSearch-Antworten Annotationen (Quellenangaben) zurück. Diese könnten in der Chat-UI angezeigt werden.
+- **Weitere OpenRouter-Plugins**: Die Plugin-Infrastruktur (`buildPluginList`) ist generisch gehalten und kann für weitere OpenRouter-Plugins (z. B. `code-interpreter`) durch Hinzufügen eines weiteren Eintrags in `PREDEFINED_TOOL_IDS` und einer entsprechenden Factory leicht erweitert werden.

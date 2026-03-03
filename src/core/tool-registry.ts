@@ -5,7 +5,7 @@
  */
 
 import { Agent, IExecutableTool, ToolMetadata, IToolFactory } from "../types";
-import { TOOL_CATEGORIES, TOOL_ICONS } from "../utils/constants";
+import { TOOL_CATEGORIES, TOOL_ICONS, PREDEFINED_TOOL_IDS } from "../utils/constants";
 import { globalLogger } from "../utils/logger";
 import type { App } from "obsidian";
 
@@ -113,14 +113,16 @@ export class ToolRegistry {
 
     // Predefined Tools
     for (const [id, factory] of this.predefinedTools) {
+      const isPlugin = id === PREDEFINED_TOOL_IDS.WEBSEARCH;
       metadata.push({
         id,
         name: factory.name,
         description: factory.description,
         type: "predefined",
         parameters: factory.parameters ?? [],
-        category: TOOL_CATEGORIES.SYSTEM,
-        icon: TOOL_ICONS.SYSTEM,
+        category: isPlugin ? TOOL_CATEGORIES.PLUGINS : TOOL_CATEGORIES.SYSTEM,
+        icon: isPlugin ? TOOL_ICONS.WEBSEARCH : TOOL_ICONS.SYSTEM,
+        isPlugin,
       });
     }
 

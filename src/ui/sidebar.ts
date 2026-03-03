@@ -233,6 +233,15 @@ export class PaperAgentsSidebar extends ItemView {
       );
     }
 
+    // OpenRouter Plugins
+    if (grouped[TOOL_CATEGORIES.PLUGINS]) {
+      this.renderToolCategory(
+        this.toolsContainer,
+        TOOL_CATEGORIES.PLUGINS,
+        grouped[TOOL_CATEGORIES.PLUGINS] || []
+      );
+    }
+
     globalLogger.debug(`Rendered ${tools.length} tools in sidebar`);
   }
 
@@ -324,6 +333,11 @@ export class PaperAgentsSidebar extends ItemView {
         paramsPanel.toggleClass("pa-hidden", expanded);
         badge.setText(paramsBadgeText(!expanded));
       });
+    } else if (tool.isPlugin) {
+      toolItem.createSpan({
+        text: "🌐 Plugin",
+        cls: "pa-tool-badge pa-tool-badge-plugin",
+      });
     } else {
       toolItem.createSpan({
         text: `0 params`,
@@ -331,12 +345,14 @@ export class PaperAgentsSidebar extends ItemView {
       });
     }
 
-    // Click Handler
-    toolItem.addEventListener("click", () => {
-      this.onToolClick(tool.id);
-      this.updateStatus(`Opening ${tool.name}...`);
-      globalLogger.info(`Tool clicked: ${tool.id}`);
-    });
+    // Click Handler – plugins don't open a parameter form
+    if (!tool.isPlugin) {
+      toolItem.addEventListener("click", () => {
+        this.onToolClick(tool.id);
+        this.updateStatus(`Opening ${tool.name}...`);
+        globalLogger.info(`Tool clicked: ${tool.id}`);
+      });
+    }
 
     // Hover Effect
     toolItem.addEventListener("mouseenter", () => {

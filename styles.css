@@ -129,6 +129,11 @@
   opacity: 0.8;
 }
 
+.pa-tool-badge-plugin {
+  background: var(--background-modifier-border);
+  color: var(--text-normal);
+}
+
 /* Tool wrapper with expandable params panel */
 .pa-tool-wrapper {
   margin-bottom: 8px;
@@ -1001,6 +1006,38 @@
 .pa-chat-input:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Web search annotations / source citations */
+.pa-chat-annotations {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--background-primary-alt);
+  border-left: 3px solid var(--interactive-accent);
+  border-radius: 4px;
+  font-size: 0.8em;
+}
+
+.pa-chat-annotations-label {
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  font-size: 0.9em;
+}
+
+.pa-chat-annotation-link {
+  display: block;
+  color: var(--text-accent);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 0;
+}
+
+.pa-chat-annotation-link:hover {
+  text-decoration: underline;
 }
 
 /* ============================================================================

@@ -17,6 +17,7 @@ export interface OrchestratorCallbacks {
   onToken?: (token: string) => void;
   onToolCallStart?: (toolId: string, params: Record<string, unknown>) => void;
   onToolCallEnd?: (toolId: string, result: unknown, error?: string) => void;
+  onAnnotations?: (annotations: import("../types").WebSearchAnnotation[]) => void;
   onComplete?: (content: string) => void;
   onError?: (error: Error) => void;
 }
@@ -76,6 +77,7 @@ export class Orchestrator {
 
         const streamCallbacks: StreamCallbacks = {
           onToken: callbacks?.onToken,
+          onAnnotations: callbacks?.onAnnotations,
           onError: callbacks?.onError,
         };
 
@@ -277,10 +279,14 @@ export class Orchestrator {
     return definitions;
   }
 
-  private buildPluginList(agent: AgentDefinition): string[] {
-    const plugins: string[] = [];
+  private buildPluginList(agent: AgentDefinition): Array<{ id: string } & Record<string, unknown>> {
+    const plugins: Array<{ id: string } & Record<string, unknown>> = [];
     if (agent.tools.includes(PREDEFINED_TOOL_IDS.WEBSEARCH)) {
-      plugins.push("web-search");
+      const plugin: { id: string } & Record<string, unknown> = { id: "web-search" };
+      if (agent.websearchConfig?.maxResults !== undefined) {
+        plugin["max_results"] = agent.websearchConfig.maxResults;
+      }
+      plugins.push(plugin);
     }
     return plugins;
   }

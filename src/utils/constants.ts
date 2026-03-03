@@ -55,6 +55,7 @@ export const TOOL_CATEGORIES = {
   CHAINS: "Chains",
   CHAIN: "Chains",
   AGENTS: "Agents",
+  PLUGINS: "OpenRouter Plugins",
 };
 
 // Icons
@@ -64,6 +65,7 @@ export const TOOL_ICONS = {
   CUSTOM: "📝",
   CHAIN: "🔗",
   AGENTS: "🤖",
+  WEBSEARCH: "🌐",
   DEFAULT: "⚙️",
 };
 

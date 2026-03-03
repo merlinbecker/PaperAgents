@@ -218,6 +218,28 @@ describe("Orchestrator", () => {
     expect(body.plugins).toEqual([{ id: "web-search" }]);
   });
 
+  it("includes max_results when websearchConfig is set on agent", async () => {
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      text: [
+        'data: {"id":"gen-ws-mr","choices":[{"index":0,"delta":{"role":"assistant","content":"Done"},"finish_reason":null}]}',
+        'data: {"id":"gen-ws-mr","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+        "data: [DONE]",
+      ].join("\n"),
+    } as never);
+
+    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
+    const agent = { ...makeAgent(), tools: ["websearch"], websearchConfig: { maxResults: 5 } };
+    const convId = "conv-websearch-mr";
+    conversationManager.createConversation(convId, agent.id);
+
+    await orchestrator.sendMessage(agent, convId, "Search");
+
+    const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
+    const body = JSON.parse(call.body as string) as Record<string, unknown>;
+    expect(body.plugins).toEqual([{ id: "web-search", max_results: 5 }]);
+  });
+
   it("does not include websearch as a function tool definition", async () => {
     mockRequestUrl.mockResolvedValueOnce({
       status: 200,
