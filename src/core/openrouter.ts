@@ -192,6 +192,43 @@ export class OpenRouterClient {
     this.requestTimestamps.push(Date.now());
   }
 
+  private async performChatRequest(body: Record<string, unknown>): Promise<OpenRouterResponse> {
+    const params: RequestUrlParam = {
+      url: `${API_BASE}/chat/completions`,
+      method: "POST",
+      headers: this.buildHeaders(),
+      body: JSON.stringify(body),
+      throw: false,
+    };
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new OpenRouterError("Request timed out", 0, true)), REQUEST_TIMEOUT);
+    });
+    let response;
+    try {
+      response = await Promise.race([requestUrl(params), timeoutPromise]);
+    } finally {
+      clearTimeout(timeoutId!);
+    }
+
+    if (response.status >= 200 && response.status < 300) {
+      const data = response.json as OpenRouterResponse;
+      globalLogger.debug("OpenRouter response received", {
+        model: data.model,
+        usage: data.usage,
+      });
+      return data;
+    }
+
+    const errorBody = response.text || "Unknown error";
+    throw new OpenRouterError(
+      `OpenRouter API error: ${response.status} - ${errorBody}`,
+      response.status,
+      this.isRetryableStatus(response.status)
+    );
+  }
+
   async chat(
     messages: LLMMessage[],
     tools?: LLMToolDefinition[],
@@ -203,68 +240,30 @@ export class OpenRouterClient {
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const params: RequestUrlParam = {
-          url: `${API_BASE}/chat/completions`,
-          method: "POST",
-          headers: this.buildHeaders(),
-          body: JSON.stringify(body),
-          throw: false,
-        };
-
-        let timeoutId: ReturnType<typeof setTimeout>;
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          timeoutId = setTimeout(() => reject(new OpenRouterError("Request timed out", 0, true)), REQUEST_TIMEOUT);
-        });
-        let response;
-        try {
-          response = await Promise.race([requestUrl(params), timeoutPromise]);
-        } finally {
-          clearTimeout(timeoutId!);
-        }
-
-        if (response.status >= 200 && response.status < 300) {
-          const data = response.json as OpenRouterResponse;
-          globalLogger.debug("OpenRouter response received", {
-            model: data.model,
-            usage: data.usage,
-          });
-          return data;
-        }
-
-        if (this.isRetryableStatus(response.status) && attempt < MAX_RETRIES) {
+        return await this.performChatRequest(body);
+      } catch (error) {
+        if (error instanceof OpenRouterError) {
+          if (!error.retryable || attempt >= MAX_RETRIES) throw error;
           const delay = this.getRetryDelay(attempt);
-          globalLogger.warn(`OpenRouter ${response.status}, retrying in ${delay}ms`, {
+          globalLogger.warn(`OpenRouter ${error.statusCode}, retrying in ${delay}ms`, {
             attempt: attempt + 1,
             maxRetries: MAX_RETRIES,
           });
           await this.sleep(delay);
-          continue;
-        }
-
-        const errorBody = response.text || "Unknown error";
-        throw new OpenRouterError(
-          `OpenRouter API error: ${response.status} - ${errorBody}`,
-          response.status,
-          this.isRetryableStatus(response.status)
-        );
-      } catch (error) {
-        if (error instanceof OpenRouterError) throw error;
-
-        if (attempt < MAX_RETRIES) {
+        } else if (attempt >= MAX_RETRIES) {
+          throw new OpenRouterError(
+            `Network error after ${MAX_RETRIES + 1} attempts: ${error instanceof Error ? error.message : String(error)}`,
+            0,
+            false
+          );
+        } else {
           const delay = this.getRetryDelay(attempt);
           globalLogger.warn("OpenRouter request error, retrying", {
             attempt: attempt + 1,
             error: String(error),
           });
           await this.sleep(delay);
-          continue;
         }
-
-        throw new OpenRouterError(
-          `Network error after ${MAX_RETRIES + 1} attempts: ${error instanceof Error ? error.message : String(error)}`,
-          0,
-          false
-        );
       }
     }
 
