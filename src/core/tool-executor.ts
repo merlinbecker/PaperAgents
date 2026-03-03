@@ -10,6 +10,21 @@ import { QuickJSSandbox } from "./sandbox";
 import PlaceholderReplacer from "../parser/placeholder";
 
 /**
+ * Parameter object for executeLoopStep (S107: reduces parameter count)
+ */
+interface LoopStepContext {
+  step: Step;
+  agent: Agent;
+  userParameters: Record<string, unknown>;
+  stepOutputs: Map<string, unknown>;
+  executionId: string;
+  toolRegistry: IToolRegistry;
+  allLogs: ToolExecution[];
+  traceId: string;
+  parentSpanId: string;
+}
+
+/**
  * HITL Decision Interface
  * Wird an UI-Layer für Benutzer-Bestätigung übergeben
  */
@@ -137,9 +152,9 @@ export class ToolExecutor {
 
         // Loop: execute step for each item in a list
         if (step.loop) {
-          const loopResults = await this.executeLoopStep(
-            step, agent, userParameters, stepOutputs, executionId, toolRegistry, allLogs, traceId, agentSpan.spanId
-          );
+          const loopResults = await this.executeLoopStep({
+            step, agent, userParameters, stepOutputs, executionId, toolRegistry, allLogs, traceId, parentSpanId: agentSpan.spanId,
+          });
           stepOutputs.set(step.name, loopResults);
           continue;
         }
@@ -446,16 +461,9 @@ export class ToolExecutor {
   }
 
   private async executeLoopStep(
-    step: Step,
-    agent: Agent,
-    userParameters: Record<string, unknown>,
-    stepOutputs: Map<string, unknown>,
-    executionId: string,
-    toolRegistry: IToolRegistry,
-    allLogs: ToolExecution[],
-    traceId: string,
-    parentSpanId: string
+    ctx: LoopStepContext
   ): Promise<unknown[]> {
+    const { step, agent, userParameters, stepOutputs, executionId, toolRegistry, allLogs, traceId, parentSpanId } = ctx;
     const loop = step.loop!;
     const maxIterations = loop.maxIterations || 100;
 
