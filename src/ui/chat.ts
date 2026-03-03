@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf, Notice, TFile } from "obsidian";
-import { AgentDefinition } from "../types";
+import { AgentDefinition, WebSearchAnnotation } from "../types";
 import { ConversationManager } from "../core/conversation";
 import { ConversationFileManager } from "../core/conversation-file-manager";
 import { Orchestrator, OrchestratorCallbacks } from "../core/orchestrator";
@@ -365,6 +365,7 @@ export class PaperAgentsChatView extends ItemView {
       onToken: (token) => this.appendToStreaming(token),
       onToolCallStart: (toolId, params) => this.addToolCallToUI(toolId, params, true),
       onToolCallEnd: (toolId, result, error) => this.addToolCallToUI(toolId, {}, false, result, error),
+      onAnnotations: (annotations) => this.addAnnotationsToStreaming(annotations),
       onError: (error) => this.addErrorMessage(error),
     };
   }
@@ -571,6 +572,29 @@ export class PaperAgentsChatView extends ItemView {
     msgEl.createDiv({ cls: "pa-chat-message-content" });
     this.scrollToBottom();
     return msgEl;
+  }
+
+  private addAnnotationsToStreaming(annotations: WebSearchAnnotation[]): void {
+    if (!this.streamingEl) return;
+    const citations = annotations
+      .filter((a) => a.type === "url_citation" && a.url_citation?.url)
+      .map((a) => ({
+        url: a.url_citation!.url,
+        title: a.url_citation!.title,
+      }));
+    if (citations.length === 0) return;
+
+    const citationsDiv = this.streamingEl.createDiv({ cls: "pa-chat-annotations" });
+    citationsDiv.createDiv({ cls: "pa-chat-annotations-label", text: "Sources:" });
+    for (const c of citations) {
+      const link = citationsDiv.createEl("a", {
+        cls: "pa-chat-annotation-link",
+        attr: { href: c.url, target: "_blank", rel: "noopener noreferrer" },
+        text: c.title || c.url,
+      });
+      link.title = c.url;
+    }
+    this.scrollToBottom();
   }
 
   private appendToStreaming(token: string): void {

@@ -196,7 +196,7 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
       text: "Paper agents allows you to define and execute custom tools using YAML-based configurations.",
     });
     containerEl.createEl("p", {
-      text: "Predefined tools: search_files, read_file, write_file, REST_request",
+      text: "Predefined tools: search_files, read_file, write_file, REST_request, websearch",
     });
   }
 

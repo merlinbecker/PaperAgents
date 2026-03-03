@@ -9,6 +9,7 @@ export const PREDEFINED_TOOL_IDS = {
   READ_FILE: "read_file",
   WRITE_FILE: "write_file",
   REST_REQUEST: "rest_request",
+  WEBSEARCH: "websearch",
 };
 
 // Default-Pfade
@@ -54,6 +55,7 @@ export const TOOL_CATEGORIES = {
   CHAINS: "Chains",
   CHAIN: "Chains",
   AGENTS: "Agents",
+  PLUGINS: "OpenRouter Plugins",
 };
 
 // Icons
@@ -63,6 +65,7 @@ export const TOOL_ICONS = {
   CUSTOM: "📝",
   CHAIN: "🔗",
   AGENTS: "🤖",
+  WEBSEARCH: "🌐",
   DEFAULT: "⚙️",
 };
 

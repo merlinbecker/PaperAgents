@@ -1,5 +1,6 @@
 import { requestUrl, RequestUrlParam } from "obsidian";
 import { globalLogger } from "../utils/logger";
+import type { WebSearchAnnotation } from "../types";
 
 export interface OpenRouterConfig {
   apiKey: string;
@@ -16,6 +17,7 @@ export interface LLMMessage {
   tool_calls?: LLMToolCall[];
   tool_call_id?: string;
   name?: string;
+  annotations?: WebSearchAnnotation[];
 }
 
 export interface LLMToolCall {
@@ -65,6 +67,7 @@ export interface StreamChunk {
     index: number;
     delta: Partial<LLMMessage> & {
       tool_calls?: (Partial<LLMToolCall> & { index?: number })[];
+      annotations?: WebSearchAnnotation[];
     };
     finish_reason: string | null;
   }[];
@@ -73,6 +76,7 @@ export interface StreamChunk {
 export interface StreamCallbacks {
   onToken?: (token: string) => void;
   onToolCall?: (toolCall: LLMToolCall) => void;
+  onAnnotations?: (annotations: WebSearchAnnotation[]) => void;
   onComplete?: (response: OpenRouterResponse) => void;
   onError?: (error: Error) => void;
 }
@@ -130,7 +134,8 @@ export class OpenRouterClient {
     messages: LLMMessage[],
     tools?: LLMToolDefinition[],
     stream = false,
-    modelOverride?: string
+    modelOverride?: string,
+    plugins?: Array<{ id: string } & Record<string, unknown>>
   ): Record<string, unknown> {
     const body: Record<string, unknown> = {
       model: modelOverride ?? this.config.model,
@@ -143,6 +148,10 @@ export class OpenRouterClient {
     if (tools && tools.length > 0) {
       body.tools = tools;
       body.tool_choice = "auto";
+    }
+
+    if (plugins && plugins.length > 0) {
+      body.plugins = plugins;
     }
 
     return body;
@@ -185,9 +194,10 @@ export class OpenRouterClient {
 
   async chat(
     messages: LLMMessage[],
-    tools?: LLMToolDefinition[]
+    tools?: LLMToolDefinition[],
+    plugins?: Array<{ id: string } & Record<string, unknown>>
   ): Promise<OpenRouterResponse> {
-    const body = this.buildRequestBody(messages, tools, false);
+    const body = this.buildRequestBody(messages, tools, false, undefined, plugins);
 
     await this.enforceRateLimit();
 
@@ -265,9 +275,10 @@ export class OpenRouterClient {
     messages: LLMMessage[],
     callbacks: StreamCallbacks,
     tools?: LLMToolDefinition[],
-    modelOverride?: string
+    modelOverride?: string,
+    plugins?: Array<{ id: string } & Record<string, unknown>>
   ): Promise<OpenRouterResponse> {
-    const body = this.buildRequestBody(messages, tools, true, modelOverride);
+    const body = this.buildRequestBody(messages, tools, true, modelOverride, plugins);
 
     await this.enforceRateLimit();
 
@@ -313,6 +324,7 @@ export class OpenRouterClient {
 
     const fullContent: string[] = [];
     const toolCallsMap: Map<number, LLMToolCall> = new Map();
+    const allAnnotations: WebSearchAnnotation[] = [];
     let finishReason: string | null = null;
     let responseId = "";
     let responseModel = "";
@@ -337,6 +349,10 @@ export class OpenRouterClient {
           if (choice.delta.content) {
             fullContent.push(choice.delta.content);
             callbacks.onToken?.(choice.delta.content);
+          }
+
+          if (choice.delta.annotations) {
+            allAnnotations.push(...choice.delta.annotations);
           }
 
           if (choice.delta.tool_calls) {
@@ -366,6 +382,10 @@ export class OpenRouterClient {
       callbacks.onToolCall?.(tc);
     }
 
+    if (allAnnotations.length > 0) {
+      callbacks.onAnnotations?.(allAnnotations);
+    }
+
     const completeResponse: OpenRouterResponse = {
       id: responseId,
       choices: [{
@@ -374,6 +394,7 @@ export class OpenRouterClient {
           role: "assistant",
           content: fullContent.join("") || null,
           tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+          annotations: allAnnotations.length > 0 ? allAnnotations : undefined,
         },
         finish_reason: finishReason,
       }],

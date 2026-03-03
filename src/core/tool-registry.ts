@@ -113,14 +113,16 @@ export class ToolRegistry {
 
     // Predefined Tools
     for (const [id, factory] of this.predefinedTools) {
+      const isPlugin = factory.isPlugin === true;
       metadata.push({
         id,
         name: factory.name,
         description: factory.description,
         type: "predefined",
         parameters: factory.parameters ?? [],
-        category: TOOL_CATEGORIES.SYSTEM,
-        icon: TOOL_ICONS.SYSTEM,
+        category: isPlugin ? TOOL_CATEGORIES.PLUGINS : TOOL_CATEGORIES.SYSTEM,
+        icon: isPlugin ? TOOL_ICONS.WEBSEARCH : TOOL_ICONS.SYSTEM,
+        isPlugin,
       });
     }
 

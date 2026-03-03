@@ -1,9 +1,10 @@
-import { AgentDefinition, ToolCallInfo } from "../types";
+import { AgentDefinition, ToolCallInfo, WebSearchAnnotation } from "../types";
 import { ConversationManager } from "./conversation";
 import { OpenRouterClient, LLMMessage, LLMToolDefinition, LLMToolCall, StreamCallbacks, OpenRouterConfig } from "./openrouter";
 import ToolRegistry from "./tool-registry";
 import { globalLogger } from "../utils/logger";
 import { globalMetrics } from "../utils/metrics";
+import { PREDEFINED_TOOL_IDS } from "../utils/constants";
 
 const MAX_TOOL_CALL_ROUNDS = 10;
 
@@ -16,6 +17,7 @@ export interface OrchestratorCallbacks {
   onToken?: (token: string) => void;
   onToolCallStart?: (toolId: string, params: Record<string, unknown>) => void;
   onToolCallEnd?: (toolId: string, result: unknown, error?: string) => void;
+  onAnnotations?: (annotations: WebSearchAnnotation[]) => void;
   onComplete?: (content: string) => void;
   onError?: (error: Error) => void;
 }
@@ -64,6 +66,7 @@ export class Orchestrator {
 
     try {
       const tools = this.buildToolDefinitions(agent);
+      const plugins = this.buildPluginList(agent);
       let round = 0;
       let finalContent = "";
 
@@ -74,10 +77,11 @@ export class Orchestrator {
 
         const streamCallbacks: StreamCallbacks = {
           onToken: callbacks?.onToken,
+          onAnnotations: callbacks?.onAnnotations,
           onError: callbacks?.onError,
         };
 
-        const response = await this.client.chatStream(messages, streamCallbacks, tools, agent.model);
+        const response = await this.client.chatStream(messages, streamCallbacks, tools, agent.model, plugins);
 
         const choice = response.choices[0];
         if (!choice) break;
@@ -239,6 +243,9 @@ export class Orchestrator {
     const definitions: LLMToolDefinition[] = [];
 
     for (const toolId of agent.tools) {
+      // websearch is a server-side plugin, not a function tool
+      if (toolId === PREDEFINED_TOOL_IDS.WEBSEARCH) continue;
+
       const toolMeta = this.toolRegistry.listTools().find((t) => t.id === toolId);
       if (!toolMeta) continue;
 
@@ -270,6 +277,18 @@ export class Orchestrator {
     }
 
     return definitions;
+  }
+
+  private buildPluginList(agent: AgentDefinition): Array<{ id: string } & Record<string, unknown>> {
+    const plugins: Array<{ id: string } & Record<string, unknown>> = [];
+    if (agent.tools.includes(PREDEFINED_TOOL_IDS.WEBSEARCH)) {
+      const plugin: { id: string } & Record<string, unknown> = { id: "web-search" };
+      if (agent.websearchConfig?.maxResults !== undefined) {
+        plugin["max_results"] = agent.websearchConfig.maxResults;
+      }
+      plugins.push(plugin);
+    }
+    return plugins;
   }
 
   async testConnection(): Promise<{ success: boolean; error?: string }> {

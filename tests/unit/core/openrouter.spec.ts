@@ -217,4 +217,85 @@ describe("OpenRouterClient", () => {
     const headers = call.headers as Record<string, string>;
     expect(headers["HTTP-Referer"]).toBe("https://example.com");
   });
+
+  it("includes plugins in request body when plugins are provided", async () => {
+    const client = makeClient();
+
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      json: {
+        id: "gen-plugin",
+        choices: [{ index: 0, message: { role: "assistant", content: "Result" }, finish_reason: "stop" }],
+        model: "openai/gpt-4",
+      },
+    } as never);
+
+    await client.chat([{ role: "user", content: "Search the web" }], undefined, [{ id: "web-search" }]);
+
+    const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
+    const body = JSON.parse(call.body as string) as Record<string, unknown>;
+    expect(body.plugins).toEqual([{ id: "web-search" }]);
+  });
+
+  it("includes max_results when provided in plugin config", async () => {
+    const client = makeClient();
+
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      json: {
+        id: "gen-mr",
+        choices: [{ index: 0, message: { role: "assistant", content: "OK" }, finish_reason: "stop" }],
+        model: "openai/gpt-4",
+      },
+    } as never);
+
+    await client.chat([{ role: "user", content: "Search" }], undefined, [{ id: "web-search", max_results: 3 }]);
+
+    const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
+    const body = JSON.parse(call.body as string) as Record<string, unknown>;
+    expect(body.plugins).toEqual([{ id: "web-search", max_results: 3 }]);
+  });
+
+  it("does not include plugins field when no plugins provided", async () => {
+    const client = makeClient();
+
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      json: {
+        id: "gen-noplugin",
+        choices: [{ index: 0, message: { role: "assistant", content: "OK" }, finish_reason: "stop" }],
+        model: "openai/gpt-4",
+      },
+    } as never);
+
+    await client.chat([{ role: "user", content: "Hello" }]);
+
+    const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
+    const body = JSON.parse(call.body as string) as Record<string, unknown>;
+    expect(body.plugins).toBeUndefined();
+  });
+
+  it("fires onAnnotations callback when stream contains annotations", async () => {
+    const client = makeClient();
+    const annotation = { type: "url_citation", url_citation: { url: "https://example.com", title: "Example" } };
+
+    mockRequestUrl.mockResolvedValueOnce({
+      status: 200,
+      text: [
+        `data: {"id":"gen-ann","choices":[{"index":0,"delta":{"role":"assistant","content":"Result","annotations":[${JSON.stringify(annotation)}]},"finish_reason":null}]}`,
+        'data: {"id":"gen-ann","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+        "data: [DONE]",
+      ].join("\n"),
+    } as never);
+
+    const receivedAnnotations: unknown[] = [];
+    await client.chatStream(
+      [{ role: "user", content: "Search" }],
+      { onAnnotations: (a) => receivedAnnotations.push(...a) }
+    );
+
+    expect(receivedAnnotations).toHaveLength(1);
+    expect((receivedAnnotations[0] as typeof annotation).type).toBe("url_citation");
+    expect((receivedAnnotations[0] as typeof annotation).url_citation?.url).toBe("https://example.com");
+  });
 });

@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("obsidian", () => {
-  return {
-    requestUrl: vi.fn(),
-  };
-});
+vi.mock("obsidian", () => ({ requestUrl: vi.fn() }));
 
 import { Orchestrator } from "../../../src/core/orchestrator";
 import { ConversationManager } from "../../../src/core/conversation";
@@ -13,6 +9,8 @@ import { AgentDefinition } from "../../../src/types";
 import { requestUrl } from "obsidian";
 
 const mockRequestUrl = vi.mocked(requestUrl);
+
+// ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const makeAgent = (): AgentDefinition => ({
   id: "test-agent",
@@ -32,7 +30,27 @@ const makeOrchestratorConfig = () => ({
   maxToolCallRounds: 5,
 });
 
+/** Build a mock SSE streaming response. Accepts one or more content strings. */
+function makeStreamResponse(content: string | string[]): object {
+  const chunks = Array.isArray(content) ? content : [content];
+  const lines = chunks.map(
+    (c) => `data: {"id":"gen","choices":[{"index":0,"delta":{"content":"${c}"},"finish_reason":null}]}`
+  );
+  lines.push(`data: {"id":"gen","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`);
+  lines.push("data: [DONE]");
+  return { status: 200, text: lines.join("\n") };
+}
+
+/** Extract the parsed JSON body from the first requestUrl call. */
+function getRequestBody(): Record<string, unknown> {
+  const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
+  return JSON.parse(call.body as string) as Record<string, unknown>;
+}
+
+// ── Suite ─────────────────────────────────────────────────────────────────────
+
 describe("Orchestrator", () => {
+  let orchestrator: Orchestrator;
   let conversationManager: ConversationManager;
   let toolRegistry: ToolRegistry;
 
@@ -40,26 +58,19 @@ describe("Orchestrator", () => {
     vi.clearAllMocks();
     conversationManager = new ConversationManager();
     toolRegistry = new ToolRegistry();
+    orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
+  // ── Core messaging ───────────────────────────────────────────────────────────
+
   it("sends a message and returns assistant response", async () => {
-    mockRequestUrl.mockResolvedValueOnce({
-      status: 200,
-      text: [
-        'data: {"id":"gen-1","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}',
-        'data: {"id":"gen-1","choices":[{"index":0,"delta":{"content":" there!"},"finish_reason":null}]}',
-        'data: {"id":"gen-1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
-        "data: [DONE]",
-      ].join("\n"),
-    } as never);
+    mockRequestUrl.mockResolvedValueOnce(makeStreamResponse(["Hello", " there!"]) as never);
 
-    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
     const agent = makeAgent();
-
     const convId = "conv-1";
     conversationManager.createConversation(convId, agent.id);
 
@@ -68,24 +79,14 @@ describe("Orchestrator", () => {
   });
 
   it("calls onToken callback during streaming", async () => {
-    mockRequestUrl.mockResolvedValueOnce({
-      status: 200,
-      text: [
-        'data: {"id":"gen-1","choices":[{"index":0,"delta":{"role":"assistant","content":"Hi"},"finish_reason":null}]}',
-        'data: {"id":"gen-1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
-        "data: [DONE]",
-      ].join("\n"),
-    } as never);
+    mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("Hi") as never);
 
-    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
     const agent = makeAgent();
     const convId = "conv-2";
     conversationManager.createConversation(convId, agent.id);
 
     const tokens: string[] = [];
-    await orchestrator.sendMessage(agent, convId, "Test", {
-      onToken: (t) => tokens.push(t),
-    });
+    await orchestrator.sendMessage(agent, convId, "Test", { onToken: (t) => tokens.push(t) });
 
     expect(tokens.length).toBeGreaterThan(0);
   });
@@ -93,52 +94,23 @@ describe("Orchestrator", () => {
   it("calls onError callback on failure", async () => {
     mockRequestUrl.mockRejectedValueOnce(new Error("API down"));
 
-    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
     const agent = makeAgent();
     const convId = "conv-3";
     conversationManager.createConversation(convId, agent.id);
 
     let errorReceived: Error | null = null;
     await expect(
-      orchestrator.sendMessage(agent, convId, "Test", {
-        onError: (e) => { errorReceived = e; },
-      })
+      orchestrator.sendMessage(agent, convId, "Test", { onError: (e) => { errorReceived = e; } })
     ).rejects.toThrow();
 
     expect(errorReceived).not.toBeNull();
   });
 
-  it("testConnection delegates to client", async () => {
-    mockRequestUrl.mockResolvedValueOnce({
-      status: 200,
-      json: { data: [{ id: "openai/gpt-4" }] },
-    } as never);
-
-    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
-    const result = await orchestrator.testConnection();
-    expect(result.success).toBe(true);
-  });
-
-  it("updateConfig updates the client config", () => {
-    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
-    orchestrator.updateConfig({ model: "new-model" });
-  });
-
   it("continueConversation sends existing history without adding a user message", async () => {
-    mockRequestUrl.mockResolvedValueOnce({
-      status: 200,
-      text: [
-        'data: {"id":"gen-2","choices":[{"index":0,"delta":{"role":"assistant","content":"Continuing"},"finish_reason":null}]}',
-        'data: {"id":"gen-2","choices":[{"index":0,"delta":{"content":" response"},"finish_reason":null}]}',
-        'data: {"id":"gen-2","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
-        "data: [DONE]",
-      ].join("\n"),
-    } as never);
+    mockRequestUrl.mockResolvedValueOnce(makeStreamResponse(["Continuing", " response"]) as never);
 
-    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
     const agent = makeAgent();
     const convId = "conv-continue";
-    // agentId first, then custom id
     conversationManager.createConversation(agent.id, convId);
     conversationManager.addMessage(convId, "user", "Previous message");
 
@@ -146,54 +118,95 @@ describe("Orchestrator", () => {
     const result = await orchestrator.continueConversation(agent, convId, {});
 
     expect(result).toBe("Continuing response");
-    // Only the assistant reply was added, not a new user message
     const messagesAfter = conversationManager.getMessages(convId);
     expect(messagesAfter.length).toBe(messagesBefore + 1);
     expect(messagesAfter[messagesAfter.length - 1]?.role).toBe("assistant");
   });
 
-  it("uses agent model when specified in agent definition", async () => {
+  // ── Client delegation ────────────────────────────────────────────────────────
+
+  it("testConnection delegates to client", async () => {
     mockRequestUrl.mockResolvedValueOnce({
       status: 200,
-      text: [
-        'data: {"id":"gen-5","choices":[{"index":0,"delta":{"role":"assistant","content":"OK"},"finish_reason":null}]}',
-        'data: {"id":"gen-5","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
-        "data: [DONE]",
-      ].join("\n"),
+      json: { data: [{ id: "openai/gpt-4" }] },
     } as never);
 
-    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
+    const result = await orchestrator.testConnection();
+    expect(result.success).toBe(true);
+  });
+
+  it("updateConfig updates the client config", () => {
+    orchestrator.updateConfig({ model: "new-model" });
+  });
+
+  // ── Model selection ──────────────────────────────────────────────────────────
+
+  it("uses agent model when specified in agent definition", async () => {
+    mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("OK") as never);
+
     const agent = { ...makeAgent(), model: "anthropic/claude-3-opus" };
     const convId = "conv-model";
     conversationManager.createConversation(convId, agent.id);
 
     await orchestrator.sendMessage(agent, convId, "Test");
-
-    const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
-    const body = JSON.parse(call.body as string) as Record<string, unknown>;
-    expect(body.model).toBe("anthropic/claude-3-opus");
+    expect(getRequestBody().model).toBe("anthropic/claude-3-opus");
   });
 
   it("uses client default model when agent has no model specified", async () => {
-    mockRequestUrl.mockResolvedValueOnce({
-      status: 200,
-      text: [
-        'data: {"id":"gen-6","choices":[{"index":0,"delta":{"role":"assistant","content":"OK"},"finish_reason":null}]}',
-        'data: {"id":"gen-6","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
-        "data: [DONE]",
-      ].join("\n"),
-    } as never);
+    mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("OK") as never);
 
-    const orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
-    const agent = makeAgent(); // no model set
+    const agent = makeAgent();
     const convId = "conv-default-model";
     conversationManager.createConversation(convId, agent.id);
 
     await orchestrator.sendMessage(agent, convId, "Test");
-
-    const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
-    const body = JSON.parse(call.body as string) as Record<string, unknown>;
-    expect(body.model).toBe("openai/gpt-4"); // from makeOrchestratorConfig
+    expect(getRequestBody().model).toBe("openai/gpt-4");
   });
 
+  // ── WebSearch plugin ─────────────────────────────────────────────────────────
+
+  it("passes plugins array when agent uses websearch tool", async () => {
+    mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("Search result") as never);
+
+    const agent = { ...makeAgent(), tools: ["websearch"] };
+    const convId = "conv-websearch";
+    conversationManager.createConversation(convId, agent.id);
+
+    await orchestrator.sendMessage(agent, convId, "Search the web");
+    expect(getRequestBody().plugins).toEqual([{ id: "web-search" }]);
+  });
+
+  it("includes max_results when websearchConfig is set on agent", async () => {
+    mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("Done") as never);
+
+    const agent = { ...makeAgent(), tools: ["websearch"], websearchConfig: { maxResults: 5 } };
+    const convId = "conv-websearch-mr";
+    conversationManager.createConversation(convId, agent.id);
+
+    await orchestrator.sendMessage(agent, convId, "Search");
+    expect(getRequestBody().plugins).toEqual([{ id: "web-search", max_results: 5 }]);
+  });
+
+  it("does not include websearch as a function tool definition", async () => {
+    mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("Done") as never);
+
+    const agent = { ...makeAgent(), tools: ["websearch"] };
+    const convId = "conv-websearch-notools";
+    conversationManager.createConversation(convId, agent.id);
+
+    await orchestrator.sendMessage(agent, convId, "Test");
+    // tools array should be absent since websearch is a plugin, not a function tool
+    expect(getRequestBody().tools).toBeUndefined();
+  });
+
+  it("does not include plugins when agent has no websearch tool", async () => {
+    mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("OK") as never);
+
+    const agent = makeAgent();
+    const convId = "conv-no-websearch";
+    conversationManager.createConversation(convId, agent.id);
+
+    await orchestrator.sendMessage(agent, convId, "Test");
+    expect(getRequestBody().plugins).toBeUndefined();
+  });
 });

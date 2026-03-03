@@ -123,6 +123,7 @@ export interface IToolFactory {
   name: string;
   description: string;
   parameters?: Parameter[];
+  isPlugin?: boolean;
   create(app?: App): IExecutableTool;
 }
 
@@ -147,6 +148,7 @@ export interface ToolMetadata {
   parameters: Parameter[];
   category?: string; // "System Tools" | "Custom Tools" | "Chains"
   icon?: string; // Emoji oder Icon-Name
+  isPlugin?: boolean; // True for server-side plugins (e.g., websearch)
 }
 
 // ============================================================================
@@ -226,6 +228,14 @@ export interface LoadToolsResult {
 }
 
 // ============================================================================
+// WEBSEARCH PLUGIN CONFIG
+// ============================================================================
+
+export interface WebSearchConfig {
+  maxResults?: number;
+}
+
+// ============================================================================
 // AGENT DEFINITION (Phase 4 - LLM-basierte Agenten)
 // ============================================================================
 
@@ -249,6 +259,7 @@ export interface AgentDefinition {
   contextTemplate?: string;
   temperature?: number;
   maxTokens?: number;
+  websearchConfig?: WebSearchConfig;
 }
 
 export interface AgentFrontmatter {
@@ -261,6 +272,7 @@ export interface AgentFrontmatter {
   memory?: MemoryConfig | Partial<MemoryConfig>;
   temperature?: number;
   maxTokens?: number;
+  websearchConfig?: WebSearchConfig | Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -327,4 +339,21 @@ export interface LoadAgentsResult {
     file: string;
     error: string;
   }[];
+}
+
+// ============================================================================
+// WEBSEARCH ANNOTATIONS (OpenRouter web-search plugin response)
+// ============================================================================
+
+export interface WebSearchUrlCitation {
+  url: string;
+  title?: string;
+  content?: string;
+  start_index?: number;
+  end_index?: number;
+}
+
+export interface WebSearchAnnotation {
+  type: "url_citation" | string;
+  url_citation?: WebSearchUrlCitation;
 }
