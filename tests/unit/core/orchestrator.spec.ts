@@ -172,7 +172,7 @@ describe("Orchestrator", () => {
     conversationManager.createConversation(convId, agent.id);
 
     await orchestrator.sendMessage(agent, convId, "Search the web");
-    expect(getRequestBody().plugins).toEqual([{ id: "web-search" }]);
+    expect(getRequestBody().plugins).toEqual([{ id: "web" }]);
   });
 
   it("includes max_results when websearchConfig is set on agent", async () => {
@@ -183,7 +183,7 @@ describe("Orchestrator", () => {
     conversationManager.createConversation(convId, agent.id);
 
     await orchestrator.sendMessage(agent, convId, "Search");
-    expect(getRequestBody().plugins).toEqual([{ id: "web-search", max_results: 5 }]);
+    expect(getRequestBody().plugins).toEqual([{ id: "web", max_results: 5 }]);
   });
 
   it("does not include websearch as a function tool definition", async () => {

@@ -272,7 +272,7 @@ export class Orchestrator {
   private buildPluginList(agent: AgentDefinition): Array<{ id: string } & Record<string, unknown>> {
     const plugins: Array<{ id: string } & Record<string, unknown>> = [];
     if (agent.tools.includes(PREDEFINED_TOOL_IDS.WEBSEARCH)) {
-      const plugin: { id: string } & Record<string, unknown> = { id: "web-search" };
+      const plugin: { id: string } & Record<string, unknown> = { id: "web" };
       if (agent.websearchConfig?.maxResults !== undefined) {
         plugin["max_results"] = agent.websearchConfig.maxResults;
       }
