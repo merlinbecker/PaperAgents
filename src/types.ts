@@ -354,6 +354,6 @@ export interface WebSearchUrlCitation {
 }
 
 export interface WebSearchAnnotation {
-  type: "url_citation" | string;
+  type: string;
   url_citation?: WebSearchUrlCitation;
 }

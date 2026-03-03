@@ -200,11 +200,22 @@ export class ParameterValidator {
 
       // Type-Konversion
       switch (param.type) {
-        case "number":
-          result[param.name] = value !== null && value !== undefined
-            ? parseFloat(typeof value === "string" ? value : typeof value === "number" || typeof value === "boolean" ? String(value) : "0")
-            : 0;
+        case "number": {
+          if (value !== null && value !== undefined) {
+            let strVal: string;
+            if (typeof value === "string") {
+              strVal = value;
+            } else if (typeof value === "number" || typeof value === "boolean") {
+              strVal = String(value);
+            } else {
+              strVal = "0";
+            }
+            result[param.name] = Number.parseFloat(strVal);
+          } else {
+            result[param.name] = 0;
+          }
           break;
+        }
 
         case "boolean":
           if (typeof value === "string") {
@@ -244,10 +255,12 @@ export class ParameterValidator {
 
         default:
           // string
-          result[param.name] = value !== null && value !== undefined
-            ? (typeof value === "string" || typeof value === "number" || typeof value === "boolean"
-              ? String(value) : "")
-            : "";
+          if (value !== null && value !== undefined &&
+              (typeof value === "string" || typeof value === "number" || typeof value === "boolean")) {
+            result[param.name] = String(value);
+          } else {
+            result[param.name] = "";
+          }
       }
     }
 

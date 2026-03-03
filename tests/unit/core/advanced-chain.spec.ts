@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import toolExecutor from "../../../src/core/tool-executor";
 import { Agent, IExecutableTool, ExecutionContext } from "../../../src/types";
 
@@ -125,13 +125,11 @@ describe("Advanced Chain Features", () => {
 
   describe("loop steps", () => {
     it("loops over a list of items", async () => {
-      const callArgs: unknown[] = [];
       const loopTool: IExecutableTool = {
         name: "process",
         parameters: [],
         shouldRequireHITL: () => false,
         execute: async (ctx: ExecutionContext) => {
-          callArgs.push(ctx.parameters);
           return { success: true, data: { processed: ctx.parameters.item }, log: [] } as never;
         },
       };

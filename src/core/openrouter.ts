@@ -163,8 +163,8 @@ export class OpenRouterClient {
 
   private getRetryDelay(attempt: number, retryAfterHeader?: string): number {
     if (retryAfterHeader) {
-      const seconds = parseInt(retryAfterHeader, 10);
-      if (!isNaN(seconds)) return seconds * 1000;
+      const seconds = Number.parseInt(retryAfterHeader, 10);
+      if (!Number.isNaN(seconds)) return seconds * 1000;
     }
     return BASE_RETRY_DELAY * Math.pow(2, attempt) + Math.random() * 500;
   }
@@ -300,13 +300,10 @@ export class OpenRouterClient {
       response = await Promise.race([requestUrl(params), timeoutPromise]);
     } catch (err) {
       clearTimeout(timeoutId!);
+      const errorMessage = err instanceof Error ? err.message : String(err);
       const error = err instanceof OpenRouterError
         ? err
-        : new OpenRouterError(
-            `Stream request failed: ${err instanceof Error ? err.message : String(err)}`,
-            0,
-            false
-          );
+        : new OpenRouterError(`Stream request failed: ${errorMessage}`, 0, false);
       callbacks.onError?.(error);
       throw error;
     }
@@ -332,7 +329,7 @@ export class OpenRouterClient {
     const lines = response.text.split("\n");
     for (const line of lines) {
       const trimmed = line.trim();
-      if (!trimmed || !trimmed.startsWith("data: ")) continue;
+      if (!trimmed?.startsWith("data: ")) continue;
 
       const data = trimmed.slice(6);
       if (data === "[DONE]") break;

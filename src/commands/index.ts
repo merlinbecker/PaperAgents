@@ -107,8 +107,7 @@ function openWorkflowView(plugin: PaperAgents): void {
     return;
   }
 
-  const chainAgents = plugin.loadedAgents.filter((a) => a.tools.length > 1);
-  const agent = chainAgents[0] || plugin.loadedAgents[0];
+  const agent = plugin.loadedAgents.find((a) => a.tools.length > 1) ?? plugin.loadedAgents[0];
   if (!agent) return;
 
   const agentAsWorkflow = {

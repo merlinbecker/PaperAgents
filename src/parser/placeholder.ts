@@ -79,7 +79,7 @@ export class PlaceholderReplacer {
   private static valueToString(value: unknown): string {
     if (value === null || value === undefined) return "";
     if (typeof value === "object") return JSON.stringify(value);
-    return String(value as string | number | boolean | bigint | symbol);
+    return String(value);
   }
 
   static replacePlaceholdersInString(str: string, context: PlaceholderContext): string {

@@ -26,8 +26,8 @@ import { ConversationManager } from "./conversation";
 import { globalLogger } from "../utils/logger";
 
 export class ConversationFileManager {
-  private app: App;
-  private conversationManager: ConversationManager;
+  private readonly app: App;
+  private readonly conversationManager: ConversationManager;
 
   constructor(app: App, conversationManager: ConversationManager) {
     this.app = app;
@@ -61,7 +61,7 @@ export class ConversationFileManager {
   async loadConversation(filePath: string): Promise<Conversation | null> {
     const file = this.app.vault.getAbstractFileByPath(filePath);
     if (!(file instanceof TFile)) {
-      throw new Error(`File not found: ${filePath}`);
+      throw new TypeError(`File not found: ${filePath}`);
     }
 
     const content = await this.app.vault.read(file);
@@ -88,7 +88,7 @@ export class ConversationFileManager {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
     const date = new Date().toISOString().slice(0, 10);
-    const safeName = (title || conversation.agentId).replace(/[^a-zA-Z0-9_\-\s]/g, "").trim().replace(/\s+/g, "-");
+    const safeName = (title || conversation.agentId).replaceAll(/[^a-zA-Z0-9_\-\s]/g, "").trim().replaceAll(/\s+/g, "-");
     const fileName = `${date}-${safeName}.md`;
     const filePath = `${conversationsPath}/${fileName}`;
 

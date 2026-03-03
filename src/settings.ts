@@ -125,8 +125,8 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
           .setPlaceholder(String(OPENROUTER_DEFAULTS.MAX_TOKENS))
           .setValue(String(this.plugin.settings.maxTokens))
           .onChange(async (value) => {
-            const parsed = parseInt(value, 10);
-            if (!isNaN(parsed) && parsed > 0) {
+            const parsed = Number.parseInt(value, 10);
+            if (!Number.isNaN(parsed) && parsed > 0) {
               this.plugin.settings.maxTokens = parsed;
               await this.plugin.saveSettings();
               this.plugin.initializeOrchestrator();
@@ -217,12 +217,12 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
 
     const statusDiv = container.createDiv({ cls: "pa-api-status-badge" });
 
-    if (!key) {
-      statusDiv.addClass("pa-api-status-missing");
-      statusDiv.createSpan({ text: "No API key configured — Chat & Agent features require an OpenRouter API key" });
-    } else {
+    if (key) {
       statusDiv.addClass("pa-api-status-set");
       statusDiv.createSpan({ text: "API key configured" });
+    } else {
+      statusDiv.addClass("pa-api-status-missing");
+      statusDiv.createSpan({ text: "No API key configured — Chat & Agent features require an OpenRouter API key" });
     }
   }
 

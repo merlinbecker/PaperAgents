@@ -25,7 +25,7 @@ const MAX_ENTRIES = 200;
 
 export class ExecutionHistory {
   private entries: HistoryEntry[] = [];
-  private maxEntries: number;
+  private readonly maxEntries: number;
   private persistCallback: ((data: string) => Promise<void>) | null = null;
   private loadCallback: (() => Promise<string | null>) | null = null;
 
@@ -122,9 +122,7 @@ export class ExecutionHistory {
     const toolBreakdown: Record<string, { total: number; success: number }> = {};
 
     for (const entry of this.entries) {
-      if (!toolBreakdown[entry.toolId]) {
-        toolBreakdown[entry.toolId] = { total: 0, success: 0 };
-      }
+      toolBreakdown[entry.toolId] ??= { total: 0, success: 0 };
       const breakdown = toolBreakdown[entry.toolId];
       if (breakdown) {
         breakdown.total++;

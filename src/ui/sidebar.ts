@@ -20,7 +20,7 @@ export class PaperAgentsSidebar extends ItemView {
   private examplesContainer: HTMLElement | null = null;
   private statusContainer: HTMLElement | null = null;
   private countsContainer: HTMLElement | null = null;
-  private toolRegistry: IToolRegistry;
+  private readonly toolRegistry: IToolRegistry;
   private onToolClick: (toolId: string) => void;
   private agents: AgentDefinition[] = [];
   private onAgentClick: ((agentId: string) => void) | null = null;
@@ -138,7 +138,7 @@ export class PaperAgentsSidebar extends ItemView {
 
     const agentBadge = this.countsContainer.createSpan({
       cls: "pa-count-badge",
-      text: `🤖 ${agentCount} agent${agentCount !== 1 ? "s" : ""}`,
+      text: `🤖 ${agentCount} agent${agentCount === 1 ? "" : "s"}`,
     });
     if (this.agentsPath) {
       const agentLink = agentBadge.createEl("a", {
@@ -154,7 +154,7 @@ export class PaperAgentsSidebar extends ItemView {
 
     const toolBadge = this.countsContainer.createSpan({
       cls: "pa-count-badge",
-      text: `🔧 ${toolCount} tool${toolCount !== 1 ? "s" : ""}`,
+      text: `🔧 ${toolCount} tool${toolCount === 1 ? "" : "s"}`,
     });
     if (this.toolsPath) {
       const toolLink = toolBadge.createEl("a", {
@@ -182,7 +182,7 @@ export class PaperAgentsSidebar extends ItemView {
     }
     const fileExplorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
     if (fileExplorer?.view) {
-      void this.app.workspace.revealLeaf(fileExplorer);
+      this.app.workspace.revealLeaf(fileExplorer);
       // revealInFolder is an internal Obsidian API available on the file-explorer view
       (fileExplorer.view as { revealInFolder?: (f: unknown) => void }).revealInFolder?.(abstractFile);
     }
@@ -287,7 +287,7 @@ export class PaperAgentsSidebar extends ItemView {
     if (tool.parameters.length > 0) {
       const count = tool.parameters.length;
       const paramsBadgeText = (expanded: boolean): string =>
-        `${expanded ? "▼" : "▶"} ${count} param${count !== 1 ? "s" : ""}`;
+        `${expanded ? "▼" : "▶"} ${count} param${count === 1 ? "" : "s"}`;
 
       const paramsPanel = wrapper.createDiv({ cls: "pa-tool-params-panel pa-hidden" });
       for (const param of tool.parameters) {
@@ -530,7 +530,7 @@ export class PaperAgentsSidebar extends ItemView {
 }
 
 class ExampleDetailModal extends Modal {
-  private example: SidebarExample;
+  private readonly example: SidebarExample;
 
   constructor(app: App, example: SidebarExample) {
     super(app);
