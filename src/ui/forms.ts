@@ -190,7 +190,7 @@ export class ToolFormModal extends Modal {
       return JSON.stringify(value);
     }
 
-    return String(value as string | number | boolean | bigint | symbol);
+    return String(value);
   }
 
   /**
@@ -323,7 +323,7 @@ export class QuickToolForm {
     input.setAttribute("placeholder", this.getPlaceholder(param));
 
     if (param.default !== undefined) {
-      input.value = String(param.default as string | number | boolean | bigint | symbol);
+      input.value = String(param.default);
       this.formValues[param.name] = param.default;
     }
 

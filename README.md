@@ -4,6 +4,14 @@
 
 ![Version](https://img.shields.io/badge/version-0.0.2-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=merlinbecker_PaperAgents&metric=alert_status)](https://sonarcloud.io/project/overview?id=merlinbecker_PaperAgents)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=merlinbecker_PaperAgents&metric=bugs)](https://sonarcloud.io/project/overview?id=merlinbecker_PaperAgents)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=merlinbecker_PaperAgents&metric=vulnerabilities)](https://sonarcloud.io/project/overview?id=merlinbecker_PaperAgents)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=merlinbecker_PaperAgents&metric=code_smells)](https://sonarcloud.io/project/overview?id=merlinbecker_PaperAgents)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=merlinbecker_PaperAgents&metric=sqale_rating)](https://sonarcloud.io/project/overview?id=merlinbecker_PaperAgents)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=merlinbecker_PaperAgents&metric=reliability_rating)](https://sonarcloud.io/project/overview?id=merlinbecker_PaperAgents)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=merlinbecker_PaperAgents&metric=security_rating)](https://sonarcloud.io/project/overview?id=merlinbecker_PaperAgents)
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=merlinbecker_PaperAgents&metric=duplicated_lines_density)](https://sonarcloud.io/project/overview?id=merlinbecker_PaperAgents)
 
 <a href="https://www.buymeacoffee.com/merlinbecker"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a beer&emoji=🍺&slug=merlinbecker&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" /></a>
 

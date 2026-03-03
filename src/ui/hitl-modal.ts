@@ -130,7 +130,7 @@ export class HITLModal extends Modal {
       return JSON.stringify(value, null, 2);
     }
 
-    return String(value as string | number | boolean | bigint | symbol);
+    return String(value);
   }
 
   /**

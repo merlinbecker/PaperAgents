@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { App, Vault, TFile, TFolder } from "obsidian";
+import { describe, it, expect, beforeEach } from "vitest";
+import { App, TFile, TFolder } from "obsidian";
 import CustomToolLoader from "../../../src/parser/tool-loader";
 
 describe("CustomToolLoader", () => {
@@ -163,7 +163,6 @@ parameters:
 
   describe("isToolFile", () => {
     it("identifies .md files inside paper-agents-tools as tool files", () => {
-      const file = new TFile("paper-agents-tools/my-tool.md");
       // Access isToolFile indirectly - it's private. We test via onToolFileChanged.
       // We just verify the method exists and is callable by testing the event registration.
       // Instead, test the behavior - register callback and simulate events.
@@ -172,7 +171,7 @@ parameters:
 
       // Override vault.on to capture event registrations
       (mockApp.vault as any).on = (event: string, cb: (file: any) => void) => {
-        if (!vaultEvents[event]) vaultEvents[event] = [];
+        vaultEvents[event] ??= [];
         vaultEvents[event].push(cb);
       };
 
@@ -193,7 +192,7 @@ parameters:
       const vaultEvents: Record<string, Array<(file: any) => void>> = {};
 
       (mockApp.vault as any).on = (event: string, cb: (file: any) => void) => {
-        if (!vaultEvents[event]) vaultEvents[event] = [];
+        vaultEvents[event] ??= [];
         vaultEvents[event].push(cb);
       };
 
@@ -211,7 +210,7 @@ parameters:
       const vaultEvents: Record<string, Array<(file: any) => void>> = {};
 
       (mockApp.vault as any).on = (event: string, cb: (file: any) => void) => {
-        if (!vaultEvents[event]) vaultEvents[event] = [];
+        vaultEvents[event] ??= [];
         vaultEvents[event].push(cb);
       };
 
@@ -229,7 +228,7 @@ parameters:
       const vaultEvents: Record<string, Array<(file: any) => void>> = {};
 
       (mockApp.vault as any).on = (event: string, cb: (file: any) => void) => {
-        if (!vaultEvents[event]) vaultEvents[event] = [];
+        vaultEvents[event] ??= [];
         vaultEvents[event].push(cb);
       };
 
@@ -248,7 +247,7 @@ parameters:
       const vaultEvents: Record<string, Array<(file: any) => void>> = {};
 
       (mockApp.vault as any).on = (event: string, cb: (file: any) => void) => {
-        if (!vaultEvents[event]) vaultEvents[event] = [];
+        vaultEvents[event] ??= [];
         vaultEvents[event].push(cb);
       };
 

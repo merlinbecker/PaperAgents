@@ -23,10 +23,10 @@ export interface OrchestratorCallbacks {
 }
 
 export class Orchestrator {
-  private client: OpenRouterClient;
-  private conversationManager: ConversationManager;
-  private toolRegistry: ToolRegistry;
-  private maxToolCallRounds: number;
+  private readonly client: OpenRouterClient;
+  private readonly conversationManager: ConversationManager;
+  private readonly toolRegistry: ToolRegistry;
+  private readonly maxToolCallRounds: number;
 
   constructor(
     config: OrchestratorConfig,
@@ -254,7 +254,7 @@ export class Orchestrator {
 
       for (const param of toolMeta.parameters) {
         properties[param.name] = {
-          type: param.type === "array" ? "array" : param.type === "object" ? "object" : param.type,
+          type: param.type,
           description: param.description,
         };
         if (param.required) {

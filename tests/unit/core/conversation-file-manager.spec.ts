@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { ConversationFileManager } from "../../../src/core/conversation-file-manager";
 import { ConversationManager } from "../../../src/core/conversation";
 import { App } from "../../mocks/obsidian";

@@ -24,7 +24,7 @@ const DEFAULT_MAX_MESSAGES = 50;
 const DEFAULT_MAX_TOKENS = 4000;
 
 export class ConversationManager {
-  private conversations: Map<string, Conversation> = new Map();
+  private readonly conversations: Map<string, Conversation> = new Map();
 
   createConversation(agentId: string, id?: string): Conversation {
     const conversationId = id || this.generateId();
@@ -235,31 +235,23 @@ export class ConversationManager {
     const lines: string[] = [];
 
     for (const msg of messages) {
-      const timestamp = msg.timestamp
-        ? new Date(msg.timestamp).toISOString()
-        : "";
+      const ts = msg.timestamp ? new Date(msg.timestamp).toISOString() : "";
+      const tsLabel = ts ? `(${ts})` : "";
 
       switch (msg.role) {
         case "user":
-          lines.push(`### User ${timestamp ? `(${timestamp})` : ""}`);
-          lines.push(msg.content);
-          lines.push("");
+          lines.push(`### User ${tsLabel}`, msg.content, "");
           break;
         case "assistant":
-          lines.push(`### Assistant ${timestamp ? `(${timestamp})` : ""}`);
-          lines.push(msg.content);
-          lines.push("");
+          lines.push(`### Assistant ${tsLabel}`, msg.content, "");
           break;
         case "system":
-          lines.push(`### System ${timestamp ? `(${timestamp})` : ""}`);
-          lines.push(msg.content);
-          lines.push("");
+          lines.push(`### System ${tsLabel}`, msg.content, "");
           break;
         case "tool":
-          lines.push(`### Tool ${timestamp ? `(${timestamp})` : ""}`);
+          lines.push(`### Tool ${tsLabel}`);
           if (msg.toolCall) {
-            lines.push(`<!-- tool:${msg.toolCall.toolId} -->`);
-            lines.push(`<!-- params:${JSON.stringify(msg.toolCall.parameters)} -->`);
+            lines.push(`<!-- tool:${msg.toolCall.toolId} -->`, `<!-- params:${JSON.stringify(msg.toolCall.parameters)} -->`);
             if (msg.toolCall.result !== undefined) {
               lines.push(`Result: ${JSON.stringify(msg.toolCall.result)}`);
             }
@@ -329,10 +321,10 @@ export class ConversationManager {
   }
 
   private parseTimestamp(headerLine: string): number | undefined {
-    const match = headerLine.match(/\(([^)]+)\)/);
-    if (match && match[1]) {
+    const match = /\(([^)]+)\)/.exec(headerLine);
+    if (match?.[1]) {
       const date = new Date(match[1]);
-      if (!isNaN(date.getTime())) {
+      if (!Number.isNaN(date.getTime())) {
         return date.getTime();
       }
     }
@@ -373,8 +365,8 @@ export class ConversationManager {
   }
 
   parseConversationFile(fileContent: string): { conversation: Partial<Conversation>; messages: Message[] } | null {
-    const frontmatterMatch = fileContent.match(/^---\n([\s\S]*?)\n---\n?/);
-    if (!frontmatterMatch || !frontmatterMatch[1]) {
+    const frontmatterMatch = /^---\n([\s\S]*?)\n---\n?/.exec(fileContent);
+    if (!frontmatterMatch?.[1]) {
       return null;
     }
 

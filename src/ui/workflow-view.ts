@@ -2,7 +2,7 @@ import { Modal, App } from "obsidian";
 import { Agent, Step } from "../types";
 
 export class WorkflowViewModal extends Modal {
-  private agent: Agent;
+  private readonly agent: Agent;
 
   constructor(app: App, agent: Agent) {
     super(app);

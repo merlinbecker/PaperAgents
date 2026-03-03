@@ -162,7 +162,7 @@ class SearchFilesTool implements IExecutableTool {
         }
 
         // Match against file name first (guard against undefined name)
-        if (file.name && file.name.toLowerCase().includes(lowerQuery)) {
+        if (file.name?.toLowerCase().includes(lowerQuery)) {
           results.push({
             name: file.name,
             path: file.path,

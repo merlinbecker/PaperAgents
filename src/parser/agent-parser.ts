@@ -264,14 +264,32 @@ export class AgentParser {
     const validTypes: MemoryType[] = ["conversation", "summary", "none"];
     const type = validTypes.includes(mem.type as MemoryType) ? (mem.type as MemoryType) : "conversation";
 
+    let maxMessages = 50;
+    if (typeof mem.maxMessages === "number") {
+      maxMessages = mem.maxMessages;
+    } else if (typeof mem.max_messages === "number") {
+      maxMessages = mem.max_messages;
+    }
+
+    let maxTokens: number | undefined;
+    if (typeof mem.maxTokens === "number") {
+      maxTokens = mem.maxTokens;
+    } else if (typeof mem.max_tokens === "number") {
+      maxTokens = mem.max_tokens;
+    }
+
+    let summarizeAfter: number | undefined;
+    if (typeof mem.summarizeAfter === "number") {
+      summarizeAfter = mem.summarizeAfter;
+    } else if (typeof mem.summarize_after === "number") {
+      summarizeAfter = mem.summarize_after;
+    }
+
     return {
       type,
-      maxMessages: typeof mem.maxMessages === "number" ? mem.maxMessages : 
-                   typeof mem.max_messages === "number" ? mem.max_messages : 50,
-      maxTokens: typeof mem.maxTokens === "number" ? mem.maxTokens :
-                 typeof mem.max_tokens === "number" ? mem.max_tokens : undefined,
-      summarizeAfter: typeof mem.summarizeAfter === "number" ? mem.summarizeAfter :
-                      typeof mem.summarize_after === "number" ? mem.summarize_after : undefined,
+      maxMessages,
+      maxTokens,
+      summarizeAfter,
     };
   }
 

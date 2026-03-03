@@ -39,9 +39,9 @@ function generateId(): string {
 
 export class MetricsCollector {
   private metrics: MetricEntry[] = [];
-  private traces: Map<string, TraceContext[]> = new Map();
-  private maxMetrics = 5000;
-  private maxTraces = 500;
+  private readonly traces: Map<string, TraceContext[]> = new Map();
+  private readonly maxMetrics = 5000;
+  private readonly maxTraces = 500;
 
   generateTraceId(): string {
     return generateId();

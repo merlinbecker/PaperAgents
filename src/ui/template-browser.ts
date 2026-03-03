@@ -9,8 +9,8 @@ export interface ToolTemplate {
 }
 
 export class TemplateBrowserModal extends Modal {
-  private templates: ToolTemplate[];
-  private onImport: (template: ToolTemplate) => void;
+  private readonly templates: ToolTemplate[];
+  private readonly onImport: (template: ToolTemplate) => void;
 
   constructor(app: App, templates: ToolTemplate[], onImport: (template: ToolTemplate) => void) {
     super(app);

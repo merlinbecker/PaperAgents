@@ -19,9 +19,11 @@ jobs:
 
       - name: Determine version
         id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [ -n "${{ inputs.version }}" ]; then
-            BETA_VERSION="${{ inputs.version }}"
+          if [ -n "${INPUT_VERSION}" ]; then
+            BETA_VERSION="${INPUT_VERSION}"
           else
             BETA_VERSION=$(node -p "require('./manifest-beta.json').version")
           fi

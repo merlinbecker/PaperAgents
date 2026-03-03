@@ -10,8 +10,8 @@ export const VIEW_TYPE_PAPER_AGENTS_CHAT = "paper-agents-chat";
 export class PaperAgentsChatView extends ItemView {
   private agents: AgentDefinition[] = [];
   private selectedAgent: AgentDefinition | null = null;
-  private conversationManager: ConversationManager;
-  private fileManager: ConversationFileManager;
+  private readonly conversationManager: ConversationManager;
+  private readonly fileManager: ConversationFileManager;
   private currentConversationId: string | null = null;
   private currentFilePath: string | null = null;
   private isStreaming = false;
@@ -28,9 +28,9 @@ export class PaperAgentsChatView extends ItemView {
   private noAgentsHint: HTMLElement | null = null;
   private streamingEl: HTMLElement | null = null;
 
-  private onGetAgents: () => AgentDefinition[];
-  private onGetOrchestrator: () => Orchestrator | null;
-  private getConversationsPath: () => string;
+  private readonly onGetAgents: () => AgentDefinition[];
+  private readonly onGetOrchestrator: () => Orchestrator | null;
+  private readonly getConversationsPath: () => string;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -464,7 +464,8 @@ export class PaperAgentsChatView extends ItemView {
     const msgEl = this.messagesContainer.createDiv({ cls: `pa-chat-message pa-chat-message-${role}` });
     const roleRow = msgEl.createDiv({ cls: "pa-chat-message-role-row" });
     const roleEl = roleRow.createDiv({ cls: "pa-chat-message-role" });
-    roleEl.textContent = role === "user" ? "You" : role === "assistant" ? "Assistant" : "System";
+    const roleLabelMap: Record<string, string> = { user: "You", assistant: "Assistant" };
+    roleEl.textContent = roleLabelMap[role] ?? "System";
 
     if (role === "assistant" && messageIndex !== undefined) {
       const regenBtn = roleRow.createEl("button", {
@@ -532,7 +533,7 @@ export class PaperAgentsChatView extends ItemView {
       content.createEl("h4", { text: "Parameters" });
       content.createEl("pre").createEl("code", { text: JSON.stringify(params, null, 2) });
 
-      toolEl.setAttribute("data-tool-id", toolId);
+      toolEl.dataset["toolId"] = toolId;
     } else {
       const toolEls = this.messagesContainer.querySelectorAll(`.pa-chat-tool-call[data-tool-id="${toolId}"]`);
       const toolEl = toolEls[toolEls.length - 1] as HTMLElement | undefined;
@@ -545,7 +546,7 @@ export class PaperAgentsChatView extends ItemView {
         statusEl.addClass(error ? "pa-chat-tool-error" : "pa-chat-tool-success");
       }
 
-      const content = toolEl.querySelector(".pa-chat-tool-content") as HTMLElement | null;
+      const content = toolEl.querySelector<HTMLElement>(".pa-chat-tool-content");
       if (content) {
         if (error) {
           content.createEl("h4", { text: "Error" });

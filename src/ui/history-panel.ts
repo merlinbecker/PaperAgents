@@ -2,9 +2,9 @@ import { Modal, App } from "obsidian";
 import { ExecutionHistory, HistoryEntry, HistoryFilter } from "../core/history";
 
 export class HistoryPanelModal extends Modal {
-  private history: ExecutionHistory;
+  private readonly history: ExecutionHistory;
   private entriesContainer: HTMLElement | null = null;
-  private currentFilter: HistoryFilter = {};
+  private readonly currentFilter: HistoryFilter = {};
 
   constructor(app: App, history: ExecutionHistory) {
     super(app);

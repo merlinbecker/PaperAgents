@@ -2,9 +2,9 @@ import { Modal, App, Notice } from "obsidian";
 import { ExecutionResult, ToolExecution } from "../types";
 
 export class OutputPanelModal extends Modal {
-  private result: ExecutionResult;
-  private toolName: string;
-  private executionTime: number;
+  private readonly result: ExecutionResult;
+  private readonly toolName: string;
+  private readonly executionTime: number;
 
   constructor(app: App, toolName: string, result: ExecutionResult, executionTime: number) {
     super(app);

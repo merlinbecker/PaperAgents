@@ -36,8 +36,7 @@ function makeStreamResponse(content: string | string[]): object {
   const lines = chunks.map(
     (c) => `data: {"id":"gen","choices":[{"index":0,"delta":{"content":"${c}"},"finish_reason":null}]}`
   );
-  lines.push(`data: {"id":"gen","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`);
-  lines.push("data: [DONE]");
+  lines.push(`data: {"id":"gen","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`, "data: [DONE]");
   return { status: 200, text: lines.join("\n") };
 }
 
