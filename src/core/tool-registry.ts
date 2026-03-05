@@ -153,7 +153,7 @@ export class ToolRegistry {
     return this.listTools().filter(
       (tool) =>
         tool.name.toLowerCase().includes(lowerQuery) ||
-        (tool.description && tool.description.toLowerCase().includes(lowerQuery))
+        (tool.description?.toLowerCase().includes(lowerQuery))
     );
   }
 

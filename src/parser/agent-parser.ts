@@ -51,7 +51,7 @@ export class AgentParser {
   static parseAgentFile(content: string): ParsedAgentFile {
     const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
     
-    if (!frontmatterMatch || !frontmatterMatch[1]) {
+    if (!frontmatterMatch?.[1]) {
       throw new AgentParseError("No YAML frontmatter found. Agent file must start with ---");
     }
 
@@ -165,17 +165,17 @@ export class AgentParser {
     let contextTemplate: string | undefined;
 
     const systemPromptMatch = body.match(/##\s*System\s*Prompt\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i);
-    if (systemPromptMatch && systemPromptMatch[1]) {
+    if (systemPromptMatch?.[1]) {
       systemPrompt = systemPromptMatch[1].trim();
     }
 
     const contextMatch = body.match(/##\s*Kontext\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i);
     if (!contextMatch) {
       const contextMatchEn = body.match(/##\s*Context\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i);
-      if (contextMatchEn && contextMatchEn[1]) {
+      if (contextMatchEn?.[1]) {
         contextTemplate = contextMatchEn[1].trim();
       }
-    } else if (contextMatch && contextMatch[1]) {
+    } else if (contextMatch?.[1]) {
       contextTemplate = contextMatch[1].trim();
     }
 
@@ -280,7 +280,7 @@ export class AgentParser {
   static isAgentFile(content: string): boolean {
     try {
       const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-      if (!frontmatterMatch || !frontmatterMatch[1]) return false;
+      if (!frontmatterMatch?.[1]) return false;
       
       return frontmatterMatch[1].includes("agent: true");
     } catch {
@@ -300,7 +300,7 @@ export class AgentParser {
     if (!agent.systemPrompt || agent.systemPrompt.trim() === "") {
       errors.push("System prompt is required");
     }
-    if (!agent.memory || !agent.memory.type) {
+    if (!agent.memory?.type) {
       errors.push("Memory configuration is required");
     }
     if (agent.temperature !== undefined && (agent.temperature < 0 || agent.temperature > 2)) {

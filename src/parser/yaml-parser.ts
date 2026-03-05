@@ -43,7 +43,7 @@ export class YAMLParser {
   static parseFrontmatter(content: string): YAMLFrontmatter {
     const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
     
-    if (!frontmatterMatch || !frontmatterMatch[1]) {
+    if (!frontmatterMatch?.[1]) {
       throw new YAMLParseError("No YAML frontmatter found. File must start with ---", 1, 1);
     }
 
@@ -187,7 +187,7 @@ export class YAMLParser {
 
       // Array abschliessen, wenn neuer Top-Level Key beginnt
       const arrayKeyMatch = trimmed.match(/^(\w+):\s*$/);
-      if (arrayKeyMatch && arrayKeyMatch[1]) {
+      if (arrayKeyMatch?.[1]) {
         if (inArray && currentKey) {
           if (nestedObjectKey && nestedObject && currentItem) {
             currentItem[nestedObjectKey] = nestedObject;
@@ -416,7 +416,7 @@ export class YAMLParser {
 
       if (trimmed.startsWith("tool:")) {
         const match = trimmed.match(/tool:\s*['"](.*?)['"]/) || trimmed.match(/tool:\s*(\S+)/);
-        if (match && match[1]) {
+        if (match?.[1]) {
           toolId = match[1];
         }
       } else if (trimmed.startsWith("parameters:")) {
@@ -474,13 +474,13 @@ export class YAMLParser {
 
       if (trimmed.startsWith("- name:")) {
         // Neuer Step
-        if (currentStep && currentStep.name) {
+        if (currentStep?.name) {
           steps.push(currentStep as Step);
         }
         const nameMatch = trimmed.match(/- name:\s*['"](.*?)['"]/) || 
                          trimmed.match(/- name:\s*(\S+)/);
         currentStep = {
-          name: nameMatch ? nameMatch[1] : "",
+          name: nameMatch?.[1] ?? "",
           parameters: {},
         };
       } else if (trimmed.startsWith("parameters:")) {
@@ -500,7 +500,7 @@ export class YAMLParser {
     }
 
     // Letzten Step hinzufügen
-    if (currentStep && currentStep.name) {
+    if (currentStep?.name) {
       steps.push(currentStep as Step);
     }
 
