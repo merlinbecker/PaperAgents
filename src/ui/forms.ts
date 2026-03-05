@@ -12,8 +12,8 @@ import { globalLogger } from "../utils/logger";
  * Form Modal für Tool-Ausführung
  */
 export class ToolFormModal extends Modal {
-  private tool: ToolMetadata;
-  private onSubmit: (parameters: Record<string, unknown>) => void;
+  private readonly tool: ToolMetadata;
+  private readonly onSubmit: (parameters: Record<string, unknown>) => void;
   private formValues: Record<string, unknown> = {};
   private formContainer: HTMLElement | null = null;
 
@@ -147,8 +147,8 @@ export class ToolFormModal extends Modal {
 
     switch (type) {
       case "number": {
-        const num = parseFloat(value);
-        return isNaN(num) ? undefined : num;
+        const num = Number.parseFloat(value);
+        return Number.isNaN(num) ? undefined : num;
       }
 
       case "boolean":
@@ -268,9 +268,9 @@ export class ToolFormModal extends Modal {
  * Wird inline in Sidebar angezeigt statt als Modal
  */
 export class QuickToolForm {
-  private container: HTMLElement;
-  private tool: ToolMetadata;
-  private onSubmit: (parameters: Record<string, unknown>) => void;
+  private readonly container: HTMLElement;
+  private readonly tool: ToolMetadata;
+  private readonly onSubmit: (parameters: Record<string, unknown>) => void;
   private formValues: Record<string, unknown> = {};
 
   constructor(
@@ -346,8 +346,8 @@ export class QuickToolForm {
    */
   private parseValue(value: string, type: string): string | number | undefined {
     if (type === "number") {
-      const num = parseFloat(value);
-      return isNaN(num) ? undefined : num;
+      const num = Number.parseFloat(value);
+      return Number.isNaN(num) ? undefined : num;
     }
     return value;
   }

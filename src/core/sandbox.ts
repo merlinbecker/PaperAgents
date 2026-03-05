@@ -299,7 +299,7 @@ export class QuickJSSandbox {
  * Führt Custom-Tools mit type: "custom-js" aus
  */
 export class CustomJSExecutor {
-  private sandbox: QuickJSSandbox;
+  private readonly sandbox: QuickJSSandbox;
 
   constructor() {
     this.sandbox = new QuickJSSandbox();

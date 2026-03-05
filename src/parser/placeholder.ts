@@ -25,7 +25,7 @@ export class PlaceholderReplacer {
   }
 
   private static parsePath(path: string): string[] {
-    const normalized = path.replace(/\[(\d+)\]/g, ".$1");
+    const normalized = path.replaceAll(/\[(\d+)\]/g, ".$1");
     return normalized.split(".").filter((p) => p.length > 0);
   }
 

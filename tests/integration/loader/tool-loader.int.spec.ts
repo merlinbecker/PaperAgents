@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { app, TFile, Vault } from "obsidian";
+import { app, Vault } from "obsidian";
 import CustomToolLoader from "../../../src/parser/tool-loader";
 import fs from "node:fs/promises";
 import path from "node:path";

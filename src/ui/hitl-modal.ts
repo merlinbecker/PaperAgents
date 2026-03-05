@@ -11,8 +11,8 @@ import { globalLogger } from "../utils/logger";
  * HITL Approval Modal
  */
 export class HITLModal extends Modal {
-  private decision: HITLDecision;
-  private onDecision: (decision: HITLDecision) => void;
+  private readonly decision: HITLDecision;
+  private readonly onDecision: (decision: HITLDecision) => void;
   private resolved = false;
 
   constructor(

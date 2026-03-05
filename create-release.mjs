@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "child_process";
-import { readFileSync } from "fs";
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createInterface } from "readline";
 
 /**

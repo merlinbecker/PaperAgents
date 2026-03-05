@@ -10,9 +10,9 @@ import { globalLogger } from "../utils/logger";
 import type { App } from "obsidian";
 
 export class ToolRegistry {
-  private predefinedTools: Map<string, IToolFactory> = new Map();
-  private customTools: Map<string, Agent> = new Map();
-  private executableTools: Map<string, IExecutableTool> = new Map();
+  private readonly predefinedTools: Map<string, IToolFactory> = new Map();
+  private readonly customTools: Map<string, Agent> = new Map();
+  private readonly executableTools: Map<string, IExecutableTool> = new Map();
   private app: App | null = null;
 
   constructor(app?: App) {

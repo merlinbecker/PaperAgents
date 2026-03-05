@@ -40,7 +40,7 @@ export interface HITLDecision {
  * Tool Executor - Orchestriert Agent-Ausführung
  */
 export class ToolExecutor {
-  private hitlCallbacks: Map<string, (decision: HITLDecision) => Promise<void>> = new Map();
+  private readonly hitlCallbacks: Map<string, (decision: HITLDecision) => Promise<void>> = new Map();
   private globalHITLCallback: ((toolName: string, stepName: string, parameters: Record<string, unknown>) => Promise<HITLDecision>) | null = null;
 
   /**
