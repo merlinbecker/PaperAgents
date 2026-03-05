@@ -235,36 +235,43 @@ export class ConversationManager {
     const lines: string[] = [];
 
     for (const msg of messages) {
-      const ts = msg.timestamp ? new Date(msg.timestamp).toISOString() : "";
-      const tsLabel = ts ? `(${ts})` : "";
-
-      switch (msg.role) {
-        case "user":
-          lines.push(`### User ${tsLabel}`, msg.content, "");
-          break;
-        case "assistant":
-          lines.push(`### Assistant ${tsLabel}`, msg.content, "");
-          break;
-        case "system":
-          lines.push(`### System ${tsLabel}`, msg.content, "");
-          break;
-        case "tool":
-          lines.push(`### Tool ${tsLabel}`);
-          if (msg.toolCall) {
-            lines.push(`<!-- tool:${msg.toolCall.toolId} -->`, `<!-- params:${JSON.stringify(msg.toolCall.parameters)} -->`);
-            if (msg.toolCall.result !== undefined) {
-              lines.push(`Result: ${JSON.stringify(msg.toolCall.result)}`);
-            }
-            if (msg.toolCall.error) {
-              lines.push(`Error: ${msg.toolCall.error}`);
-            }
-          }
-          lines.push("");
-          break;
-      }
+      lines.push(...this.formatMessageLines(msg));
     }
 
     return lines.join("\n");
+  }
+
+  private formatMessageLines(msg: Message): string[] {
+    const ts = msg.timestamp ? new Date(msg.timestamp).toISOString() : "";
+    const tsLabel = ts ? `(${ts})` : "";
+    const lines: string[] = [];
+
+    switch (msg.role) {
+      case "user":
+        lines.push(`### User ${tsLabel}`, msg.content, "");
+        break;
+      case "assistant":
+        lines.push(`### Assistant ${tsLabel}`, msg.content, "");
+        break;
+      case "system":
+        lines.push(`### System ${tsLabel}`, msg.content, "");
+        break;
+      case "tool":
+        lines.push(`### Tool ${tsLabel}`);
+        if (msg.toolCall) {
+          lines.push(`<!-- tool:${msg.toolCall.toolId} -->`, `<!-- params:${JSON.stringify(msg.toolCall.parameters)} -->`);
+          if (msg.toolCall.result !== undefined) {
+            lines.push(`Result: ${JSON.stringify(msg.toolCall.result)}`);
+          }
+          if (msg.toolCall.error) {
+            lines.push(`Error: ${msg.toolCall.error}`);
+          }
+        }
+        lines.push("");
+        break;
+    }
+
+    return lines;
   }
 
   parseMarkdown(markdown: string): Message[] {
@@ -287,37 +294,48 @@ export class ConversationManager {
       } else if (role === "system") {
         messages.push({ role: "system", content, timestamp });
       } else if (role === "tool") {
-        const toolMatch = contentLines.find(l => l.startsWith("<!-- tool:"));
-        const paramsMatch = contentLines.find(l => l.startsWith("<!-- params:"));
-        
-        let toolCall: ToolCallInfo | undefined;
-        if (toolMatch) {
-          const toolId = toolMatch.replace("<!-- tool:", "").replace(" -->", "");
-          let parameters: Record<string, unknown> = {};
-          if (paramsMatch) {
-            try {
-              parameters = JSON.parse(paramsMatch.replace("<!-- params:", "").replace(" -->", "")) as Record<string, unknown>;
-            } catch {
-              parameters = {};
-            }
-          }
-          
-          const resultLine = contentLines.find(l => l.startsWith("Result: "));
-          const errorLine = contentLines.find(l => l.startsWith("Error: "));
-          
-          toolCall = {
-            toolId,
-            parameters,
-            result: resultLine ? JSON.parse(resultLine.replace("Result: ", "")) as unknown : undefined,
-            error: errorLine ? errorLine.replace("Error: ", "") : undefined,
-          };
-        }
-        
+        const toolCall = this.parseToolCallInfo(contentLines);
         messages.push({ role: "tool", content, timestamp, toolCall });
       }
     }
 
     return messages;
+  }
+
+  private parseToolCallInfo(contentLines: string[]): ToolCallInfo | undefined {
+    const toolMatch = contentLines.find(l => l.startsWith("<!-- tool:"));
+    if (!toolMatch) return undefined;
+
+    const paramsMatch = contentLines.find(l => l.startsWith("<!-- params:"));
+    const toolId = toolMatch.replace("<!-- tool:", "").replace(" -->", "");
+    let parameters: Record<string, unknown> = {};
+
+    if (paramsMatch) {
+      try {
+        parameters = JSON.parse(paramsMatch.replace("<!-- params:", "").replace(" -->", "")) as Record<string, unknown>;
+      } catch {
+        parameters = {};
+      }
+    }
+
+    const resultLine = contentLines.find(l => l.startsWith("Result: "));
+    const errorLine = contentLines.find(l => l.startsWith("Error: "));
+
+    let result: unknown;
+    if (resultLine) {
+      try {
+        result = JSON.parse(resultLine.replace("Result: ", "")) as unknown;
+      } catch {
+        result = undefined;
+      }
+    }
+
+    return {
+      toolId,
+      parameters,
+      result,
+      error: errorLine ? errorLine.replace("Error: ", "") : undefined,
+    };
   }
 
   private parseTimestamp(headerLine: string): number | undefined {

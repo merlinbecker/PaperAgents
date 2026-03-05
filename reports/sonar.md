@@ -6,8 +6,8 @@ This file documents the SonarQube issues found in the PaperAgents codebase and t
 
 | Status | Count |
 |--------|-------|
-| ✅ Fixed | 92 |
-| ⏳ Deferred | 8 |
+| ✅ Fixed | 94 |
+| ⏳ Deferred | 6 |
 | **Total** | **100** |
 
 ---
@@ -228,6 +228,16 @@ The outer `chatStream` method now only orchestrates these helpers and builds the
 |------|----------|------------|--------|
 | `src/core/openrouter.ts` | `chatStream` | 56 → <15 | ✅ Fixed |
 
+### S3776 – Cognitive Complexity too high (`toMarkdown`, `parseMarkdown`)
+Extracted private helper methods to reduce nesting and complexity:
+- `toMarkdown`: extracted `formatMessageLines` private helper that converts a single `Message` to its Markdown lines. The outer method now contains only the slim for-loop and string join.
+- `parseMarkdown`: extracted `parseToolCallInfo` private helper that parses the `ToolCallInfo` from raw content lines (tool id, parameters, result, error). The outer method now only iterates blocks and dispatches by role.
+
+| File | Function | Complexity | Status |
+|------|----------|------------|--------|
+| `src/core/conversation.ts` | `toMarkdown` | 18 → <15 | ✅ Fixed |
+| `src/core/conversation.ts` | `parseMarkdown` | 26 → <15 | ✅ Fixed |
+
 ---
 
 ## Deferred Issues
@@ -242,8 +252,8 @@ These functions exceed the threshold of 15 and require significant restructuring
 | `src/core/openrouter.ts:273` | `chatStream` | 56 | ✅ Fixed |
 | `src/core/orchestrator.ts:56` | `continueConversation` | 16 | ✅ Fixed |
 | `src/core/orchestrator.ts:242` | `buildToolDefinitions` | 19 | ✅ Fixed |
-| `src/core/conversation.ts:233` | `toMarkdown` | 28 | ⏳ Deferred |
-| `src/core/conversation.ts:278` | `parseMarkdown` | 26 | ⏳ Deferred |
+| `src/core/conversation.ts:233` | `toMarkdown` | 28 | ✅ Fixed |
+| `src/core/conversation.ts:278` | `parseMarkdown` | 26 | ✅ Fixed |
 | `src/core/tool-executor.ts:55` | `executeAgent` | 25 | ⏳ Deferred |
 | `src/core/tool-executor.ts:400` | `executeStep` | 16 | ⏳ Deferred |
 | `src/tools/predefined.ts:141` | `execute` (SearchFilesTool) | 16 | ✅ Fixed |
