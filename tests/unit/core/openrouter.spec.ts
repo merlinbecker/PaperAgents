@@ -230,11 +230,11 @@ describe("OpenRouterClient", () => {
       },
     } as never);
 
-    await client.chat([{ role: "user", content: "Search the web" }], undefined, [{ id: "web-search" }]);
+    await client.chat([{ role: "user", content: "Search the web" }], undefined, [{ id: "web" }]);
 
     const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
     const body = JSON.parse(call.body as string) as Record<string, unknown>;
-    expect(body.plugins).toEqual([{ id: "web-search" }]);
+    expect(body.plugins).toEqual([{ id: "web" }]);
   });
 
   it("includes max_results when provided in plugin config", async () => {
@@ -249,11 +249,11 @@ describe("OpenRouterClient", () => {
       },
     } as never);
 
-    await client.chat([{ role: "user", content: "Search" }], undefined, [{ id: "web-search", max_results: 3 }]);
+    await client.chat([{ role: "user", content: "Search" }], undefined, [{ id: "web", max_results: 3 }]);
 
     const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
     const body = JSON.parse(call.body as string) as Record<string, unknown>;
-    expect(body.plugins).toEqual([{ id: "web-search", max_results: 3 }]);
+    expect(body.plugins).toEqual([{ id: "web", max_results: 3 }]);
   });
 
   it("does not include plugins field when no plugins provided", async () => {
