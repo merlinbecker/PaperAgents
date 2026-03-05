@@ -71,45 +71,49 @@ Nutzer               Chat-UI            Orchestrator        OpenRouter API      
   │◀─Assistant-Answer──┤◀─onComplete────────┤                    │                    │
 ```
 
-## 6.5 Chat-Persistenz
+## 6.5 Chat-Persistenz (Markdown-only)
 
 ```
-Plugin (onload)     Persistence          Vault (.obsidian/plugins/paper-agents/)    Conversations-Ordner
-  │                    │                    │                                            │
-  ├─initPersistence───▶│                    │                                            │
-  │                    ├─loadFromStorage───▶│ conversations.json                         │
-  │                    │◀─Loaded Data──────┤                                            │
-  │                    │                    │                                            │
-  ├─restoreFromFiles───────────────────────────────────────────────────────────────────▶│
-  │                    │                    │◀─Markdown-Dateien (*.md)──────────────────┤
-  │  (newest-wins: Markdown überschreibt JSON wenn updatedAt neuer)                     │
-  │                    │                    │                                            │
+Nutzer               PaperAgentsChatView    ConversationFileManager    Vault (Conversations-Ordner)
+  │                        │                        │                        │
+  ├─Öffne Chat-View────────▶│                        │                        │
+  │                        ├─listConversationFiles──▶│                        │
+  │                        │                        ├─scan *.md──────────────▶│
+  │                        │◀─{ path, title }[]─────┤◀─Markdown-Dateien──────┤
+  │                        ├─autoSelect newest──────▶│                        │
+  │                        ├─loadConversation────────▶│                        │
+  │                        │                        ├─read(file)──────────────▶│
+  │◀─Chat-UI mit History───┤◀─Conversation──────────┤◀─Markdown-Inhalt────────┤
+  │                        │                        │                        │
 (Nutzer chattet...)
-  ├─nach jeder Nachricht──────────────────────────────────────────────────────────────▶│
-  │                    │                    │         saveConversation(filePath, id)     │
-  │                    ├─scheduleSave()────▶│ (debounced, 1s)                           │
-  │                    │                    │                                            │
-Plugin (onunload)
-  │                    ├─saveToStorage─────▶│ (force flush)
+  ├─User-Nachricht─────────▶│                        │                        │
+  │                        ├─saveConversation────────▶│                        │
+  │                        │                        ├─modify(file)────────────▶│
+  │◀─UI aktualisiert───────┤◀───────────────────────┤◀─OK──────────────────────┤
+  │                        │                        │                        │
+(Externe Dateiänderung...)
+  │                        │◀─vault.on('modify')────────────────────────────┤
+  │                        ├─loadConversation (reload)▶│                        │
+  │◀─UI aktualisiert───────┤                        │                        │
 ```
 
-## 6.6 Conversation aus Datei laden (open-file-as-chat)
+Vault-Events (`create`, `delete`, `rename`) aktualisieren das Conversation-Dropdown in der Chat-View. Ein `isSaving`-Flag verhindert einen Reload-Loop bei eigenem Speichern.
+
+## 6.6 Neue Konversation starten
 
 ```
-Nutzer              Plugin (main.ts)    PaperAgentsChatView    ConversationFileManager    ConversationManager
-  │                    │                    │                        │                        │
-  ├─open-file-as-chat─▶│                    │                        │                        │
-  │                    ├─activateChat()────▶│                        │                        │
-  │                    ├─loadConvFromFile──▶│                        │                        │
-  │                    │                    ├─loadConversation──────▶│                        │
-  │                    │                    │                        ├─read(file)              │
-  │                    │                    │                        ├─loadFromConvFile───────▶│
-  │                    │                    │                        │◀─Conversation──────────┤
-  │                    │                    │◀─conversation─────────┤                        │
-  │                    │                    ├─find matching agent    │                        │
-  │                    │                    ├─updateAgentSelect()    │                        │
-  │                    │                    ├─restoreConversationUI()│                        │
-  │◀──Chat-UI mit History────────────────┤                        │                        │
+Nutzer               PaperAgentsChatView    ConversationFileManager    ConversationManager
+  │                        │                        │                        │
+  ├─New Chat──────────────▶│                        │                        │
+  │                        ├─zeige Agenten-Panel    │                        │
+  ├─Agent auswählen────────▶│                        │                        │
+  ├─Create──────────────────▶│                        │                        │
+  │                        ├─createConversation──────────────────────────────▶│
+  │                        │◀─conversationId─────────────────────────────────┤
+  │                        ├─createConversationFile──▶│                        │
+  │                        │                        ├─create(file)            │
+  │                        ├─autoSelect neue Datei  │                        │
+  │◀─Chat-UI bereit─────────┤                        │                        │
 ```
 
 ## 6.7 Streaming Error Handling

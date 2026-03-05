@@ -120,10 +120,9 @@ Input-Parameter
 
 - **State-Management** für Agenten-Konversationen
 - Methoden: `createConversation()`, `addMessage()`, `getMessagesForContext()`, `buildContext()`
-- **Vault-Persistenz**: `setPersistence()`, `loadFromStorage()`, `saveToStorage()` mit debounced saves (1 s Delay). Speicherung nach `.obsidian/plugins/paper-agents/conversations.json`. Max. 50 persistierte Konversationen.
+- **Markdown-Serialisierung**: `toConversationFile()`, `loadFromConversationFile()`, `parseConversationFile()` – round-trip-fähig mit ISO 8601 Timestamps
 - **Token-Counting**: Approximativ (4 Zeichen ≈ 1 Token)
 - **Memory-Strategien**: `conversation` (letzte N Nachrichten), `summary` (Zusammenfassung), `none`
-- **Markdown-Export/Import**: Round-trip-fähig mit ISO 8601 Timestamps (`toConversationFile()`, `loadFromConversationFile()`, `parseConversationFile()`)
 - **LLM-Formatierung**: `formatMessagesForLLM()` für OpenRouter-API
 - **Coverage**: 97.47%
 
@@ -135,6 +134,7 @@ Input-Parameter
 - `loadConversation(filePath)`: Liest Conversation aus Markdown-Datei und registriert sie im Manager
 - `createConversationFile(conversationId, conversationsPath, title?)`: Legt initiale Markdown-Datei für eine bestehende Conversation an
 - `isConversationFile(filePath)`: Prüft `conversation: true` Frontmatter
+- `listConversationFiles(folderPath)`: Gibt alle `.md`-Dateien im Ordner als `{ path, title }` zurück (alphabetisch sortiert)
 - **Speicherformat**: YAML-Frontmatter (id, agentId, createdAt, updatedAt) + `### Role (timestamp)` Nachrichtenblöcke
 
 ### Orchestrator (`orchestrator.ts`)
@@ -149,9 +149,9 @@ Input-Parameter
 
 - **Vault-basierte Persistenz-Helpers** für JSON-Daten
 - Factory-Funktionen: `createVaultSaver()`, `createVaultLoader()`
-- Initialisiert History- und Conversation-Persistenz
+- Initialisiert History-Persistenz (`initializeHistoryPersistence`)
 - Speicherort: `.obsidian/plugins/paper-agents/`
-- Dateien: `history.json`, `conversations.json`
+- Datei: `history.json`
 
 ### Sandbox (`sandbox.ts`)
 
@@ -210,6 +210,9 @@ Input-Parameter
 | `read_file` | Dateiinhalt lesen | `filePath` (string) | Nein |
 | `write_file` | Datei erstellen/modifizieren | `filePath` (string), `content` (string), `overwrite` (boolean) | **Ja, immer** |
 | `rest_request` | HTTP-Requests an externe APIs | `url` (string), `method` (string), `headers` (object), `body` (string) | **Ja bei POST/PUT/DELETE** |
+| `websearch` | Serverseitige Web-Suche via OpenRouter-Plugin | Keine lokalen Parameter | Nein (serverseitig) |
+
+`websearch` ist kein lokal ausgeführtes Tool. Es aktiviert das OpenRouter Web-Search-Plugin (`"plugins": [{"id": "web-search"}]`) im API-Request. Quellenangaben werden im Chat als klickbare Links angezeigt. Konfigurierbar via `websearchConfig.maxResults` im Agenten-Frontmatter.
 
 **Coverage**: 84.43%
 

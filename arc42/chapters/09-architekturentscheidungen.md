@@ -78,22 +78,24 @@
 
 ---
 
-## ADR-6: Zweischichtige Conversation-Persistenz (JSON + Markdown)
+## ADR-6: Markdown-only Conversation-Persistenz
 
-**Kontext**: Conversations müssen nach einem Obsidian-Neustart wiederherstellbar sein. JSON (`conversations.json`) ist kompakt und schnell; Markdown-Dateien sind für den Nutzer lesbar und editierbar.
+**Kontext**: Conversations müssen nach einem Obsidian-Neustart wiederherstellbar und für Nutzer direkt editierbar sein. Eine frühere Zweischicht-Lösung (JSON + Markdown) führte zu Komplexität bei Konfliktlösung und doppeltem State.
 
-**Entscheidung**: Zwei Persistenzschichten:
-1. **JSON** (`.obsidian/plugins/paper-agents/conversations.json`): Primäre Laufzeit-Persistenz via `ConversationManager`, max. 50 Conversations, debounced saves.
-2. **Markdown** (`paper-agents-conversations/*.md`): Sekundäre Persistenz via `ConversationFileManager`, eine Datei pro Conversation, YAML-Frontmatter + Message-Blöcke.
-
-**Konfliktlösung beim Startup**: Newest-wins – die Quelle mit dem neueren `updatedAt`-Timestamp gewinnt.
+**Entscheidung**: Konversationen werden **ausschließlich als Markdown-Dateien** im konfigurierten Conversations-Ordner gespeichert. Es gibt kein `conversations.json` mehr.
 
 **Begründung**:
-- Markdown-Dateien sind von Nutzern direkt editier- und versionierbar (Git)
-- JSON-Persistenz ist performant für Runtime-State
-- Zweischichtigkeit ermöglicht Robustheit gegen JSON-Verlust oder 50-Conversation-Limit
+- Markdown-Dateien sind die einzige Quelle der Wahrheit (Single Source of Truth)
+- Direkt in Obsidian editierbar und versionierbar (Git)
+- Bidirektionale Synchronisierung: `vault.on('modify')` erkennt externe Änderungen sofort
+- Einfacheres Plugin-Lifecycle (kein Force-Flush bei `onunload`, kein Startup-Merge)
 
-**Status**: Implementiert (conversation-file-manager.ts, main.ts `restoreConversationsFromFiles()`).
+**Konsequenz**:
+- `ConversationManager` hat keine JSON-Persistenz mehr (`setPersistence`, `saveToStorage`, `loadFromStorage` entfernt)
+- `persistence.ts` verwaltet nur noch `history.json`
+- Chat-View liest Conversations-Liste via `ConversationFileManager.listConversationFiles()`
+
+**Status**: Implementiert (conversation-file-manager.ts, chat.ts).
 
 ---
 

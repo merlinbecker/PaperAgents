@@ -2,7 +2,7 @@
 
 **Obsidian Plugin for Agent and Tool Workflows in Markdown**
 
-![Version](https://img.shields.io/badge/version-0.0.2-blue)
+![Version](https://img.shields.io/badge/version-0.0.26-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=merlinbecker_PaperAgents&metric=alert_status)](https://sonarcloud.io/project/overview?id=merlinbecker_PaperAgents)
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=merlinbecker_PaperAgents&metric=bugs)](https://sonarcloud.io/project/overview?id=merlinbecker_PaperAgents)
@@ -57,12 +57,14 @@ Paper Agents verfolgt einen **pragmatischen Ansatz** ohne komplexe Frameworks. D
 - Rate-Limiting und Retry-Logik (429, 500, 502, 503)
 - Multi-Modell-Support (konfigurierbar in Settings)
 - API-Key-Validierung
+- WebSearch Plugin: serverseitige Web-Suche via OpenRouter (aktiviert per `websearch` Tool in Agent-Definition, Quellenangaben im Chat)
 
 **Agenten-System:**
 - Agenten-Notation: System-Prompts, Tools, Memory und Kontext in Markdown
 - Konversationslogik: State-Management, Token-Counting, Memory-Management
 - Orchestrierung: Multi-Turn-Loop (User → LLM → Tool-Calls → Feedback → LLM)
 - Agenten-Loading aus Vault mit Reload-Command
+- Konversationen als Markdown-Dateien im Vault (bidirektional: externe Änderungen laden sich automatisch neu)
 
 **UI-Komponenten:**
 - Chat-View mit Streaming-Anzeige, Agent-Auswahl, Tool-Call-Display
@@ -124,8 +126,9 @@ Klicke das Bot-Icon in der linken Ribbon, oder nutze die Command Palette:
 ### 3. Chat starten
 
 - `Ctrl/Cmd + P` → "Open Chat" um den Chat-View zu öffnen
-- Wähle einen Agenten aus dem Dropdown
+- Wähle eine bestehende Konversation aus dem Dropdown oder erstelle eine neue
 - Sende Nachrichten und sieh Streaming-Responses + Tool-Calls
+- Konversationen werden automatisch als Markdown-Dateien im Vault gespeichert
 
 ### 4. Vordefinierte Tools nutzen
 
@@ -178,6 +181,9 @@ temperature: 0.7
 tools:
   - search_files
   - read_file
+  - websearch
+websearchConfig:
+  maxResults: 5
 memory:
   type: conversation
   maxMessages: 50
@@ -202,6 +208,7 @@ Zugriff via **Settings → Community plugins → Paper Agents**:
 | Max Tokens | Maximale Token pro Response | `4096` |
 | Custom Tools Path | Ordner für Tool-Definitionen | `paper-agents-tools` |
 | Agents Path | Ordner für Agenten-Definitionen | `paper-agents-agents` |
+| Conversations Path | Ordner für Konversations-Markdown | `paper-agents-conversations` |
 | Debug Logging | Console-Logs für Troubleshooting | `false` |
 
 Änderungen an API-Key, Modell, Temperature oder Max Tokens werden sofort wirksam (kein Neustart nötig).
@@ -391,7 +398,7 @@ npm run lint         # Linting
 
 ## Dokumentation
 
-| Ich will... | Gehe zu... |
+| Dokumentation | Gehe zu... |
 |-------------|------------|
 | Das Projekt verstehen | [README.md](README.md) |
 | Architektur & Roadmap | [arc42/chapters/INDEX.md](arc42/chapters/INDEX.md) |
@@ -399,7 +406,6 @@ npm run lint         # Linting
 | Beispiele sehen | [examples/](examples/) |
 | Ein Release machen | [RELEASE.md](RELEASE.md) |
 | AI-Agent-Richtlinien | [AGENTS.md](AGENTS.md) |
-| Offene Punkte | [Plans/status.md](Plans/status.md) |
 
 ---
 
@@ -417,9 +423,9 @@ MIT © [Merlin Becker](https://github.com/merlinbecker)
 
 ---
 
-**Aktuelle Version:** 0.0.2
-**Status:** Beta (Phase 4.3 + 4.4 abgeschlossen)
-**Letzte Aktualisierung:** 27. Februar 2026
+**Aktuelle Version:** 0.0.26
+**Status:** Beta (Phase 4.3 + 4.4 abgeschlossen, WebSearch und Conversation-Rework integriert)
+**Letzte Aktualisierung:** 5. März 2026
 
 ---
 
