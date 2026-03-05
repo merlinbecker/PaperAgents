@@ -283,8 +283,8 @@ export class YAMLParser {
     if (str === "true") return true;
     if (str === "false") return false;
     if (str === "null") return null;
-    if (/^\d+$/.test(str)) return parseInt(str, 10);
-    if (/^\d+\.\d+$/.test(str)) return parseFloat(str);
+    if (/^\d+$/.test(str)) return Number.parseInt(str, 10);
+    if (/^\d+\.\d+$/.test(str)) return Number.parseFloat(str);
     if (str.startsWith('"') && str.endsWith('"')) return str.slice(1, -1);
     if (str.startsWith("'") && str.endsWith("'")) return str.slice(1, -1);
     return str;

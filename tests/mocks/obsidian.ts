@@ -21,13 +21,13 @@ export class TFolder {
   children: Array<TFile | TFolder> = [];
   constructor(path: string) {
     this.path = path;
-    this.name = path.split("/").filter(Boolean).pop() || "";
+    this.name = path.split("/").findLast(Boolean) as string || "";
   }
 }
 
 export class Vault {
-  private files: Map<string, string> = new Map();
-  private root: TFolder = new TFolder("/");
+  private readonly files: Map<string, string> = new Map();
+  private readonly root: TFolder = new TFolder("/");
 
   private ensureFolder(path: string): TFolder {
     const parts = path.split("/").filter(Boolean);
@@ -95,7 +95,7 @@ export class Vault {
     const folderPath = path.split("/").slice(0, -1).join("/") || "/";
     const folder = this.ensureFolder(folderPath);
     const tfile = new TFile(path, data.length);
-    if (!folder.children.find((c) => c instanceof TFile && c.path === path)) {
+    if (!folder.children.some((c) => c instanceof TFile && c.path === path)) {
       folder.children.push(tfile);
     }
     return tfile;

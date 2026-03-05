@@ -19,7 +19,7 @@ export interface LogEntry {
 
 export class Logger {
   private logs: LogEntry[] = [];
-  private maxLogs = 1000;
+  private readonly maxLogs = 1000;
   private minLevel: LogLevel = LogLevel.DEBUG;
 
   constructor(minLevel: LogLevel = LogLevel.DEBUG) {

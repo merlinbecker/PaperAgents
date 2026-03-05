@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { ConversationManager } from "../../../src/core/conversation";
-import type { MemoryConfig, AgentDefinition } from "../../../src/types";
+import type { AgentDefinition } from "../../../src/types";
 
 describe("ConversationManager", () => {
   let manager: ConversationManager;
@@ -226,12 +226,6 @@ describe("ConversationManager", () => {
   });
 
   describe("getMessagesForContext", () => {
-    const memoryConfig: MemoryConfig = {
-      type: "conversation",
-      maxMessages: 3,
-      maxTokens: 100,
-    };
-
     it("should return empty for 'none' memory type", () => {
       manager.createConversation("agent_1", "conv_1");
       manager.addMessage("conv_1", "user", "Hello!");

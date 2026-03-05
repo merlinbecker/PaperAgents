@@ -21,7 +21,7 @@ export class PaperAgentsSidebar extends ItemView {
   private statusContainer: HTMLElement | null = null;
   private countsContainer: HTMLElement | null = null;
   private readonly toolRegistry: IToolRegistry;
-  private onToolClick: (toolId: string) => void;
+  private readonly onToolClick: (toolId: string) => void;
   private agents: AgentDefinition[] = [];
   private onAgentClick: ((agentId: string) => void) | null = null;
   private onOpenChat: (() => void) | null = null;
@@ -232,9 +232,7 @@ export class PaperAgentsSidebar extends ItemView {
 
     for (const tool of tools) {
       const category = tool.category || TOOL_CATEGORIES.CUSTOM;
-      if (!grouped[category]) {
-        grouped[category] = [];
-      }
+      grouped[category] ??= [];
       grouped[category].push(tool);
     }
 

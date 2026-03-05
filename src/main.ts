@@ -351,11 +351,10 @@ export default class PaperAgents extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = Object.assign(
-      {},
-      DEFAULT_SETTINGS,
-      (await this.loadData()) as Partial<PaperAgentsSettings>
-    );
+    this.settings = {
+      ...DEFAULT_SETTINGS,
+      ...((await this.loadData()) as Partial<PaperAgentsSettings>),
+    };
   }
 
   async saveSettings() {

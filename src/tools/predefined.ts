@@ -136,7 +136,7 @@ class SearchFilesTool implements IExecutableTool {
   name = PREDEFINED_TOOL_IDS.SEARCH_FILES;
   parameters = SEARCH_FILES_PARAMS;
 
-  constructor(private app: App) {}
+  constructor(private readonly app: App) {}
 
   private async checkFileContent(file: TFile, lowerQuery: string): Promise<boolean> {
     try {
@@ -214,7 +214,7 @@ class ReadFileTool implements IExecutableTool {
   name = PREDEFINED_TOOL_IDS.READ_FILE;
   parameters = READ_FILE_PARAMS;
 
-  constructor(private app: App) {}
+  constructor(private readonly app: App) {}
 
   async execute(ctx: ExecutionContext): Promise<ExecutionResult> {
     try {
@@ -263,7 +263,7 @@ class WriteFileTool implements IExecutableTool {
   name = PREDEFINED_TOOL_IDS.WRITE_FILE;
   parameters = WRITE_FILE_PARAMS;
 
-  constructor(private app: App) {}
+  constructor(private readonly app: App) {}
 
   async execute(ctx: ExecutionContext): Promise<ExecutionResult> {
     try {
@@ -316,7 +316,7 @@ class RestRequestTool implements IExecutableTool {
   name = PREDEFINED_TOOL_IDS.REST_REQUEST;
   parameters = REST_REQUEST_PARAMS;
 
-  constructor(private app: App) {}
+  constructor(private readonly app: App) {}
 
   async execute(ctx: ExecutionContext): Promise<ExecutionResult> {
     try {

@@ -10,7 +10,7 @@ import YAMLParser from "./yaml-parser";
 import ParameterValidator from "./validator";
 
 export class CustomToolLoader {
-  private app: App;
+  private readonly app: App;
 
   constructor(app: App) {
     this.app = app;

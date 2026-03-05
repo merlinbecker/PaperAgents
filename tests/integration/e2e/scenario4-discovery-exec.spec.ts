@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { app, TFile, Vault } from "obsidian";
+import { app, Vault } from "obsidian";
 import CustomToolLoader from "../../../src/parser/tool-loader";
 import ToolRegistry from "../../../src/core/tool-registry";
 import toolExecutor from "../../../src/core/tool-executor";

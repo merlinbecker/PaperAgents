@@ -62,9 +62,9 @@ export class ParameterValidator {
    * Validiert number-Typ
    */
   private static validateNumber(value: unknown, param: Parameter): ValidationError | null {
-    const num = parseFloat(String(value));
+    const num = Number.parseFloat(String(value));
 
-    if (isNaN(num)) {
+    if (Number.isNaN(num)) {
       return {
         field: param.name,
         message: `Expected number, got "${String(value)}"`,
@@ -194,9 +194,7 @@ export class ParameterValidator {
       let value = input[param.name];
 
       // Default-Wert verwenden, falls nicht vorhanden
-      if (value === null || value === undefined) {
-        value = param.default;
-      }
+      value ??= param.default;
 
       // Type-Konversion
       switch (param.type) {
