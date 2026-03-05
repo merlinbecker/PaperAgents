@@ -151,7 +151,7 @@ Antworttext
 Result: "Dateiinhalt"
 ```
 
-Dateien werden im konfigurierten Conversations-Ordner abgelegt (Standard: `paper-agents-conversations/`) und können direkt in Obsidian geöffnet und bearbeitet werden. Das Format ist round-trip-fähig: Gespeicherte Dateien können über `open-file-as-chat` wieder in `PaperAgentsChatView` geladen werden.
+Dateien werden im konfigurierten Conversations-Ordner abgelegt (Standard: `paper-agents-conversations/`) und können direkt in Obsidian geöffnet und bearbeitet werden. Das Format ist round-trip-fähig: Gespeicherte Dateien können über das Conversation-Dropdown in `PaperAgentsChatView` wieder geladen werden.
 
 ### Memory-Strategien
 
@@ -167,10 +167,9 @@ Dateien werden im konfigurierten Conversations-Ordner abgelegt (Standard: `paper
 |---------|-----------|-------|
 | **Factory Pattern** | `ToolRegistry` | Tool-Erstellung und -Registrierung entkoppelt von Implementierung |
 | **Strategy Pattern** | `ToolExecutor` | Austauschbare Ausführungslogik (Single vs. Chain) |
-| **Observer Pattern** | HITL-Callbacks | UI-Integration ohne Tight Coupling |
+| **Observer Pattern** | HITL-Callbacks, Vault-Events | UI-Integration ohne Tight Coupling; Chat-View reagiert auf externe Dateiänderungen |
 | **Pipeline Pattern** | 3-Phasen-Execution | Pre → Tool → Post als sequenzielle Pipeline |
 | **Callback Pattern** | `OrchestratorCallbacks` | Streaming-Events (onToken, onToolCallStart, onToolCallEnd, onComplete, onError) |
-| **Debounce Pattern** | `ConversationManager` | Persistenz-Speicherung mit 1 s Timer, vermeidet exzessive Schreiboperationen |
 | **Module Extraction** | `commands/`, `persistence.ts` | Verantwortlichkeiten aus main.ts in eigenständige Module extrahiert |
 
 ## 8.5 Logging
@@ -212,48 +211,42 @@ onload():
   1. Settings laden (loadData)
   2. ToolRegistry initialisieren
   3. ConversationManager initialisieren
-  4. Predefined Tools registrieren
+  4. Predefined Tools registrieren (inkl. WebSearchFactory)
   5. Custom Tools aus Vault laden
   6. Agents aus Vault laden
   7. Orchestrator initialisieren
-  8. History-Persistenz initialisieren
-  9. Conversation-Persistenz initialisieren (loadFromStorage aus conversations.json)
-  10. Conversations aus Markdown-Dateien wiederherstellen (newest-wins bei Konflikten)
-  11. Sandbox initialisieren (QuickJS)
-  12. Sidebar View registrieren
-  13. Chat View (PaperAgentsChatView) registrieren
-  14. Chat-File View (ChatView) registrieren (Fallback/Rückwärtskompatibilität)
-  15. Ribbon Icon hinzufügen
-  16. Commands registrieren (via registerCommands())
-  17. Settings-Tab registrieren
-  18. HITL Callbacks registrieren
+  8. History-Persistenz initialisieren (history.json)
+  9. Sandbox initialisieren (QuickJS)
+  10. Sidebar View registrieren
+  11. Chat View (PaperAgentsChatView) registrieren
+  12. Ribbon Icon hinzufügen
+  13. Commands registrieren (via registerCommands())
+  14. Settings-Tab registrieren
+  15. HITL Callbacks registrieren
 
 onunload():
-  1. Conversations speichern (force flush – saveToStorage)
-  2. Sandbox destroyen
-  3. Sidebar-Leaves detachen
-  4. Chat-Leaves detachen
+  1. Sandbox destroyen
+  2. Sidebar-Leaves detachen
+  3. Chat-Leaves detachen
 ```
 
 ## 8.8 Vault-Persistenz
 
-- **Speicherort JSON**: `.obsidian/plugins/paper-agents/`
-- **Dateien**: `conversations.json` (Chat-Konversationen), `history.json` (Execution-History)
-- **Debounced Saves**: Während der Laufzeit werden Änderungen mit 1 s Delay gespeichert (vermeidet exzessive I/O)
-- **Force-Save bei Unload**: Beim Plugin-Stopp wird explizit `saveToStorage()` aufgerufen
-- **Factory-Funktionen**: `createVaultSaver()`, `createVaultLoader()` in `src/core/persistence.ts`
-- **Limits**: Max. 50 persistierte Konversationen in `conversations.json`
-- **Fehlertoleranz**: Korrupte Daten werden geloggt und ignoriert (kein Plugin-Crash)
-- **Datenschutz**: Alle Daten lokal im Vault – kein Cloud-Sync der Gespräche
+- **JSON-Persistenz** (nur Execution History):
+  - Speicherort: `.obsidian/plugins/paper-agents/`
+  - Datei: `history.json`
+  - Factory-Funktionen: `createVaultSaver()`, `createVaultLoader()` in `src/core/persistence.ts`
+  - Fehlertoleranz: Korrupte Daten werden geloggt und ignoriert (kein Plugin-Crash)
+  - Datenschutz: Alle Daten lokal im Vault
 
 ### Markdown-Persistenz für Conversations
 
 - **Speicherort**: Konfigurierbarer Pfad (Standard: `paper-agents-conversations/`)
 - **Format**: Markdown mit YAML-Frontmatter (`conversation: true`, `id`, `agentId`, `createdAt`, `updatedAt`) und `### Role (timestamp)` Nachrichtenblöcken
 - **Schreiben**: Nach jeder Nachricht in `PaperAgentsChatView.sendMessage()` via `ConversationFileManager.saveConversation()`
-- **Datei anlegen**: Beim Start einer neuen Konversation in `PaperAgentsChatView.startNewConversation()` via `ConversationFileManager.createConversationFile()`
-- **Laden**: Via Command `open-file-as-chat` → `PaperAgentsChatView.loadConversationFromFile()` – öffnet mit voller LLM-Integration
-- **Startup-Wiederherstellung**: `restoreConversationsFromFiles()` in `main.ts` scannt den Conversations-Ordner beim Plugin-Start und lädt Markdown-Dateien, die nicht in `conversations.json` vorhanden sind. Bei Konflikten gilt: **neuere `updatedAt` gewinnt** (Markdown kann `conversations.json` überschreiben)
+- **Datei anlegen**: Beim Start einer neuen Konversation via `ConversationFileManager.createConversationFile()`
+- **Laden**: Beim Öffnen der Chat-View oder bei Auswahl aus dem Conversation-Dropdown
+- **Bidirektionale Synchronisierung**: `vault.on('modify')` erkennt externe Änderungen und lädt die Konversation automatisch neu
 
 ---
 

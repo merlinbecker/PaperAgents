@@ -22,7 +22,7 @@ Qualität
 │   └── Mobile (iOS, Android) via WASM
 └── Wartbarkeit
     ├── TypeScript strict mode
-    ├── 146 Tests, 75.55% Coverage
+    ├── 283 Tests, >80% Coverage
     └── Layered Architecture
 ```
 

@@ -21,25 +21,21 @@
 | TS4 | UI-Tests fehlen | Akzeptabel | Unverändert | Sidebar, Forms, HITL-Modal, Chat nur manuell getestet (Obsidian-UI-API schwer zu mocken) |
 | TS5 | Keine Performance-Tests | Niedrig | Offen | Kein Benchmarking für Sandbox-Ausführung oder Vault-Scans |
 | TS6 | QuickJS-Dependency nicht aufgelöst | Mittel | Offen | `@jitl/quickjs-singlefile-cjs-release-sync` Import schlägt bei `tsc` fehl. esbuild bundelt korrekt, aber 34 Tests scheitern am Mock |
-| TS7 | `main.ts` zu groß | Niedrig | Offen | ~430 Zeilen – `restoreConversationsFromFiles()` und Feature-Methoden könnten in separates Modul |
-| TS8 | Chat-Konversationen Migrations-Kompatibilität | Niedrig | **Teilweise behoben** | Zweischichtige Persistenz (JSON + Markdown) mit Newest-Wins implementiert. Explizite Schema-Migration für zukünftige Versionsänderungen noch offen |
+| TS7 | `main.ts` zu groß | Niedrig | Offen | ~360 Zeilen – Command-Registration und weitere Features könnten in separate Module |
+| TS8 | Chat-Konversationen Migrations-Kompatibilität | Niedrig | Offen | Nur Markdown-Persistenz; Schema-Änderungen könnten alte Dateien unlesbar machen |
 
 ## 11.3 Behobene Schulden (seit v0.0.1)
 
 | # | Schuld | Lösung |
 |---|--------|--------|
 | TS1 | 39× `any`-Types | In 13 Dateien durch `unknown`, `Record<string, unknown>`, Union-Types ersetzt |
+| TS8 | Zweischichtige Conversation-Persistenz komplex | Vereinfacht: Markdown-only (kein `conversations.json`, kein Startup-Merge) |
 | - | HITL-Verdrahtung fehlend | `registerGlobalHITLCallback()` implementiert |
 | - | Keine Test-Coverage für neue Features | 32 neue Unit-Tests für OpenRouter, Orchestrator, History, continueOnError, Advanced Chain |
 | - | Settings-Änderungen erforderten Neustart | `reinitializeOrchestrator()` wird bei jeder Settings-Änderung aufgerufen |
-| TS8 | Chat-Konversationen nicht persistent | Zweischichtige Persistenz: JSON (`conversations.json`) + Markdown-Dateien (`ConversationFileManager`) |
-| - | Bug: `VIEW_TYPE_CHAT`-Kollision | `VIEW_TYPE_CHAT` von `"paper-agents-chat"` auf `"paper-agents-chat-file"` umbenannt |
-| - | Bug: Doppelte Command-ID `"open-chat"` | Command in `main.ts` auf `"open-file-as-chat"` umbenannt |
-| - | `ConversationFileManager` nutzte globalen Singleton | Konstruktor akzeptiert jetzt injizierte `ConversationManager`-Instanz |
-| - | `createConversationFile` legte Duplikat-Conversation an | Signatur auf `(conversationId, path, title?)` geändert – verwendet bestehende Conversation |
-| - | Conversation-Datei nicht aus `PaperAgentsChatView` ladbar | `loadConversationFromFile()` implementiert – öffnet mit voller LLM-Integration |
-| - | Conversations nach Obsidian-Neustart nicht aus Markdown wiederherstellbar | `restoreConversationsFromFiles()` beim Startup mit Newest-Wins-Konfliktlösung |
-| - | Kein Auto-Select bei einzelnem Agenten | `refreshAgents()` wählt automatisch den einzigen verfügbaren Agenten aus |
+| - | SonarQube-Qualitätsprobleme (94 Issues) | S2933 (readonly), S7773 (Number.*), S7781 (replaceAll), S6582 (optional chaining), S3776 (cognitive complexity), u.v.m. behoben |
+| - | CSS Color Contrast (WCAG AA) | API-Status-Badge-Farben auf ≥4.5:1 Kontrastverhältnis verbessert |
+| - | CI Script Injection | GitHub Actions Workflow: `INPUT_VERSION` env-Variable statt direkter `${{ inputs.version }}` Interpolation |
 
 ---
 

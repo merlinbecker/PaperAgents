@@ -18,13 +18,16 @@
 
 ### Funktionsübersicht
 
-- **4 vordefinierte Tools**: `search_files`, `read_file`, `write_file`, `rest_request`
+- **4 vordefinierte Tools + WebSearch**: `search_files`, `read_file`, `write_file`, `rest_request`, `websearch` (OpenRouter-Plugin)
 - **Custom Tools**: Eigene Tools als Markdown-Dateien mit YAML Frontmatter
 - **Pre-/Post-Processing**: JavaScript-Transformation in QuickJS-Sandbox
-- **Chain-Tools**: Multi-Step-Workflows mit Placeholder-Chaining
+- **Chain-Tools**: Multi-Step-Workflows mit Placeholder-Chaining (Conditionals, Loops, Retry)
 - **Human-in-the-Loop (HITL)**: Bestätigungspflicht für kritische Operationen
 - **Agenten-Notation**: System-Prompts, Tools, Memory, Kontext in Markdown
-- **Konversationslogik**: State-Management, Token-Counting, Markdown-Export/Import
+- **Konversationslogik**: State-Management, Token-Counting, Markdown-Persistenz
+- **OpenRouter-Integration**: SSE-Streaming, Tool-Calling, Multi-Turn-Loop
+- **Chat-UI**: Konversations-Auswahl aus Markdown-Dateien, Streaming, Quellenangaben
+- **Observability**: Execution-History, Metriken (Dauer, Erfolgsrate, p95), Tracing
 - **Mobile-kompatibel**: Funktioniert auf Desktop, iOS und Android
 
 ## 1.2 Qualitätsziele
