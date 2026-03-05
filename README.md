@@ -13,7 +13,7 @@
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=merlinbecker_PaperAgents&metric=security_rating)](https://sonarcloud.io/project/overview?id=merlinbecker_PaperAgents)
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=merlinbecker_PaperAgents&metric=duplicated_lines_density)](https://sonarcloud.io/project/overview?id=merlinbecker_PaperAgents)
 
-<a href="https://www.buymeacoffee.com/merlinbecker"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a beer&emoji=🍺&slug=merlinbecker&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" /></a>
+<a href="https://www.buymeacoffee.com/merlinbecker"><img src="https://img.buymeacoffee.com/button-api/?text=BuyMeABeer&emoji=🍺&slug=merlinbecker&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" /></a>
 
 ---
 
