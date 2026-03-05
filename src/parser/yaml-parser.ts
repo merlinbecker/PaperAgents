@@ -247,7 +247,7 @@ export class YAMLParser {
   /**
    * Parst ein einzelnes Key-Value Paar
    */
-  private static parseKeyValue(line: string): [string, YAMLPrimitive] {
+  static parseKeyValue(line: string): [string, YAMLPrimitive] {
     const match = line.match(/^(\w+):\s*(.*)$/);
     if (!match) {
       return ["", null];
@@ -279,7 +279,7 @@ export class YAMLParser {
   /**
    * Konvertiert String zu korrektem Typ
    */
-  private static parseValue(str: string): YAMLPrimitive {
+  static parseValue(str: string): YAMLPrimitive {
     if (str === "true") return true;
     if (str === "false") return false;
     if (str === "null") return null;
