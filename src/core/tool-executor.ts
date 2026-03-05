@@ -264,7 +264,7 @@ export class ToolExecutor {
       }
 
       // Prüfe ob HITL erforderlich
-      if (tool.shouldRequireHITL && tool.shouldRequireHITL(context.parameters)) {
+      if (tool.shouldRequireHITL?.(context.parameters)) {
         const decision = await this.requestHITLApproval(step.name, tool.name, context.parameters);
 
         if (!decision.approved) {

@@ -1,6 +1,6 @@
 # SonarCloud Report – PaperAgents
 
-Generated: 2026-03-05
+Generated: 2026-03-05 (updated)
 
 ## Quality Gate Status: ❌ FAILED
 
@@ -174,16 +174,16 @@ Generated: 2026-03-05
 9. **[S7754] `.some()`** – replaced `.find(…)` boolean check with `.some(…)` in `tests/mocks/obsidian.ts`
 10. **[S1854] Useless assignment** – removed unused `memoryConfig` const from `tests/unit/core/conversation.spec.ts`
 11. **[javascript:S7772] `node:` protocol** – updated imports in `create-release.mjs`
+12. **[S6582] Use optional chain expressions** – replaced all manual null-guard patterns (`obj && obj.prop`, `!obj || !obj.prop`) with `obj?.prop` optional chain in `src/parser/agent-parser.ts` (6 occurrences), `src/parser/yaml-parser.ts` (5 occurrences), `src/core/tool-executor.ts` (1 occurrence), `src/core/tool-registry.ts` (1 occurrence)
 
 ### 🔜 Next Steps (ordered by effort / impact)
 
-1. **[S6582] Use optional chain expressions** – ~13 occurrences in several files
-2. **[S6594] Use `RegExp.exec()`** – ~19 occurrences across parsers
-3. **[S3358] Extract nested ternary in `src/core/sandbox.ts`**
-4. **[S4624] Refactor nested template literals in `src/parser/yaml-parser.ts`**
-5. **[S7735] Unexpected negated condition in `src/parser/yaml-parser.ts` L452**
-6. **[S6551] Object `[object Object]` stringification in `src/parser/placeholder.ts`, `src/ui/forms.ts`, `src/ui/hitl-modal.ts`**
-7. **[S7780] Use `String.raw` in `tests/unit/core/sandbox-prepost.spec.ts` L292**
-8. **[S3776] Reduce Cognitive Complexity** – large refactors in 10 functions, highest effort
-9. **Security Hotspots (S5852/S2245/S1523)** – review and decide safe/fix per hotspot
-10. **CSS contrast issues (css:S7924)** – fix 6 contrast issues in `styles.css`
+1. **[S6594] Use `RegExp.exec()`** – ~19 occurrences across parsers
+2. **[S3358] Extract nested ternary in `src/core/sandbox.ts`**
+3. **[S4624] Refactor nested template literals in `src/parser/yaml-parser.ts`**
+4. **[S7735] Unexpected negated condition in `src/parser/yaml-parser.ts` L452**
+5. **[S6551] Object `[object Object]` stringification in `src/parser/placeholder.ts`, `src/ui/forms.ts`, `src/ui/hitl-modal.ts`**
+6. **[S7780] Use `String.raw` in `tests/unit/core/sandbox-prepost.spec.ts` L292**
+7. **[S3776] Reduce Cognitive Complexity** – large refactors in 10 functions, highest effort
+8. **Security Hotspots (S5852/S2245/S1523)** – review and decide safe/fix per hotspot
+9. **CSS contrast issues (css:S7924)** – fix 6 contrast issues in `styles.css`
