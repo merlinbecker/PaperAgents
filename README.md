@@ -89,7 +89,7 @@ Paper Agents verfolgt einen **pragmatischen Ansatz** ohne komplexe Frameworks. D
 **Qualität:**
 - Mobile-Kompatibel (Desktop, iOS, Android)
 - TypeScript Strict Mode (minimale `any`-Types)
-- 178 Tests, ~144 grün (34 vorgefertigte Sandbox-Tests warten auf QuickJS-Mock-Verbesserung)
+- 283 Tests, alle grün (23 Test-Dateien, Unit- und Integrationstests)
 
 ---
 
@@ -392,7 +392,23 @@ npm test             # Tests ausführen
 npm run lint         # Linting
 ```
 
-**178 Tests** insgesamt (144 grün, 34 pre-existing Sandbox-Mock-Failures).
+**283 Tests** in 23 Dateien, alle grün.
+
+---
+
+## Code Coverage
+
+Coverage wird mit `npm test` (`vitest --coverage`) gemessen. Ausgeschlossen sind nicht-testbare Obsidian-Infrastruktur-Dateien (`main.ts`, `settings.ts`, `commands/**`, `ui/**`).
+
+| Layer | Statements | Branches | Functions |
+|-------|-----------|----------|-----------|
+| **Gesamt (testbarer Code)** | **84.62 %** | **77.44 %** | **82.80 %** |
+| src/core | 81.72 % | 73.97 % | 83.87 % |
+| src/parser | 89.47 % | 80.41 % | 95.91 % |
+| src/tools | 91.89 % | 82.22 % | 76.00 % |
+| src/utils | 81.81 % | 84.61 % | 56.52 % |
+
+**Ziel:** ≥ 80 % Statement-Coverage für alle testbaren Layer.
 
 ---
 
