@@ -29,9 +29,8 @@ import {
   MemoryConfig,
   MemoryType,
   WebSearchConfig,
-  YAMLPrimitive,
 } from "../types";
-import { YAMLParseError } from "./yaml-parser";
+import { YAMLParseError, YAMLParser } from "./yaml-parser";
 
 export class AgentParseError extends Error {
   field?: string;
@@ -100,12 +99,12 @@ export class AgentParser {
         const leadingSpaces = line.search(/\S/);
 
         if (trimmed.startsWith("- ") && inArray && currentKey) {
-          currentArray.push(this.parseValue(trimmed.slice(2).trim()));
+          currentArray.push(YAMLParser.parseValue(trimmed.slice(2).trim()));
           continue;
         }
 
         if (nestedKey && leadingSpaces >= 2 && trimmed.includes(":")) {
-          const [key, value] = this.parseKeyValue(trimmed);
+          const [key, value] = YAMLParser.parseKeyValue(trimmed);
           if (key) nestedObj[key] = value;
           continue;
         }
@@ -138,7 +137,7 @@ export class AgentParser {
             continue;
           }
 
-          const [key, value] = this.parseKeyValue(trimmed);
+          const [key, value] = YAMLParser.parseKeyValue(trimmed);
           if (key) {
             result[key] = value;
             currentKey = key;
@@ -156,26 +155,6 @@ export class AgentParser {
       }
       throw error;
     }
-  }
-
-  private static parseKeyValue(line: string): [string, YAMLPrimitive] {
-    const match = line.match(/^(\w+):\s*(.*)$/);
-    if (!match) return ["", null];
-    
-    const key = match[1] || "";
-    const valueStr = match[2];
-    return [key, valueStr ? this.parseValue(valueStr.trim()) : null];
-  }
-
-  private static parseValue(str: string): YAMLPrimitive {
-    if (str === "true") return true;
-    if (str === "false") return false;
-    if (str === "null") return null;
-    if (/^\d+$/.test(str)) return Number.parseInt(str, 10);
-    if (/^\d+\.\d+$/.test(str)) return Number.parseFloat(str);
-    if (str.startsWith('"') && str.endsWith('"')) return str.slice(1, -1);
-    if (str.startsWith("'") && str.endsWith("'")) return str.slice(1, -1);
-    return str;
   }
 
   private static extractSections(body: string): {
@@ -303,8 +282,7 @@ export class AgentParser {
       const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
       if (!frontmatterMatch || !frontmatterMatch[1]) return false;
       
-      return frontmatterMatch[1].includes("agent:") && 
-             frontmatterMatch[1].includes("agent: true");
+      return frontmatterMatch[1].includes("agent: true");
     } catch {
       return false;
     }
