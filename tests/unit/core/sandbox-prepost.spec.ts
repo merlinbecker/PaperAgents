@@ -289,8 +289,8 @@ describe("QuickJSSandbox - Pre/Post-Processing Execution", () => {
     });
 
     it("can format output as markdown", async () => {
-      const code = `
-        return "# Results\\n\\n" + output.items.map(i => "- " + i).join("\\n");
+      const code = String.raw`
+        return "# Results\n\n" + output.items.map(i => "- " + i).join("\n");
       `;
 
       const toolOutput = {

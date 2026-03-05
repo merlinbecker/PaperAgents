@@ -49,7 +49,7 @@ export class AgentParser {
   };
 
   static parseAgentFile(content: string): ParsedAgentFile {
-    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    const frontmatterMatch = /^---\n([\s\S]*?)\n---/.exec(content);
     
     if (!frontmatterMatch?.[1]) {
       throw new AgentParseError("No YAML frontmatter found. Agent file must start with ---");
@@ -164,14 +164,14 @@ export class AgentParser {
     let systemPrompt = "";
     let contextTemplate: string | undefined;
 
-    const systemPromptMatch = body.match(/##\s*System\s*Prompt\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i);
+    const systemPromptMatch = /##\s*System\s*Prompt\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i.exec(body);
     if (systemPromptMatch?.[1]) {
       systemPrompt = systemPromptMatch[1].trim();
     }
 
-    const contextMatch = body.match(/##\s*Kontext\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i);
+    const contextMatch = /##\s*Kontext\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i.exec(body);
     if (!contextMatch) {
-      const contextMatchEn = body.match(/##\s*Context\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i);
+      const contextMatchEn = /##\s*Context\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i.exec(body);
       if (contextMatchEn?.[1]) {
         contextTemplate = contextMatchEn[1].trim();
       }
@@ -279,7 +279,7 @@ export class AgentParser {
 
   static isAgentFile(content: string): boolean {
     try {
-      const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+      const frontmatterMatch = /^---\n([\s\S]*?)\n---/.exec(content);
       if (!frontmatterMatch?.[1]) return false;
       
       return frontmatterMatch[1].includes("agent: true");

@@ -175,15 +175,15 @@ Generated: 2026-03-05 (updated)
 10. **[S1854] Useless assignment** – removed unused `memoryConfig` const from `tests/unit/core/conversation.spec.ts`
 11. **[javascript:S7772] `node:` protocol** – updated imports in `create-release.mjs`
 12. **[S6582] Use optional chain expressions** – replaced all manual null-guard patterns (`obj && obj.prop`, `!obj || !obj.prop`) with `obj?.prop` optional chain in `src/parser/agent-parser.ts` (6 occurrences), `src/parser/yaml-parser.ts` (5 occurrences), `src/core/tool-executor.ts` (1 occurrence), `src/core/tool-registry.ts` (1 occurrence)
+13. **[S6594] Use `RegExp.exec()`** – replaced all `.match()` calls with `RegExp.exec()` (or `.test()` where only a boolean result is needed) across `src/parser/agent-parser.ts` (5 occurrences) and `src/parser/yaml-parser.ts` (12 occurrences); also replaced `||` fallback chains with `??` for exec calls
+14. **[S3358] Extract nested ternary** – replaced nested ternary in `src/core/sandbox.ts` with independent `if/else if/else` statements
+15. **[S4624] Refactor nested template literal** – extracted `snippetSuffix` variable in `YAMLParseError` constructor in `src/parser/yaml-parser.ts`
+16. **[S7735] Unexpected negated condition** – simplified tautological ternary `p.default !== undefined ? p.default : undefined` to `p.default` in `src/parser/yaml-parser.ts`
+17. **[S6551] Object `[object Object]` stringification** – fixed `input.value = String(param.default)` in `src/ui/forms.ts` to use `JSON.stringify` for object values
+18. **[S7780] Use `String.raw`** – replaced double-escaped string in `tests/unit/core/sandbox-prepost.spec.ts` with `String.raw` template literal
 
 ### 🔜 Next Steps (ordered by effort / impact)
 
-1. **[S6594] Use `RegExp.exec()`** – ~19 occurrences across parsers
-2. **[S3358] Extract nested ternary in `src/core/sandbox.ts`**
-3. **[S4624] Refactor nested template literals in `src/parser/yaml-parser.ts`**
-4. **[S7735] Unexpected negated condition in `src/parser/yaml-parser.ts` L452**
-5. **[S6551] Object `[object Object]` stringification in `src/parser/placeholder.ts`, `src/ui/forms.ts`, `src/ui/hitl-modal.ts`**
-6. **[S7780] Use `String.raw` in `tests/unit/core/sandbox-prepost.spec.ts` L292**
-7. **[S3776] Reduce Cognitive Complexity** – large refactors in 10 functions, highest effort
-8. **Security Hotspots (S5852/S2245/S1523)** – review and decide safe/fix per hotspot
-9. **CSS contrast issues (css:S7924)** – fix 6 contrast issues in `styles.css`
+1. **[S3776] Reduce Cognitive Complexity** – large refactors in 10 functions, highest effort
+2. **Security Hotspots (S5852/S2245/S1523)** – review and decide safe/fix per hotspot
+3. **CSS contrast issues (css:S7924)** – fix 6 contrast issues in `styles.css`

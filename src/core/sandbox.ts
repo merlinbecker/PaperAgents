@@ -142,9 +142,14 @@ export class QuickJSSandbox {
       const errorMsg: unknown = this.context.dump(result.error) as unknown;
       result.error.dispose();
       // Convert error to string properly
-      const errorStr: string = typeof errorMsg === 'string' ? errorMsg :
-                       (errorMsg !== null && typeof errorMsg === 'object' && 'message' in errorMsg) ?
-                       String((errorMsg as { message: unknown }).message) : JSON.stringify(errorMsg);
+      let errorStr: string;
+      if (typeof errorMsg === 'string') {
+        errorStr = errorMsg;
+      } else if (errorMsg !== null && typeof errorMsg === 'object' && 'message' in errorMsg) {
+        errorStr = String((errorMsg as { message: unknown }).message);
+      } else {
+        errorStr = JSON.stringify(errorMsg);
+      }
       throw new Error(errorStr);
     }
 
