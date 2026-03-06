@@ -12,7 +12,8 @@ export class YAMLParseError extends Error {
   position: { line: number; column: number };
 
   constructor(message: string, line: number, column: number, snippet?: string) {
-    super(`${message} at line ${line}, column ${column}${snippet ? `: ${snippet}` : ""}`);
+    const snippetSuffix = snippet ? `: ${snippet}` : "";
+    super(`${message} at line ${line}, column ${column}${snippetSuffix}`);
     this.name = "YAMLParseError";
     this.line = line;
     this.column = column;
@@ -41,7 +42,7 @@ export class YAMLParser {
    * Extrahiert YAML-Frontmatter aus Markdown-String
    */
   static parseFrontmatter(content: string): YAMLFrontmatter {
-    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    const frontmatterMatch = /^---\n([\s\S]*?)\n---/.exec(content);
     
     if (!frontmatterMatch?.[1]) {
       throw new YAMLParseError("No YAML frontmatter found. File must start with ---", 1, 1);
@@ -186,7 +187,7 @@ export class YAMLParser {
       }
 
       // Array abschliessen, wenn neuer Top-Level Key beginnt
-      const arrayKeyMatch = trimmed.match(/^(\w+):\s*$/);
+      const arrayKeyMatch = /^(\w+):\s*$/.exec(trimmed);
       if (arrayKeyMatch?.[1]) {
         if (inArray && currentKey) {
           if (nestedObjectKey && nestedObject && currentItem) {
@@ -248,7 +249,7 @@ export class YAMLParser {
    * Parst ein einzelnes Key-Value Paar
    */
   static parseKeyValue(line: string): [string, YAMLPrimitive] {
-    const match = line.match(/^(\w+):\s*(.*)$/);
+    const match = /^(\w+):\s*(.*)$/.exec(line);
     if (!match) {
       return ["", null];
     }
@@ -307,19 +308,19 @@ export class YAMLParser {
 
     // Extrahiere @preprocess Block
     // Pattern: ```javascript\n// @preprocess\n...\n```
-    const preprocessMatch = content.match(/\/\/\s*@preprocess\n([\s\S]*?)\n```/);
+    const preprocessMatch = /\/\/\s*@preprocess\n([\s\S]*?)\n```/.exec(content);
     if (preprocessMatch) {
       result.preprocess = preprocessMatch[1];
     }
 
     // Extrahiere @postprocess Block
-    const postprocessMatch = content.match(/\/\/\s*@postprocess\n([\s\S]*?)\n```/);
+    const postprocessMatch = /\/\/\s*@postprocess\n([\s\S]*?)\n```/.exec(content);
     if (postprocessMatch) {
       result.postprocess = postprocessMatch[1];
     }
 
     // Extrahiere YAML-Block (Tool-Definition oder Steps)
-    const yamlMatch = content.match(/```yaml\n([\s\S]*?)\n```/);
+    const yamlMatch = /```yaml\n([\s\S]*?)\n```/.exec(content);
     if (yamlMatch) {
       result.yaml = yamlMatch[1];
     }
@@ -415,13 +416,13 @@ export class YAMLParser {
       const trimmed = line.trim();
 
       if (trimmed.startsWith("tool:")) {
-        const match = trimmed.match(/tool:\s*['"](.*?)['"]/) || trimmed.match(/tool:\s*(\S+)/);
+        const match = /tool:\s*['"](.*?)['"]/.exec(trimmed) ?? /tool:\s*(\S+)/.exec(trimmed);
         if (match?.[1]) {
           toolId = match[1];
         }
       } else if (trimmed.startsWith("parameters:")) {
         inParameters = true;
-      } else if (inParameters && trimmed.match(/^\w+:/)) {
+      } else if (inParameters && /^\w+:/.test(trimmed)) {
         const [key, value] = this.parseKeyValue(trimmed);
         if (key) {
           parameters[key] = value;
@@ -449,7 +450,7 @@ export class YAMLParser {
       type: (p.type || "string") as ParameterType,
       description: typeof p.description === "string" ? p.description : undefined,
       required: p.required !== false,
-      default: p.default !== undefined ? p.default : undefined,
+      default: p.default,
     }));
   }
 
@@ -477,8 +478,8 @@ export class YAMLParser {
         if (currentStep?.name) {
           steps.push(currentStep as Step);
         }
-        const nameMatch = trimmed.match(/- name:\s*['"](.*?)['"]/) || 
-                         trimmed.match(/- name:\s*(\S+)/);
+        const nameMatch = /- name:\s*['"](.*?)['"]/.exec(trimmed) ??
+                         /- name:\s*(\S+)/.exec(trimmed);
         currentStep = {
           name: nameMatch?.[1] ?? "",
           parameters: {},
@@ -488,7 +489,7 @@ export class YAMLParser {
         // Wird in nächsten Iterationen behandelt
       } else if (
         currentStep &&
-        trimmed.match(/^\w+:/) &&
+        /^\w+:/.test(trimmed) &&
         !trimmed.includes("steps:")
       ) {
         // Parameter hinzufügen

@@ -323,7 +323,9 @@ export class QuickToolForm {
     input.setAttribute("placeholder", this.getPlaceholder(param));
 
     if (param.default !== undefined) {
-      input.value = String(param.default);
+      input.value = typeof param.default === "object" && param.default !== null
+        ? JSON.stringify(param.default)
+        : String(param.default);
       this.formValues[param.name] = param.default;
     }
 
