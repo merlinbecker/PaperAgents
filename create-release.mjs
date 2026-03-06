@@ -2,7 +2,7 @@
 
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { createInterface } from "readline";
+import { createInterface } from "node:readline";
 
 /**
  * Create a GitHub release for the Obsidian plugin
