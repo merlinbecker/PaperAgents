@@ -128,36 +128,36 @@ Generated: 2026-03-05 (updated)
 
 ### ReDoS – Regex vulnerable to super-linear backtracking (S5852)
 
-| File | Line | Regex |
-|---|---|---|
-| src/core/conversation.ts | 342 | line 342 |
-| src/parser/agent-parser.ts | 162 | line 162 |
-| src/parser/agent-parser.ts | 188 | line 188 |
-| src/parser/agent-parser.ts | 193 | line 193 |
-| src/parser/agent-parser.ts | 195 | line 195 |
-| src/parser/agent-parser.ts | 204 | line 204 |
-| src/parser/yaml-parser.ts | 251 | line 251 |
+| File | Line | Regex | Decision |
+|---|---|---|---|
+| src/core/conversation.ts | 342 | `/\(([^)]+)\)/` | ✅ SAFE – uses `[^)]+` (linear, no backtracking) |
+| src/parser/agent-parser.ts | ~173 | `/##\s*System\s*Prompt\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i` | ✅ ACKNOWLEDGED – applied to trusted user vault content; non-greedy and bounded |
+| src/parser/agent-parser.ts | ~178 | `/##\s*Kontext\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i` | ✅ ACKNOWLEDGED – same reasoning |
+| src/parser/agent-parser.ts | ~180 | `/##\s*Context\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i` | ✅ ACKNOWLEDGED – same reasoning |
+| src/parser/agent-parser.ts | ~189 | `/##\s*\w+[\s\S]*?(?=\n##\s|$)/gi` | ✅ ACKNOWLEDGED – same reasoning |
+| src/parser/agent-parser.ts | ~288 | `/^---\n([\s\S]*?)\n---/` | ✅ ACKNOWLEDGED – frontmatter parser, bounded input |
+| src/parser/yaml-parser.ts | various | `/[\s\S]*?\n\`\`\``  | ✅ ACKNOWLEDGED – code-block extractor, bounded input |
 
 ### Weak PRNG – `Math.random()` (S2245)
 
 | File | Line |
 |---|---|
-| src/core/conversation.ts | 353 |
-| src/core/history.ts | 164 |
-| src/core/openrouter.ts | 179 |
-| src/core/orchestrator.ts | 176 |
-| src/core/sandbox.ts | 108 |
-| src/core/tool-executor.ts | 350 |
-| src/main.ts | 306 |
-| src/parser/placeholder.ts | 115 |
-| src/utils/metrics.ts | 36 |
+| ~~src/core/conversation.ts~~ | ~~353~~ ✅ fixed |
+| ~~src/core/history.ts~~ | ~~164~~ ✅ fixed |
+| ~~src/core/openrouter.ts~~ | ~~179~~ ✅ fixed |
+| ~~src/core/orchestrator.ts~~ | ~~176~~ ✅ fixed |
+| ~~src/core/sandbox.ts~~ | ~~108~~ ✅ fixed |
+| ~~src/core/tool-executor.ts~~ | ~~350~~ ✅ fixed |
+| ~~src/main.ts~~ | ~~306~~ ✅ fixed |
+| ~~src/parser/placeholder.ts~~ | ~~115~~ ✅ fixed |
+| ~~src/utils/metrics.ts~~ | ~~36~~ ✅ fixed |
 
 ### Dynamic Code Execution (S1523)
 
 | File | Line | Message |
 |---|---|---|
-| tests/mocks/quickjs.ts | 34 | Make sure dynamic injection is safe |
-| tests/mocks/quickjs.ts | 35 | Make sure dynamic injection is safe |
+| ~~tests/mocks/quickjs.ts~~ | ~~34~~ | ~~Make sure dynamic injection is safe~~ ✅ reviewed – intentional QuickJS test mock |
+| ~~tests/mocks/quickjs.ts~~ | ~~35~~ | ~~Make sure dynamic injection is safe~~ ✅ reviewed – intentional QuickJS test mock |
 
 ---
 
@@ -196,7 +196,10 @@ Generated: 2026-03-05 (updated)
     - `src/parser/validator.ts` `normalizeInput()` (CC 44 → ≤15): extracted `normalizeValue()`, `normalizeNumber()`, `normalizeBoolean()`, `normalizeArray()`, `normalizeObject()`, `normalizeString()` helpers
     - `src/parser/yaml-parser.ts` `parseYAML()` (CC 102 → ≤15): extracted `flushArray()` and `processArrayItem()` helpers
     - `src/parser/yaml-parser.ts` `parseSteps()` (CC 19 → ≤15): extracted `parseStepName()` and `addStepParameter()` helpers
+22. **[S2245] Weak PRNG** – replaced all 9 `Math.random()` usages with `crypto`-based helpers: added `randomId(length)` (uses `crypto.randomUUID()`) and `randomFloat(max)` (uses `crypto.getRandomValues()`) to `src/utils/constants.ts`; updated `src/core/conversation.ts`, `src/core/history.ts`, `src/core/openrouter.ts`, `src/core/orchestrator.ts`, `src/core/sandbox.ts`, `src/core/tool-executor.ts`, `src/main.ts`, `src/parser/placeholder.ts`, `src/utils/metrics.ts`
+23. **[S1523] Dynamic Code Execution** – reviewed `tests/mocks/quickjs.ts`: `new Function(...)` is intentional (mock of QuickJS WebAssembly sandbox for test isolation); added `// NOSONAR` comment with explanation
+24. **[S5852] ReDoS** – reviewed all 7 flagged regex patterns: `[^)]+` in `conversation.ts` is linear (safe); `[\s\S]*?` patterns in `agent-parser.ts` and `yaml-parser.ts` are non-greedy with clear terminators applied to trusted user vault content (acknowledged)
 
 ### 🔜 Next Steps (ordered by effort / impact)
 
-1. **Security Hotspots (S5852/S2245/S1523)** – review and decide safe/fix per hotspot
+All open issues have been addressed. Remaining SonarCloud Security Hotspots (S5852/S2245/S1523) should be reviewed and marked as SAFE/ACKNOWLEDGED in the SonarCloud UI using the analysis documented above.

@@ -8,6 +8,7 @@ import { newQuickJSWASMModuleFromVariant, QuickJSContext, QuickJSRuntime } from 
 import RELEASE_SYNC from "@jitl/quickjs-singlefile-cjs-release-sync";
 import { ExecutionContext, ExecutionResult } from "../types";
 import { globalLogger } from "../utils/logger";
+import { randomId } from "../utils/constants";
 
 /**
  * QuickJS Runtime Wrapper
@@ -105,7 +106,7 @@ export class QuickJSSandbox {
       previousStepOutputs: {},
       date: new Date().toISOString().split('T')[0] || "",
       time: new Date().toISOString().split('T')[1]?.split('.')[0] || "",
-      randomId: Math.random().toString(36).substring(7),
+      randomId: randomId(8),
     };
   }
 

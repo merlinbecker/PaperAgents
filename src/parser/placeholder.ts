@@ -9,6 +9,7 @@
  */
 
 import { PlaceholderContext } from "../types";
+import { randomId } from "../utils/constants";
 
 export class PlaceholderReplacer {
   private static findPlaceholders(str: string): string[] {
@@ -105,7 +106,7 @@ export class PlaceholderReplacer {
       previousStepOutputs,
       date: new Date().toISOString().split("T")[0] || "",
       time: (new Date().toISOString().split("T")[1]?.split(".")[0]) || "",
-      randomId: Math.random().toString(36).substring(7) || "",
+      randomId: randomId(8),
     };
   }
 

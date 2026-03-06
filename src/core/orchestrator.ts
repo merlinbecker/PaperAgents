@@ -4,7 +4,7 @@ import { OpenRouterClient, LLMMessage, LLMToolDefinition, LLMToolCall, StreamCal
 import ToolRegistry from "./tool-registry";
 import { globalLogger } from "../utils/logger";
 import { globalMetrics } from "../utils/metrics";
-import { PREDEFINED_TOOL_IDS } from "../utils/constants";
+import { PREDEFINED_TOOL_IDS, randomId } from "../utils/constants";
 
 const MAX_TOOL_CALL_ROUNDS = 10;
 
@@ -173,7 +173,7 @@ export class Orchestrator {
         previousStepOutputs: {},
         date: new Date().toISOString().split("T")[0] || "",
         time: new Date().toISOString().split("T")[1]?.split(".")[0] || "",
-        randomId: Math.random().toString(36).substring(7) || "",
+        randomId: randomId(8),
       };
 
       const result = await tool.execute(context);
