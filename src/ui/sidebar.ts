@@ -25,6 +25,7 @@ export class PaperAgentsSidebar extends ItemView {
   private agents: AgentDefinition[] = [];
   private onAgentClick: ((agentId: string) => void) | null = null;
   private onOpenChat: (() => void) | null = null;
+  private onOpenCanvas: (() => void) | null = null;
   private onReloadTools: (() => Promise<void>) | null = null;
   private examplesExpanded = true;
   private toolsPath = "";
@@ -109,6 +110,17 @@ export class PaperAgentsSidebar extends ItemView {
         this.onOpenChat();
       }
       globalLogger.debug("Open chat clicked");
+    });
+
+    const canvasBtn = actions.createEl("button", { text: "🖊️" });
+    canvasBtn.addClass("pa-header-btn");
+    canvasBtn.setAttribute("aria-label", "Apply interactive agent to document");
+    canvasBtn.title = "Apply interactive agent to document";
+    canvasBtn.addEventListener("click", () => {
+      if (this.onOpenCanvas) {
+        this.onOpenCanvas();
+      }
+      globalLogger.debug("Open canvas clicked");
     });
 
     const reloadBtn = actions.createEl("button", { text: "↻" });
@@ -446,6 +458,10 @@ export class PaperAgentsSidebar extends ItemView {
 
   public setOnOpenChat(callback: () => void): void {
     this.onOpenChat = callback;
+  }
+
+  public setOnOpenCanvas(callback: () => void): void {
+    this.onOpenCanvas = callback;
   }
 
   public setOnReloadTools(callback: () => Promise<void>): void {

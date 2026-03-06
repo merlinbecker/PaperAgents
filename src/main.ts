@@ -21,6 +21,7 @@ import { PaperAgentsChatView, VIEW_TYPE_PAPER_AGENTS_CHAT } from "./ui/chat";
 import { ToolFormModal } from "./ui/forms";
 import { OutputPanelModal } from "./ui/output-panel";
 import { showHITLModal } from "./ui/hitl-modal";
+import { CanvasModal } from "./ui/canvas-modal";
 import { registerCommands } from "./commands";
 
 import { globalLogger } from "./utils/logger";
@@ -65,6 +66,7 @@ export default class PaperAgents extends Plugin {
         sidebar.setAgents(this.loadedAgents);
         sidebar.setOnAgentClick(() => { void this.activateChat(); });
         sidebar.setOnOpenChat(() => { void this.activateChat(); });
+        sidebar.setOnOpenCanvas(() => { this.activateCanvas(); });
         sidebar.setOnReloadTools(async () => {
           await this.loadCustomToolsFromVault();
           await this.loadAgentsFromVault();
@@ -272,6 +274,15 @@ export default class PaperAgents extends Plugin {
       await this.app.workspace.revealLeaf(leaf);
     }
   }
+
+  activateCanvas(): void {
+    new CanvasModal(
+      this.app,
+      this.loadedAgents,
+      this.conversationManager,
+      () => this.orchestrator
+    ).open();
+}
 
   private handleToolClick(toolId: string): void {
     const metadata = this.toolRegistry.listTools().find((t) => t.id === toolId);
