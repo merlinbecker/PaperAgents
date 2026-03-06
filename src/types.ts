@@ -260,6 +260,7 @@ export interface AgentDefinition {
   temperature?: number;
   maxTokens?: number;
   websearchConfig?: WebSearchConfig;
+  agenticLoop?: AgenticLoopConfig;
 }
 
 export interface AgentFrontmatter {
@@ -273,6 +274,7 @@ export interface AgentFrontmatter {
   temperature?: number;
   maxTokens?: number;
   websearchConfig?: WebSearchConfig | Record<string, unknown>;
+  agenticLoop?: AgenticLoopConfig | Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -339,6 +341,22 @@ export interface LoadAgentsResult {
     file: string;
     error: string;
   }[];
+}
+
+// ============================================================================
+// AGENTIC LOOP CONFIGURATION
+// ============================================================================
+
+export type TerminationCheckMode = "auto" | "phrase" | "tool";
+
+export interface AgenticLoopConfig {
+  enabled: boolean;
+  maxIterations: number;
+  terminationCheck: TerminationCheckMode;
+  terminationPhrase?: string;
+  iterationPrompt?: string;
+  showProgress?: boolean;
+  autoSaveReport?: boolean;
 }
 
 // ============================================================================

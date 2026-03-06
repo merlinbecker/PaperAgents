@@ -1,4 +1,4 @@
-import { AgentDefinition, Parameter, ToolCallInfo, WebSearchAnnotation } from "../types";
+import { AgentDefinition, Parameter, ToolCallInfo, WebSearchAnnotation, AgenticLoopConfig } from "../types";
 import { ConversationManager } from "./conversation";
 import { OpenRouterClient, LLMMessage, LLMToolDefinition, LLMToolCall, StreamCallbacks, OpenRouterConfig } from "./openrouter";
 import ToolRegistry from "./tool-registry";
@@ -20,6 +20,12 @@ export interface OrchestratorCallbacks {
   onAnnotations?: (annotations: WebSearchAnnotation[]) => void;
   onComplete?: (content: string) => void;
   onError?: (error: Error) => void;
+}
+
+export interface AgenticLoopCallbacks extends OrchestratorCallbacks {
+  onIterationStart?: (iteration: number, maxIterations: number) => void;
+  onIterationEnd?: (iteration: number, done: boolean) => void;
+  onLoopComplete?: (iterations: number, finalContent: string) => void;
 }
 
 export class Orchestrator {
@@ -283,5 +289,72 @@ export class Orchestrator {
 
   async testConnection(): Promise<{ success: boolean; error?: string }> {
     return this.client.testConnection();
+  }
+
+  async runAgenticLoop(
+    agent: AgentDefinition,
+    conversationId: string,
+    userMessage: string,
+    callbacks?: AgenticLoopCallbacks
+  ): Promise<string> {
+    const loopConfig = agent.agenticLoop;
+    if (!loopConfig?.enabled) {
+      return this.sendMessage(agent, conversationId, userMessage, callbacks);
+    }
+
+    const augmentedAgent = this.augmentAgentForLoop(agent, loopConfig);
+    this.conversationManager.addMessage(conversationId, "user", userMessage);
+
+    let finalContent = "";
+    let completedIterations = 0;
+
+    for (let i = 1; i <= loopConfig.maxIterations; i++) {
+      callbacks?.onIterationStart?.(i, loopConfig.maxIterations);
+
+      if (loopConfig.iterationPrompt && i > 1) {
+        this.conversationManager.addMessage(conversationId, "user", loopConfig.iterationPrompt);
+      }
+
+      const content = await this.continueConversation(augmentedAgent, conversationId, callbacks);
+      finalContent = content;
+      completedIterations = i;
+
+      const done = this.checkLoopTermination(content, loopConfig);
+      callbacks?.onIterationEnd?.(i, done);
+
+      if (done) break;
+    }
+
+    callbacks?.onLoopComplete?.(completedIterations, finalContent);
+    return finalContent;
+  }
+
+  private augmentAgentForLoop(agent: AgentDefinition, config: AgenticLoopConfig): AgentDefinition {
+    if (config.terminationCheck !== "auto") return agent;
+
+    const doneInstruction =
+      "\n\nWhen you have fully completed the assigned task, start your final response with `[DONE]`.";
+    return {
+      ...agent,
+      systemPrompt: agent.systemPrompt + doneInstruction,
+    };
+  }
+
+  private checkLoopTermination(content: string, config: AgenticLoopConfig): boolean {
+    switch (config.terminationCheck) {
+      case "auto":
+        return content.trimStart().startsWith("[DONE]");
+      case "phrase":
+        return config.terminationPhrase ? content.includes(config.terminationPhrase) : false;
+      case "tool":
+        // Tool-based termination is signalled via the conversation messages
+        return this.hasFinishTaskCall(config);
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private hasFinishTaskCall(_config: AgenticLoopConfig): boolean {
+    // Phase 2: inspect the last tool message in the conversation for a finish_task call.
+    return false;
   }
 }

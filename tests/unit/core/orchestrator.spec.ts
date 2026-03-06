@@ -208,4 +208,104 @@ describe("Orchestrator", () => {
     await orchestrator.sendMessage(agent, convId, "Test");
     expect(getRequestBody().plugins).toBeUndefined();
   });
+
+  // ── Agentic Loop ─────────────────────────────────────────────────────────────
+
+  describe("runAgenticLoop", () => {
+    it("falls back to sendMessage when agenticLoop is not enabled", async () => {
+      mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("Normal reply") as never);
+
+      const agent = makeAgent(); // no agenticLoop
+      const convId = "loop-fallback";
+      conversationManager.createConversation(convId, agent.id);
+
+      const result = await orchestrator.runAgenticLoop(agent, convId, "Hi");
+      expect(result).toBe("Normal reply");
+    });
+
+    it("runs a single iteration and stops on [DONE] signal", async () => {
+      mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("[DONE] Task complete.") as never);
+
+      const agent: AgentDefinition = {
+        ...makeAgent(),
+        agenticLoop: { enabled: true, maxIterations: 5, terminationCheck: "auto", showProgress: true },
+      };
+      const convId = "loop-done";
+      conversationManager.createConversation(convId, agent.id);
+
+      const iterationEndCalls: Array<{ i: number; done: boolean }> = [];
+      const result = await orchestrator.runAgenticLoop(agent, convId, "Research topic X", {
+        onIterationEnd: (i, done) => iterationEndCalls.push({ i, done }),
+      });
+
+      expect(result).toContain("[DONE]");
+      expect(iterationEndCalls).toHaveLength(1);
+      expect(iterationEndCalls[0]?.done).toBe(true);
+    });
+
+    it("runs multiple iterations until max when [DONE] never appears", async () => {
+      mockRequestUrl
+        .mockResolvedValueOnce(makeStreamResponse("Step 1 done.") as never)
+        .mockResolvedValueOnce(makeStreamResponse("Step 2 done.") as never)
+        .mockResolvedValueOnce(makeStreamResponse("Step 3 done.") as never);
+
+      const agent: AgentDefinition = {
+        ...makeAgent(),
+        agenticLoop: { enabled: true, maxIterations: 3, terminationCheck: "auto", showProgress: true },
+      };
+      const convId = "loop-max";
+      conversationManager.createConversation(convId, agent.id);
+
+      const starts: number[] = [];
+      await orchestrator.runAgenticLoop(agent, convId, "Never finishes", {
+        onIterationStart: (i) => starts.push(i),
+      });
+
+      expect(starts).toEqual([1, 2, 3]);
+    });
+
+    it("stops on custom phrase when terminationCheck is phrase", async () => {
+      mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("Work done. FERTIG") as never);
+
+      const agent: AgentDefinition = {
+        ...makeAgent(),
+        agenticLoop: {
+          enabled: true,
+          maxIterations: 5,
+          terminationCheck: "phrase",
+          terminationPhrase: "FERTIG",
+          showProgress: true,
+        },
+      };
+      const convId = "loop-phrase";
+      conversationManager.createConversation(convId, agent.id);
+
+      const ends: boolean[] = [];
+      await orchestrator.runAgenticLoop(agent, convId, "Task", {
+        onIterationEnd: (_, done) => ends.push(done),
+      });
+
+      expect(ends[0]).toBe(true);
+    });
+
+    it("calls onLoopComplete with correct iteration count", async () => {
+      mockRequestUrl
+        .mockResolvedValueOnce(makeStreamResponse("Not done yet") as never)
+        .mockResolvedValueOnce(makeStreamResponse("[DONE] Finished") as never);
+
+      const agent: AgentDefinition = {
+        ...makeAgent(),
+        agenticLoop: { enabled: true, maxIterations: 10, terminationCheck: "auto", showProgress: true },
+      };
+      const convId = "loop-complete";
+      conversationManager.createConversation(convId, agent.id);
+
+      let completedIter = -1;
+      await orchestrator.runAgenticLoop(agent, convId, "Task", {
+        onLoopComplete: (iterations) => { completedIter = iterations; },
+      });
+
+      expect(completedIter).toBe(2);
+    });
+  });
 });

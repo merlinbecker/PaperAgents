@@ -29,6 +29,8 @@ import {
   MemoryConfig,
   MemoryType,
   WebSearchConfig,
+  AgenticLoopConfig,
+  TerminationCheckMode,
 } from "../types";
 import { YAMLParseError, YAMLParser } from "./yaml-parser";
 
@@ -88,6 +90,8 @@ export class AgentParser {
         "memory:": "memory",
         "websearchConfig:": "websearchConfig",
         "websearch_config:": "websearchConfig",
+        "agenticLoop:": "agenticLoop",
+        "agentic_loop:": "agenticLoop",
       };
 
       for (const line of lines) {
@@ -227,6 +231,7 @@ export class AgentParser {
       temperature: typeof fm.temperature === "number" ? fm.temperature : undefined,
       maxTokens: typeof fm.maxTokens === "number" ? fm.maxTokens : undefined,
       websearchConfig: this.parseWebSearchConfig(fm.websearchConfig),
+      agenticLoop: this.parseAgenticLoopConfig(fm.agenticLoop),
     };
   }
 
@@ -238,6 +243,27 @@ export class AgentParser {
       return { maxResults };
     }
     return undefined;
+  }
+
+  private static parseAgenticLoopConfig(config: unknown): AgenticLoopConfig | undefined {
+    if (!config || typeof config !== "object") return undefined;
+    const cfg = config as Record<string, unknown>;
+    if (cfg.enabled !== true) return undefined;
+
+    const maxIter = typeof cfg.maxIterations === "number" ? cfg.maxIterations : 10;
+    const validModes: TerminationCheckMode[] = ["auto", "phrase", "tool"];
+    const rawMode = cfg.terminationCheck as TerminationCheckMode;
+    const mode: TerminationCheckMode = validModes.includes(rawMode) ? rawMode : "auto";
+
+    return {
+      enabled: true,
+      maxIterations: Math.min(Math.max(1, maxIter), 50),
+      terminationCheck: mode,
+      terminationPhrase: typeof cfg.terminationPhrase === "string" ? cfg.terminationPhrase : undefined,
+      iterationPrompt: typeof cfg.iterationPrompt === "string" ? cfg.iterationPrompt : undefined,
+      showProgress: cfg.showProgress !== false,
+      autoSaveReport: cfg.autoSaveReport === true,
+    };
   }
 
   private static parseMemoryConfig(memory: unknown): MemoryConfig {

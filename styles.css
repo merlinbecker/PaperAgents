@@ -1008,6 +1008,37 @@
   cursor: not-allowed;
 }
 
+.pa-chat-run-task-btn {
+  padding: 8px 14px;
+  background: #2e86c1;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+  height: 40px;
+}
+
+.pa-chat-run-task-btn:hover {
+  background: #1a5276;
+}
+
+.pa-chat-run-task-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pa-chat-loop-indicator {
+  padding: 4px 10px;
+  margin: 4px 0;
+  background: var(--background-primary-alt);
+  border-left: 3px solid #2e86c1;
+  border-radius: 4px;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
 /* Web search annotations / source citations */
 .pa-chat-annotations {
   margin-top: 8px;
