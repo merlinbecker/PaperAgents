@@ -4,7 +4,7 @@
 
 **Phase 1 (MVP): ✅ Vollständig implementiert**  
 **Phase 2 (Robustheit & Tools): ✅ Vollständig implementiert**  
-**Phase 3 (Optimierung): ⏳ Noch offen**
+**Phase 3 (Optimierung): 🔄 Teilweise implementiert**
 
 ---
 
@@ -85,6 +85,39 @@
 - `onHITLPause?: (question: string) => Promise<string>` zu `AgenticLoopCallbacks` hinzugefügt (**NEU**)
 - `runAgenticLoop` erkennt `ask_user`-Calls, pausiert den Loop, wartet auf User-Antwort via `onHITLPause`
 
+---
+
+### Phase 3 – Kontext-Fenster-Management via OpenRouter Transforms (implementiert)
+
+#### Problem (S3: Token-Explosion)
+Bei langen Agentic Loops mit vielen Tool-Calls wächst die Conversation-History schnell. Sobald sie das Context-Window des Modells überschreitet, bricht der API-Call mit einem Fehler ab.
+
+#### Lösung: OpenRouter `transforms: ["middle-out"]`
+
+OpenRouter bietet eine serverseitige Komprimierungsstrategie:
+
+- Wenn die Nachrichtenhistory das Context-Window überschreitet, entfernt OpenRouter automatisch Nachrichten **aus der Mitte** der History
+- Beibehaltung von: System-Prompt + initiale Aufgabe (Anfang) + neueste Iterationsschritte (Ende)
+- LLMs schenken dem Anfang und Ende mehr Aufmerksamkeit → optimaler Kompromiss
+- Löst auch Modell-spezifische Nachrichten-Limits (z.B. Claudes max. 1.000 Messages)
+
+#### Implementierte Änderungen
+
+**`src/types.ts`**
+- `AgentDefinition.transforms?: string[]` hinzugefügt (internes Feld, nicht im User-Frontmatter)
+
+**`src/core/openrouter.ts`**
+- `chatStream()` um `transforms?: string[]`-Parameter erweitert
+- `buildRequestBody()` fügt `transforms` in den Request-Body ein (nur wenn vorhanden, um normale Chats nicht zu beeinflussen)
+
+**`src/core/orchestrator.ts`**
+- `processChatRound()` leitet `agent.transforms` an `chatStream()` weiter
+- `augmentAgentForLoop()` setzt `transforms: ["middle-out"]` auf dem augmentierten Agenten → nur Agentic-Loop-Requests erhalten diese Optimierung; normale Chats bleiben unverändert
+
+**Tests**  
+- `sends transforms: [middle-out] in agentic loop requests` – verifiziert, dass der API-Request `transforms: ["middle-out"]` enthält
+- `does not send transforms in regular sendMessage calls` – verifiziert, dass normale Chats kein `transforms` senden
+
 #### `src/ui/hitl-modal.ts` (**NEU – HITL-Integration**)
 - `HITLInputModal`-Klasse implementiert:
   - Zeigt die Agenten-Frage in einem Modal an
@@ -113,6 +146,8 @@ Neue Tests wurden hinzugefügt:
 - `terminates loop when finish_task tool is called`
 - `injects ask_user tool for every agentic loop run` (**NEU**)
 - `pauses and resumes loop when ask_user is called` (**NEU**)
+- `sends transforms: [middle-out] in agentic loop requests` (**NEU**)
+- `does not send transforms in regular sendMessage calls` (**NEU**)
 - Hilfsfunktion `makeToolCallStreamResponse()` für Tool-Call-SSE-Mocking
 
 **`tests/integration/tools/predefined.int.spec.ts`**
@@ -124,19 +159,20 @@ Neue Tests wurden hinzugefügt:
 - `ask_user does not require HITL` (**NEU**)
 - `ask_user has a non-empty log entry with correct tool name` (**NEU**)
 
-Alle 310 Tests bestehen.
+Alle 312 Tests bestehen.
 
 ---
 
 ## Noch offene Arbeiten
 
-### Phase 3 – Optimierung (noch nicht implementiert)
+### Phase 3 – Optimierung (teilweise implementiert)
 
-| Feature | Beschreibung | Aufwand |
-|---------|--------------|---------|
-| Parallele Tool-Calls | Mehrere Tool-Calls innerhalb einer Iteration parallel ausführen | Mittel |
-| Summary-Memory | Zusammenfassungen für lange Loops erstellen (memory.type: summary) | Hoch |
-| Kosten-Tracking | Token-Kosten pro Loop-Durchlauf tracken und anzeigen | Mittel |
+| Feature | Beschreibung | Status |
+|---------|--------------|--------|
+| ~~Kontext-Fenster via Transforms~~ | OpenRouter `transforms: ["middle-out"]` | ✅ Implementiert |
+| Parallele Tool-Calls | Mehrere Tool-Calls innerhalb einer Iteration parallel ausführen | Offen |
+| Summary-Memory | Zusammenfassungen für lange Loops erstellen (memory.type: summary) | Offen |
+| Kosten-Tracking | Token-Kosten pro Loop-Durchlauf tracken und anzeigen | Offen |
 
 ### Bekannte Einschränkungen
 
@@ -144,7 +180,7 @@ Alle 310 Tests bestehen.
 |----|---------|--------|
 | S1 | Halluziniertes `[DONE]` bei `auto`-Terminierung | Mitigiert durch `terminationCheck: tool` |
 | S2 | Endlosloop bei schlechtem Prompt | Mitigiert durch `maxIterations` (Default: 10) |
-| S3 | Kosten-/Token-Explosion bei vielen Iterationen | Dokumentiert – `memory.maxMessages` begrenzt Kontext |
+| S3 | Kosten-/Token-Explosion bei vielen Iterationen | ✅ Gelöst via `transforms: ["middle-out"]` (OpenRouter) + `memory.maxMessages` |
 | S4 | Kein Persistenz des Loop-Zustands bei Absturz | Conversation-Datei wird nach jeder Iteration gespeichert |
 | S5 | Sequentielle Tool-Calls (kein Parallelism) | Akzeptiert in Phase 1+2; Phase 3 |
 

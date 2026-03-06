@@ -430,7 +430,35 @@ Iteration 4:
 
 - Die bestehende `MemoryConfig.maxMessages` begrenzt bereits den Kontext
 - Für Deep Research: `memory.type: summary` könnte Zwischenzusammenfassungen erstellen
-- **Lösung in Phase 1:** maxMessages hoch setzen (z.B. 100) + Warnung wenn Kontextlimit naht
+- **Lösung (implementiert):** OpenRouter **`transforms: ["middle-out"]`** wird automatisch für alle Agentic-Loop-Requests aktiviert.
+
+#### OpenRouter `transforms: ["middle-out"]`
+
+OpenRouter bietet eine serverseitige Komprimierungsstrategie für lange Konversationen:
+
+> Wenn der Prompt das Context-Window des Modells überschreitet, entfernt OpenRouter automatisch Nachrichten aus der **Mitte** der History – und bewahrt dabei den Anfang (System-Prompt + initiale Aufgabe) sowie das Ende (neueste Schritte). Da LLMs erfahrungsgemäß dem Anfang und Ende mehr Aufmerksamkeit schenken, ist das der optimale Kompromiss.
+
+**API-Parameter:**
+```json
+{
+  "model": "openai/gpt-4o",
+  "messages": [...],
+  "transforms": ["middle-out"]
+}
+```
+
+**Eigenschaften:**
+- Modelle mit ≤ 8k Context-Window haben `middle-out` standardmäßig aktiv
+- Verhindert Context-Overflow-Fehler ohne manuelle Token-Zählung
+- Löst auch das Message-Limit von Claude (max. 1.000 Nachrichten)
+- Kann pro Agent konfiguriert werden; für den Agentic Loop immer aktiviert
+
+**Implementierung:**
+- `AgentDefinition.transforms?: string[]` – internes Feld, nicht im Frontmatter
+- `augmentAgentForLoop()` setzt `transforms: ["middle-out"]` automatisch
+- `OpenRouterClient.chatStream()` leitet `transforms` an die API weiter
+- `buildRequestBody()` fügt `transforms` in den Request-Body ein (nur wenn vorhanden)
+- Normale Chats (kein Agentic Loop) erhalten kein `transforms`
 
 ### E4: User Interaction während des Loops
 **Entscheidung notwendig:** Kann der Nutzer den Loop unterbrechen?
@@ -463,7 +491,7 @@ Wenn der `iterationPrompt` den LLM nicht zum Abschluss bringt, werden maximal `m
 
 ### S3: Kosten / Token-Explosion
 Jede Iteration sendet die gesamte History ans LLM. Bei 10 Iterationen mit Tool-Calls können schnell 100k+ Tokens anfallen.
-**Mitigierung:** `memory.maxMessages` begrenzt die Context-Größe. Hinweis in der Dokumentation.
+**Mitigierung:** `memory.maxMessages` begrenzt die Context-Größe. **`transforms: ["middle-out"]`** (OpenRouter) verhindert Context-Overflow-Fehler, indem Nachrichten aus der Mitte der History automatisch entfernt werden. Hinweis in der Dokumentation.
 
 ### S4: Keine Persistenz des Loop-Zustands
 Wenn Obsidian während eines Loops geschlossen wird, geht der Zustand verloren.
@@ -493,6 +521,7 @@ Sequentielle Tool-Calls sind langsamer. Bei Deep Research mit vielen Quellen dau
 
 ### Phase 3 – Optimierung
 - [ ] Parallele Tool-Calls innerhalb einer Iteration
+- [x] Kontext-Fenster-Management via OpenRouter `transforms: ["middle-out"]`
 - [ ] Summary-Memory für lange Loops
 - [ ] Kosten-Tracking pro Loop-Durchlauf
 
@@ -502,9 +531,10 @@ Sequentielle Tool-Calls sind langsamer. Bei Deep Research mit vielen Quellen dau
 
 | Datei | Änderung |
 |-------|----------|
-| `src/types.ts` | `AgenticLoopConfig`, `TerminationCheckMode` hinzufügen; `AgentDefinition` + `AgentFrontmatter` erweitern |
+| `src/types.ts` | `AgenticLoopConfig`, `TerminationCheckMode` hinzufügen; `AgentDefinition` + `AgentFrontmatter` erweitern; `AgentDefinition.transforms?: string[]` (intern) |
 | `src/parser/agent-parser.ts` | `agenticLoop:`-Block parsen, `parseAgenticLoopConfig()` |
-| `src/core/orchestrator.ts` | `runAgenticLoop()`, `AgenticLoopCallbacks`, Terminierungslogik |
+| `src/core/openrouter.ts` | `chatStream()` + `buildRequestBody()` um `transforms`-Parameter erweitert |
+| `src/core/orchestrator.ts` | `runAgenticLoop()`, `AgenticLoopCallbacks`, Terminierungslogik; `augmentAgentForLoop()` setzt `transforms: ["middle-out"]` |
 | `src/ui/chat.ts` | "▶ Run Task"-Button, `runAgenticTask()`, Iterations-Indikator |
 | `src/tools/predefined.ts` | `finish_task`-Tool (Phase 2) |
 | `examples/agents/deep-research-assistant.md` | Beispiel-Agent (NEU) |

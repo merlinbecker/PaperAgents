@@ -146,7 +146,8 @@ export class OpenRouterClient {
     tools?: LLMToolDefinition[],
     stream = false,
     modelOverride?: string,
-    plugins?: Array<{ id: string } & Record<string, unknown>>
+    plugins?: Array<{ id: string } & Record<string, unknown>>,
+    transforms?: string[]
   ): Record<string, unknown> {
     const body: Record<string, unknown> = {
       model: modelOverride ?? this.config.model,
@@ -163,6 +164,10 @@ export class OpenRouterClient {
 
     if (plugins && plugins.length > 0) {
       body.plugins = plugins;
+    }
+
+    if (transforms && transforms.length > 0) {
+      body.transforms = transforms;
     }
 
     return body;
@@ -290,9 +295,10 @@ export class OpenRouterClient {
     callbacks: StreamCallbacks,
     tools?: LLMToolDefinition[],
     modelOverride?: string,
-    plugins?: Array<{ id: string } & Record<string, unknown>>
+    plugins?: Array<{ id: string } & Record<string, unknown>>,
+    transforms?: string[]
   ): Promise<OpenRouterResponse> {
-    const body = this.buildRequestBody(messages, tools, true, modelOverride, plugins);
+    const body = this.buildRequestBody(messages, tools, true, modelOverride, plugins, transforms);
     await this.enforceRateLimit();
 
     const text = await this.performStreamHttpRequest(body, callbacks);
