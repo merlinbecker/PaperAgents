@@ -126,9 +126,23 @@ export async function requestUrl(_opts: any): Promise<{ status: number; statusTe
   return { status: 200, statusText: "OK", json: { ok: true }, text: "ok", headers: { "content-type": "application/json" } };
 }
 
+export class MetadataCache {
+  private readonly linkMap: Map<string, TFile> = new Map();
+
+  /** Register a link target for testing: getFirstLinkpathDest(linkPath) returns file. */
+  registerLink(linkPath: string, file: TFile): void {
+    this.linkMap.set(linkPath, file);
+  }
+
+  getFirstLinkpathDest(linkPath: string, _sourcePath: string): TFile | null {
+    return this.linkMap.get(linkPath) ?? null;
+  }
+}
+
 export class App {
   vault = new Vault();
   workspace = new Workspace();
+  metadataCache = new MetadataCache();
 }
 
 export const app = new App();

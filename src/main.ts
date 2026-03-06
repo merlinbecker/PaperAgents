@@ -13,6 +13,7 @@ import PredefinedToolsFactory from "./tools/predefined";
 
 import ToolLoader from "./parser/tool-loader";
 import { AgentParser } from "./parser/agent-parser";
+import WikilinkResolver from "./parser/wikilink-resolver";
 
 import { AgentDefinition, LoadAgentsResult } from "./types";
 
@@ -186,12 +187,15 @@ export default class PaperAgents extends Plugin {
       const mdFiles: TFile[] = [];
       this.collectMarkdownFiles(folder, mdFiles);
 
+      const resolver = new WikilinkResolver(this.app);
+
       for (const file of mdFiles) {
         try {
           const content = await this.app.vault.read(file);
           if (!AgentParser.isAgentFile(content)) continue;
 
-          const agentDef = AgentParser.parse(content);
+          const resolvedContent = await resolver.resolve(content, file.path);
+          const agentDef = AgentParser.parse(resolvedContent);
           const validation = AgentParser.validateAgentDefinition(agentDef);
 
           if (validation.valid) {
