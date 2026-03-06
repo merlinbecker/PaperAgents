@@ -113,6 +113,19 @@ export const UI_CONSTANTS = {
   MODAL_MAX_WIDTH: 800, // px
 };
 
+/** Generates a cryptographically random hex ID of the given length (default 8 chars). */
+export function randomId(length: number = 8): string {
+  const bytes = new Uint8Array(Math.ceil(length / 2));
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("").substring(0, length);
+}
+
+/** Generates a cryptographically random float in [0, max). */
+export function randomFloat(max: number): number {
+  const [hi, lo] = crypto.getRandomValues(new Uint8Array(2));
+  return ((hi! * 256 + lo!) / 65536) * max;
+}
+
 export default {
   TOOL_SIDEBAR_TYPE,
   PREDEFINED_TOOL_IDS,

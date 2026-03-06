@@ -24,7 +24,7 @@ import { showHITLModal } from "./ui/hitl-modal";
 import { registerCommands } from "./commands";
 
 import { globalLogger } from "./utils/logger";
-import { DEFAULT_PATHS, OPENROUTER_DEFAULTS } from "./utils/constants";
+import { DEFAULT_PATHS, OPENROUTER_DEFAULTS, randomId } from "./utils/constants";
 
 export default class PaperAgents extends Plugin {
   settings: PaperAgentsSettings;
@@ -303,7 +303,7 @@ export default class PaperAgents extends Plugin {
         previousStepOutputs: {},
         date: new Date().toISOString().split("T")[0] || "",
         time: new Date().toISOString().split("T")[1]?.split(".")[0] || "",
-        randomId: Math.random().toString(36).substring(7) || "",
+        randomId: randomId(8),
       };
 
       const result = await tool.execute(context);

@@ -18,6 +18,7 @@ import type {
   ConversationContext,
   ToolCallInfo,
 } from "../types";
+import { randomId } from "../utils/constants";
 
 const CHARS_PER_TOKEN = 4;
 const DEFAULT_MAX_MESSAGES = 50;
@@ -350,7 +351,7 @@ export class ConversationManager {
   }
 
   private generateId(): string {
-    return `conv_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    return `conv_${Date.now()}_${randomId(9)}`;
   }
 
   toConversationFile(conversationId: string): string | null {

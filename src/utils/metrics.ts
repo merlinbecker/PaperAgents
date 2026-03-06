@@ -1,4 +1,5 @@
 import { globalLogger } from "./logger";
+import { randomId } from "./constants";
 
 export interface TraceContext {
   traceId: string;
@@ -31,10 +32,7 @@ export interface ExecutionMetricsSummary {
 }
 
 function generateId(): string {
-  return (
-    Date.now().toString(36) +
-    Math.random().toString(36).substring(2, 10)
-  );
+  return Date.now().toString(36) + randomId(8);
 }
 
 export class MetricsCollector {

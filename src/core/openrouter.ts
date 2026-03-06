@@ -1,6 +1,7 @@
 import { requestUrl, RequestUrlParam } from "obsidian";
 import { globalLogger } from "../utils/logger";
 import type { WebSearchAnnotation } from "../types";
+import { randomFloat } from "../utils/constants";
 
 export interface OpenRouterConfig {
   apiKey: string;
@@ -176,7 +177,7 @@ export class OpenRouterClient {
       const seconds = Number.parseInt(retryAfterHeader, 10);
       if (!Number.isNaN(seconds)) return seconds * 1000;
     }
-    return BASE_RETRY_DELAY * Math.pow(2, attempt) + Math.random() * 500;
+    return BASE_RETRY_DELAY * Math.pow(2, attempt) + randomFloat(500);
   }
 
   private async sleep(ms: number): Promise<void> {

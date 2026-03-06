@@ -30,8 +30,10 @@ class MockContext {
       const scopeKeys = Object.keys(this.globals);
       const scopeValues = scopeKeys.map((k) => this.globals[k]);
 
-      // Wrap in `return (...)` so both IIFEs and plain expressions work.
-      const fn = new Function(...scopeKeys, `return (${code});`);
+      // Uses `new Function(...)` under the hood so that `return` works naturally.
+      // This is intentional: this mock simulates QuickJS sandbox evaluation for tests.
+      // Production code uses the actual QuickJS WebAssembly sandbox which is isolated.
+      const fn = new Function(...scopeKeys, `return (${code});`); // NOSONAR
       const result = fn(...scopeValues);
       return { value: new MockHandle(result), error: undefined };
     } catch (e: any) {

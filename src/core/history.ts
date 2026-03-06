@@ -1,5 +1,6 @@
 import { ExecutionResult } from "../types";
 import { globalLogger } from "../utils/logger";
+import { randomId } from "../utils/constants";
 
 export interface HistoryEntry {
   id: string;
@@ -161,7 +162,7 @@ export class ExecutionHistory {
   }
 
   private generateId(): string {
-    return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+    return Date.now().toString(36) + randomId(6);
   }
 }
 

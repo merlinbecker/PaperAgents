@@ -8,6 +8,7 @@ import { globalLogger } from "../utils/logger";
 import { globalMetrics, TraceContext } from "../utils/metrics";
 import { QuickJSSandbox } from "./sandbox";
 import PlaceholderReplacer from "../parser/placeholder";
+import { randomId } from "../utils/constants";
 
 /**
  * Parameter object for executeLoopStep (S107: reduces parameter count)
@@ -364,7 +365,7 @@ export class ToolExecutor {
       previousStepOutputs: Object.fromEntries(stepOutputs),
       date: new Date().toISOString().split('T')[0] || "",
       time: (new Date().toISOString().split('T')[1]?.split('.')[0]) || "",
-      randomId: Math.random().toString(36).substring(7) || "",
+      randomId: randomId(8),
     };
   }
 
