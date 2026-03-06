@@ -26,6 +26,8 @@ export interface AgenticLoopCallbacks extends OrchestratorCallbacks {
   onIterationStart?: (iteration: number, maxIterations: number) => void;
   onIterationEnd?: (iteration: number, done: boolean) => void;
   onLoopComplete?: (iterations: number, finalContent: string) => void | Promise<void>;
+  /** Called when the agent invokes ask_user(); resolves with the user's answer. */
+  onHITLPause?: (question: string) => Promise<string>;
 }
 
 export class Orchestrator {
@@ -319,6 +321,17 @@ export class Orchestrator {
       finalContent = content;
       completedIterations = i;
 
+      // Handle HITL pause: agent called ask_user()
+      const askUserQuestion = this.getAskUserQuestion(conversationId);
+      if (askUserQuestion !== null && callbacks?.onHITLPause) {
+        const userAnswer = await callbacks.onHITLPause(askUserQuestion);
+        if (userAnswer) {
+          this.conversationManager.addMessage(conversationId, "user", userAnswer);
+        }
+        callbacks?.onIterationEnd?.(i, false);
+        continue;
+      }
+
       const done = this.checkLoopTermination(content, loopConfig, conversationId);
       callbacks?.onIterationEnd?.(i, done);
 
@@ -338,11 +351,16 @@ export class Orchestrator {
       augmented.systemPrompt = agent.systemPrompt + doneInstruction;
     }
 
+    // Inject finish_task when terminationCheck is "tool"
     if (config.terminationCheck === "tool") {
-      // Inject finish_task into the agent's tool list if not already present
       if (!augmented.tools.includes(PREDEFINED_TOOL_IDS.FINISH_TASK)) {
         augmented.tools = [...augmented.tools, PREDEFINED_TOOL_IDS.FINISH_TASK];
       }
+    }
+
+    // Always inject ask_user so the agent can pause and request human input
+    if (!augmented.tools.includes(PREDEFINED_TOOL_IDS.ASK_USER)) {
+      augmented.tools = [...augmented.tools, PREDEFINED_TOOL_IDS.ASK_USER];
     }
 
     return augmented;
@@ -377,5 +395,29 @@ export class Orchestrator {
       }
     }
     return false;
+  }
+
+  /**
+   * Returns the question string from the most recent ask_user tool call in the
+   * current iteration, or null if no such call was found.
+   */
+  private getAskUserQuestion(conversationId: string): string | null {
+    const conversation = this.conversationManager.getConversation(conversationId);
+    if (!conversation) return null;
+    const messages = conversation.messages;
+    let seenAssistant = false;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (!msg) continue;
+      if (msg.role === "tool" && msg.toolCall?.toolId === PREDEFINED_TOOL_IDS.ASK_USER) {
+        const question = msg.toolCall.parameters["question"];
+        return typeof question === "string" ? question : null;
+      }
+      if (msg.role === "assistant") {
+        if (seenAssistant) break;
+        seenAssistant = true;
+      }
+    }
+    return null;
   }
 }

@@ -409,6 +409,47 @@ export const FinishTaskFactory: IToolFactory = {
 };
 
 // ============================================================================
+// ASK_USER TOOL (Agentic Loop HITL pause – request input from human)
+// ============================================================================
+
+const ASK_USER_PARAMS: Parameter[] = [
+  {
+    name: "question",
+    type: "string",
+    description: "The question or clarification request to present to the user",
+    required: true,
+  },
+];
+
+class AskUserTool implements IExecutableTool {
+  name = PREDEFINED_TOOL_IDS.ASK_USER;
+  parameters = ASK_USER_PARAMS;
+
+  async execute(ctx: ExecutionContext): Promise<ExecutionResult> {
+    const question = ctx.parameters.question as string;
+    const data = { asked: true, question };
+    return {
+      success: true,
+      data,
+      log: [buildLogEntry(this.name, ctx.parameters, data)],
+    };
+  }
+
+  shouldRequireHITL(): boolean {
+    return false; // HITL is handled at the agentic-loop level, not here
+  }
+}
+
+export const AskUserFactory: IToolFactory = {
+  name: PREDEFINED_TOOL_IDS.ASK_USER,
+  description:
+    "Pause the agentic loop and ask the user a question or request clarification. " +
+    "Call this when you need additional information or confirmation from the user before proceeding.",
+  parameters: ASK_USER_PARAMS,
+  create: () => new AskUserTool(),
+};
+
+// ============================================================================
 // WEBSEARCH TOOL (OpenRouter server-side plugin)
 // ============================================================================
 
@@ -450,6 +491,7 @@ export const PredefinedToolsFactory = {
   restRequest: RestRequestFactory,
   webSearch: WebSearchFactory,
   finishTask: FinishTaskFactory,
+  askUser: AskUserFactory,
 };
 
 export default PredefinedToolsFactory;

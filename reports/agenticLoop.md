@@ -48,6 +48,7 @@
 #### `examples/agents/deep-research-assistant.md`
 - Beispiel-Agent mit aktiviertem Agentic Loop (terminationCheck: auto, maxIterations: 8)
 - Demonstriert iterativen Recherche-Workflow mit websearch + write_file
+- Enthält Hinweis auf `ask_user` für HITL-Rückfragen
 
 ---
 
@@ -55,6 +56,7 @@
 
 #### `src/utils/constants.ts`
 - `PREDEFINED_TOOL_IDS.FINISH_TASK = "finish_task"` hinzugefügt
+- `PREDEFINED_TOOL_IDS.ASK_USER = "ask_user"` hinzugefügt
 
 #### `src/tools/predefined.ts`
 - `FinishTaskTool`-Klasse implementiert:
@@ -63,19 +65,42 @@
   - Kein HITL erforderlich
 - `FinishTaskFactory` exportiert
 - `PredefinedToolsFactory.finishTask` hinzugefügt
+- `AskUserTool`-Klasse implementiert (**NEU – HITL-Integration**):
+  - Nimmt `question` (required) als Parameter
+  - Gibt `{ asked: true, question }` zurück
+  - Kein HITL auf Tool-Ebene (Pause wird auf Loop-Ebene behandelt)
+- `AskUserFactory` exportiert
+- `PredefinedToolsFactory.askUser` hinzugefügt
 
 #### `src/main.ts`
-- `FinishTaskFactory` in `registerPredefinedTools()` registriert (jetzt 6 Tools)
+- `FinishTaskFactory` in `registerPredefinedTools()` registriert
+- `AskUserFactory` in `registerPredefinedTools()` registriert (jetzt 7 Tools)
 
 #### Orchestrator (Phase-2-Ergänzungen)
-- `augmentAgentForLoop()` injiziert `finish_task` automatisch in die Tool-Liste, wenn `terminationCheck: "tool"`
+- `augmentAgentForLoop()` injiziert `finish_task` automatisch wenn `terminationCheck: "tool"`
+- `augmentAgentForLoop()` injiziert `ask_user` **immer** in die Tool-Liste (für HITL-Unterstützung)
 - `hasFinishTaskCall()` durchsucht Conversation-Messages auf `finish_task`-Tool-Calls
-- `onLoopComplete` Callback-Typ unterstützt jetzt `Promise<void>` (für async autoSaveReport)
-- `runAgenticLoop` wartet auf `onLoopComplete` mit `await`
+- `getAskUserQuestion()` durchsucht die letzte Iteration auf `ask_user`-Tool-Calls und gibt die Frage zurück
+- `onLoopComplete` Callback-Typ unterstützt `Promise<void>` (für async autoSaveReport)
+- `onHITLPause?: (question: string) => Promise<string>` zu `AgenticLoopCallbacks` hinzugefügt (**NEU**)
+- `runAgenticLoop` erkennt `ask_user`-Calls, pausiert den Loop, wartet auf User-Antwort via `onHITLPause`
+
+#### `src/ui/hitl-modal.ts` (**NEU – HITL-Integration**)
+- `HITLInputModal`-Klasse implementiert:
+  - Zeigt die Agenten-Frage in einem Modal an
+  - Textarea für die Nutzer-Antwort
+  - ✅ "Send answer" Button und ❌ "Cancel" Button
+  - Tastaturkürzel: Ctrl/Cmd+Enter zum Absenden
+  - Bei Modal-Schließung ohne Eingabe: leerer String zurückgegeben
+- `showHITLInputModal(app, question)` Helper-Funktion exportiert
 
 #### Chat UI (Phase-2-Ergänzungen)
 - `runAgenticTask()` ruft `saveLoopReport()` auf wenn `autoSaveReport: true`
 - `saveLoopReport()` erstellt Markdown-Datei unter `{conversationsPath}/reports/DATUM_AUFGABE.md`
+- `onHITLPause` Callback in `runAgenticTask()` implementiert (**NEU**):
+  - Zeigt System-Message "🙋 Agent is asking: ..." im Chat
+  - Öffnet `HITLInputModal` und wartet auf Nutzer-Eingabe
+  - Fügt die Antwort als User-Message im Chat hinzu
 
 ---
 
@@ -86,6 +111,8 @@ Neue Tests wurden hinzugefügt:
 **`tests/unit/core/orchestrator.spec.ts`**
 - `injects finish_task into agent tools when terminationCheck is tool`
 - `terminates loop when finish_task tool is called`
+- `injects ask_user tool for every agentic loop run` (**NEU**)
+- `pauses and resumes loop when ask_user is called` (**NEU**)
 - Hilfsfunktion `makeToolCallStreamResponse()` für Tool-Call-SSE-Mocking
 
 **`tests/integration/tools/predefined.int.spec.ts`**
@@ -93,8 +120,11 @@ Neue Tests wurden hinzugefügt:
 - `finish_task includes reportPath when provided`
 - `finish_task does not require HITL`
 - `finish_task has a non-empty log entry`
+- `ask_user returns asked:true with question` (**NEU**)
+- `ask_user does not require HITL` (**NEU**)
+- `ask_user has a non-empty log entry with correct tool name` (**NEU**)
 
-Alle 305 Tests bestehen.
+Alle 310 Tests bestehen.
 
 ---
 
@@ -118,12 +148,6 @@ Alle 305 Tests bestehen.
 | S4 | Kein Persistenz des Loop-Zustands bei Absturz | Conversation-Datei wird nach jeder Iteration gespeichert |
 | S5 | Sequentielle Tool-Calls (kein Parallelism) | Akzeptiert in Phase 1+2; Phase 3 |
 
-### Phase 2 – Nicht implementiert
-
-| Feature | Beschreibung |
-|---------|--------------|
-| HITL-Integration | Agent kann während des Loops nach User-Input fragen |
-
 ---
 
 ## Architekturübersicht
@@ -137,19 +161,33 @@ Nutzer gibt Aufgabe ("▶ Run Task")
         ↓
   [Agentic Loop: i = 1..maxIterations]
         ↓
-   continueConversation() ←──────────────────┐
-        ↓                                   │
-   LLM + Tool Calls (inner loop)            │
-        ↓                                   │
-   LLM Finalantwort                         │
-        ↓                                   │
-   checkLoopTermination()                   │
-        ↓                                   │
-   auto:  [DONE] in content?                │
-   phrase: terminationPhrase in content?    │
-   tool:   finish_task in conversation?     │
-        │                                   │
-        ├── Nein ────────────────────────────┘
+   continueConversation() ←──────────────────────┐
+        ↓                                        │
+   LLM + Tool Calls (inner loop)                 │
+        ↓                                        │
+   LLM Finalantwort                              │
+        ↓                                        │
+   getAskUserQuestion()                          │
+        ↓                                        │
+   ask_user aufgerufen?                          │
+        ├── Ja → onHITLPause(question) ──────────┤
+        │        ↓                               │
+        │   HITLInputModal anzeigen              │
+        │        ↓                               │
+        │   Nutzer gibt Antwort ein              │
+        │        ↓                               │
+        │   Antwort als user-Message hinzufügen  │
+        │        └─────────────────────────────→ │
+        │                                        │
+        └── Nein                                 │
+              ↓                                  │
+   checkLoopTermination()                        │
+        ↓                                        │
+   auto:  [DONE] in content?                     │
+   phrase: terminationPhrase in content?         │
+   tool:   finish_task in conversation?          │
+        │                                        │
+        ├── Nein ────────────────────────────────┘
         │
         └── Ja / Max-Iter erreicht
               ↓

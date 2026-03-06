@@ -285,3 +285,109 @@ export function showHITLModal(
     modal.open();
   });
 }
+
+// ============================================================================
+// HITL Input Modal – pauses agentic loop and collects text input from the user
+// ============================================================================
+
+/**
+ * HITL Input Modal
+ * Shown when an agent calls ask_user() during an agentic loop.
+ * The user types their answer and submits it; the loop then continues.
+ */
+export class HITLInputModal extends Modal {
+  private readonly question: string;
+  private readonly onSubmit: (answer: string) => void;
+  private inputEl: HTMLTextAreaElement | null = null;
+  private resolved = false;
+
+  constructor(app: App, question: string, onSubmit: (answer: string) => void) {
+    super(app);
+    this.question = question;
+    this.onSubmit = onSubmit;
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("paper-agents-hitl", "paper-agents-hitl-input");
+
+    // Header
+    const header = contentEl.createDiv({ cls: "pa-hitl-header" });
+    header.createSpan({ text: "💬", cls: "pa-hitl-icon" });
+    header.createEl("h2", { text: "Agent is asking for input", cls: "pa-hitl-title" });
+
+    // Question
+    const questionDiv = contentEl.createDiv({ cls: "pa-hitl-info" });
+    questionDiv.createEl("p", { text: "The agent has a question for you:" });
+    const questionBox = questionDiv.createDiv({ cls: "pa-hitl-question" });
+    questionBox.textContent = this.question;
+
+    // Answer input
+    const answerDiv = contentEl.createDiv({ cls: "pa-hitl-answer-area" });
+    answerDiv.createEl("label", { text: "Your answer:", cls: "pa-hitl-answer-label" });
+    this.inputEl = answerDiv.createEl("textarea", {
+      cls: "pa-hitl-answer-input",
+      attr: { rows: "4", placeholder: "Type your answer here…" },
+    });
+
+    // Keyboard shortcut: Ctrl/Cmd+Enter to submit
+    this.inputEl.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        this.handleSubmit();
+      }
+    });
+
+    // Buttons
+    const buttonContainer = contentEl.createDiv({ cls: "pa-hitl-buttons" });
+
+    const cancelBtn = buttonContainer.createEl("button", { text: "❌ Cancel", cls: "pa-btn-reject" });
+    cancelBtn.addEventListener("click", () => this.handleCancel());
+
+    const submitBtn = buttonContainer.createEl("button", {
+      text: "✅ Send answer",
+      cls: "pa-btn-approve",
+    });
+    submitBtn.addEventListener("click", () => this.handleSubmit());
+
+    // Focus the textarea
+    this.inputEl.focus();
+
+    globalLogger.info("HITLInputModal opened", { question: this.question.slice(0, 80) });
+  }
+
+  onClose(): void {
+    if (!this.resolved) {
+      this.onSubmit("");
+      globalLogger.warn("HITLInputModal closed without answer – returning empty string");
+    }
+    this.contentEl.empty();
+  }
+
+  private handleSubmit(): void {
+    const answer = this.inputEl?.value.trim() ?? "";
+    this.resolved = true;
+    globalLogger.info("HITLInputModal: user submitted answer");
+    this.onSubmit(answer);
+    this.close();
+  }
+
+  private handleCancel(): void {
+    this.resolved = true;
+    globalLogger.info("HITLInputModal: user cancelled");
+    this.onSubmit("");
+    this.close();
+  }
+}
+
+/**
+ * Show HITL Input Modal – pauses execution and waits for user text input.
+ * Returns the user's answer (empty string if cancelled).
+ */
+export function showHITLInputModal(app: App, question: string): Promise<string> {
+  return new Promise((resolve) => {
+    const modal = new HITLInputModal(app, question, (answer) => resolve(answer));
+    modal.open();
+  });
+}

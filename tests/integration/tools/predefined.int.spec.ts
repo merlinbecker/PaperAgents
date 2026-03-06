@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as Obsidian from "obsidian";
 import { app, TFile, Vault } from "obsidian";
-import { SearchFilesFactory, ReadFileFactory, WriteFileFactory, RestRequestFactory, FinishTaskFactory } from "../../../src/tools/predefined";
+import { SearchFilesFactory, ReadFileFactory, WriteFileFactory, RestRequestFactory, FinishTaskFactory, AskUserFactory } from "../../../src/tools/predefined";
 import type { ExecutionContext } from "../../../src/types";
 
 /** Wrap plain parameters into a minimal ExecutionContext for tool.execute(). */
@@ -116,6 +116,28 @@ describe("Predefined tools integration (mocked vault)", () => {
       const res = await tool.execute(makeCtx({ summary: "Completed" }));
       expect(res.log).toHaveLength(1);
       expect(res.log[0]?.toolName).toBe("finish_task");
+    });
+  });
+
+  describe("ask_user", () => {
+    it("returns asked:true with question", async () => {
+      const tool = AskUserFactory.create();
+      const res = await tool.execute(makeCtx({ question: "What should I do next?" }));
+      expect(res.success).toBe(true);
+      expect((res.data as any).asked).toBe(true);
+      expect((res.data as any).question).toBe("What should I do next?");
+    });
+
+    it("does not require HITL", () => {
+      const tool = AskUserFactory.create();
+      expect(tool.shouldRequireHITL({})).toBe(false);
+    });
+
+    it("has a non-empty log entry with correct tool name", async () => {
+      const tool = AskUserFactory.create();
+      const res = await tool.execute(makeCtx({ question: "Continue?" }));
+      expect(res.log).toHaveLength(1);
+      expect(res.log[0]?.toolName).toBe("ask_user");
     });
   });
 });

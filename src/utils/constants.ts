@@ -11,6 +11,7 @@ export const PREDEFINED_TOOL_IDS = {
   REST_REQUEST: "rest_request",
   WEBSEARCH: "websearch",
   FINISH_TASK: "finish_task",
+  ASK_USER: "ask_user",
 };
 
 // Default-Pfade
