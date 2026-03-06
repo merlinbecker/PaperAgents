@@ -24,7 +24,7 @@ export interface OrchestratorCallbacks {
 
 export interface AgenticLoopCallbacks extends OrchestratorCallbacks {
   onIterationStart?: (iteration: number, maxIterations: number) => void;
-  onIterationEnd?: (iteration: number, done: boolean) => void;
+  onIterationEnd?: (iteration: number, done: boolean) => void | Promise<void>;
   onLoopComplete?: (iterations: number, finalContent: string) => void | Promise<void>;
   /** Called when the agent invokes ask_user(); resolves with the user's answer. */
   onHITLPause?: (question: string) => Promise<string>;
@@ -328,12 +328,12 @@ export class Orchestrator {
         if (userAnswer) {
           this.conversationManager.addMessage(conversationId, "user", userAnswer);
         }
-        callbacks?.onIterationEnd?.(i, false);
+        await callbacks?.onIterationEnd?.(i, false);
         continue;
       }
 
       const done = this.checkLoopTermination(content, loopConfig, conversationId);
-      callbacks?.onIterationEnd?.(i, done);
+      await callbacks?.onIterationEnd?.(i, done);
 
       if (done) break;
     }

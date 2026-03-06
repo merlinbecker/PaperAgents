@@ -4,7 +4,8 @@
 
 **Phase 1 (MVP): ✅ Vollständig implementiert**  
 **Phase 2 (Robustheit & Tools): ✅ Vollständig implementiert**  
-**Phase 3 (Optimierung): 🔄 Teilweise implementiert**
+**Phase 3 (Optimierung): 🔄 Teilweise implementiert**  
+**Persistenz der Zwischenschritte: ✅ Implementiert**
 
 ---
 
@@ -137,6 +138,26 @@ OpenRouter bietet eine serverseitige Komprimierungsstrategie:
 
 ---
 
+### Persistenz der Zwischenschritte (implementiert)
+
+#### Problem (S4: Datenverlust bei Absturz/Schließen)
+Zuvor wurde die Conversation-Datei nur einmal am Ende des gesamten Agentic Loops gespeichert. Bei einem Absturz oder unerwarteten Schließen von Obsidian während eines langen Loops gingen alle Zwischenschritte verloren.
+
+#### Lösung: Speichern nach jeder Iteration
+
+**`src/core/orchestrator.ts`**
+- `onIterationEnd`-Typ von `void` zu `void | Promise<void>` erweitert
+- Beide Aufrufe von `onIterationEnd` (nach normalem Ende und nach HITL-Pause) mit `await` aufgerufen
+
+**`src/ui/chat.ts`**
+- `onIterationEnd`-Callback in `runAgenticTask()` auf async umgestellt
+- Ruft `this.saveConversation()` nach jedem `updateIterationIndicator()` auf → Conversation-Datei wird nach jeder Iteration persistent gespeichert
+
+**Tests**
+- `awaits async onIterationEnd callbacks so persistence runs before next iteration` – verifiziert, dass der Orchestrator den async `onIterationEnd`-Callback awaitet und die Ausführungsreihenfolge korrekt ist (save vor nächstem start)
+
+---
+
 ### Tests
 
 Neue Tests wurden hinzugefügt:
@@ -148,6 +169,7 @@ Neue Tests wurden hinzugefügt:
 - `pauses and resumes loop when ask_user is called` (**NEU**)
 - `sends transforms: [middle-out] in agentic loop requests` (**NEU**)
 - `does not send transforms in regular sendMessage calls` (**NEU**)
+- `awaits async onIterationEnd callbacks so persistence runs before next iteration` (**NEU**)
 - Hilfsfunktion `makeToolCallStreamResponse()` für Tool-Call-SSE-Mocking
 
 **`tests/integration/tools/predefined.int.spec.ts`**
@@ -159,7 +181,7 @@ Neue Tests wurden hinzugefügt:
 - `ask_user does not require HITL` (**NEU**)
 - `ask_user has a non-empty log entry with correct tool name` (**NEU**)
 
-Alle 312 Tests bestehen.
+Alle 313 Tests bestehen.
 
 ---
 
@@ -181,7 +203,7 @@ Alle 312 Tests bestehen.
 | S1 | Halluziniertes `[DONE]` bei `auto`-Terminierung | Mitigiert durch `terminationCheck: tool` |
 | S2 | Endlosloop bei schlechtem Prompt | Mitigiert durch `maxIterations` (Default: 10) |
 | S3 | Kosten-/Token-Explosion bei vielen Iterationen | ✅ Gelöst via `transforms: ["middle-out"]` (OpenRouter) + `memory.maxMessages` |
-| S4 | Kein Persistenz des Loop-Zustands bei Absturz | Conversation-Datei wird nach jeder Iteration gespeichert |
+| S4 | Kein Persistenz des Loop-Zustands bei Absturz | ✅ Gelöst: Conversation-Datei wird nach jeder Iteration gespeichert via async `onIterationEnd` |
 | S5 | Sequentielle Tool-Calls (kein Parallelism) | Akzeptiert in Phase 1+2; Phase 3 |
 
 ---
