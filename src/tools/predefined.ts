@@ -362,6 +362,53 @@ export const RestRequestFactory: IToolFactory = {
 };
 
 // ============================================================================
+// FINISH_TASK TOOL (Agentic Loop termination signal)
+// ============================================================================
+
+const FINISH_TASK_PARAMS: Parameter[] = [
+  {
+    name: "summary",
+    type: "string",
+    description: "Summary of the completed task",
+    required: true,
+  },
+  {
+    name: "reportPath",
+    type: "string",
+    description: "Optional path to a saved report file",
+    required: false,
+  },
+];
+
+class FinishTaskTool implements IExecutableTool {
+  name = PREDEFINED_TOOL_IDS.FINISH_TASK;
+  parameters = FINISH_TASK_PARAMS;
+
+  async execute(ctx: ExecutionContext): Promise<ExecutionResult> {
+    const summary = ctx.parameters.summary as string;
+    const reportPath = ctx.parameters.reportPath as string | undefined;
+    const data: Record<string, unknown> = { done: true, summary };
+    if (reportPath) data.reportPath = reportPath;
+    return {
+      success: true,
+      data,
+      log: [buildLogEntry(this.name, ctx.parameters, data)],
+    };
+  }
+
+  shouldRequireHITL(): boolean {
+    return false;
+  }
+}
+
+export const FinishTaskFactory: IToolFactory = {
+  name: PREDEFINED_TOOL_IDS.FINISH_TASK,
+  description: "Signal that the current task is complete and provide a summary. Call this when you have fully completed the assigned task.",
+  parameters: FINISH_TASK_PARAMS,
+  create: () => new FinishTaskTool(),
+};
+
+// ============================================================================
 // WEBSEARCH TOOL (OpenRouter server-side plugin)
 // ============================================================================
 
@@ -402,6 +449,7 @@ export const PredefinedToolsFactory = {
   writeFile: WriteFileFactory,
   restRequest: RestRequestFactory,
   webSearch: WebSearchFactory,
+  finishTask: FinishTaskFactory,
 };
 
 export default PredefinedToolsFactory;

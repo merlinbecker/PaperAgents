@@ -7,6 +7,8 @@ import { ConversationManager } from "../../../src/core/conversation";
 import ToolRegistry from "../../../src/core/tool-registry";
 import { AgentDefinition } from "../../../src/types";
 import { requestUrl } from "obsidian";
+import { FinishTaskFactory } from "../../../src/tools/predefined";
+import { PREDEFINED_TOOL_IDS } from "../../../src/utils/constants";
 
 const mockRequestUrl = vi.mocked(requestUrl);
 
@@ -40,6 +42,18 @@ function makeStreamResponse(content: string | string[]): object {
   return { status: 200, text: lines.join("\n") };
 }
 
+/** Build a mock SSE response that contains a single tool call followed by finish. */
+function makeToolCallStreamResponse(toolName: string, args: Record<string, unknown>): object {
+  const argsStr = JSON.stringify(args).replace(/"/g, '\\"');
+  const lines = [
+    `data: {"id":"gen","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call1","type":"function","function":{"name":"${toolName}","arguments":""}}]},"finish_reason":null}]}`,
+    `data: {"id":"gen","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"${argsStr}"}}]},"finish_reason":null}]}`,
+    `data: {"id":"gen","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`,
+    "data: [DONE]",
+  ];
+  return { status: 200, text: lines.join("\n") };
+}
+
 /** Extract the parsed JSON body from the first requestUrl call. */
 function getRequestBody(): Record<string, unknown> {
   const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
@@ -57,6 +71,7 @@ describe("Orchestrator", () => {
     vi.clearAllMocks();
     conversationManager = new ConversationManager();
     toolRegistry = new ToolRegistry();
+    toolRegistry.registerPredefined(FinishTaskFactory);
     orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
   });
 
@@ -306,6 +321,51 @@ describe("Orchestrator", () => {
       });
 
       expect(completedIter).toBe(2);
+    });
+
+    it("injects finish_task into agent tools when terminationCheck is tool", async () => {
+      // First call: tool call to finish_task; second call: final text after tool result
+      mockRequestUrl
+        .mockResolvedValueOnce(makeToolCallStreamResponse("finish_task", { summary: "Done!" }) as never)
+        .mockResolvedValueOnce(makeStreamResponse("Task finished.") as never);
+
+      const agent: AgentDefinition = {
+        ...makeAgent(),
+        agenticLoop: { enabled: true, maxIterations: 5, terminationCheck: "tool" },
+      };
+      const convId = "loop-tool-inject";
+      conversationManager.createConversation(agent.id, convId);
+
+      await orchestrator.runAgenticLoop(agent, convId, "Do the task");
+
+      // The first request body should contain finish_task in tools
+      const body = getRequestBody();
+      const tools = body.tools as Array<{ function: { name: string } }>;
+      expect(tools).toBeDefined();
+      expect(tools.some((t) => t.function.name === PREDEFINED_TOOL_IDS.FINISH_TASK)).toBe(true);
+    });
+
+    it("terminates loop when finish_task tool is called", async () => {
+      // First iteration: LLM calls finish_task, then returns final text
+      mockRequestUrl
+        .mockResolvedValueOnce(makeToolCallStreamResponse("finish_task", { summary: "All done!" }) as never)
+        .mockResolvedValueOnce(makeStreamResponse("Here is your summary.") as never);
+
+      const agent: AgentDefinition = {
+        ...makeAgent(),
+        agenticLoop: { enabled: true, maxIterations: 5, terminationCheck: "tool" },
+      };
+      const convId = "loop-tool-term";
+      conversationManager.createConversation(agent.id, convId);
+
+      const ends: boolean[] = [];
+      await orchestrator.runAgenticLoop(agent, convId, "Finish the task", {
+        onIterationEnd: (_, done) => ends.push(done),
+      });
+
+      // Loop should terminate after 1 iteration because finish_task was called
+      expect(ends).toHaveLength(1);
+      expect(ends[0]).toBe(true);
     });
   });
 });

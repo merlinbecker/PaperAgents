@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as Obsidian from "obsidian";
 import { app, TFile, Vault } from "obsidian";
-import { SearchFilesFactory, ReadFileFactory, WriteFileFactory, RestRequestFactory } from "../../../src/tools/predefined";
+import { SearchFilesFactory, ReadFileFactory, WriteFileFactory, RestRequestFactory, FinishTaskFactory } from "../../../src/tools/predefined";
 import type { ExecutionContext } from "../../../src/types";
 
 /** Wrap plain parameters into a minimal ExecutionContext for tool.execute(). */
@@ -87,6 +87,35 @@ describe("Predefined tools integration (mocked vault)", () => {
       expect(res.success).toBe(true);
       expect((res.data as any).status).toBe(201);
       spy.mockRestore();
+    });
+  });
+
+  describe("finish_task", () => {
+    it("returns done:true with summary", async () => {
+      const tool = FinishTaskFactory.create();
+      const res = await tool.execute(makeCtx({ summary: "All done!" }));
+      expect(res.success).toBe(true);
+      expect((res.data as any).done).toBe(true);
+      expect((res.data as any).summary).toBe("All done!");
+    });
+
+    it("includes reportPath when provided", async () => {
+      const tool = FinishTaskFactory.create();
+      const res = await tool.execute(makeCtx({ summary: "Done", reportPath: "reports/result.md" }));
+      expect(res.success).toBe(true);
+      expect((res.data as any).reportPath).toBe("reports/result.md");
+    });
+
+    it("does not require HITL", () => {
+      const tool = FinishTaskFactory.create();
+      expect(tool.shouldRequireHITL({})).toBe(false);
+    });
+
+    it("has a non-empty log entry", async () => {
+      const tool = FinishTaskFactory.create();
+      const res = await tool.execute(makeCtx({ summary: "Completed" }));
+      expect(res.log).toHaveLength(1);
+      expect(res.log[0]?.toolName).toBe("finish_task");
     });
   });
 });

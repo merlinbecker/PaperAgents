@@ -25,7 +25,7 @@ export interface OrchestratorCallbacks {
 export interface AgenticLoopCallbacks extends OrchestratorCallbacks {
   onIterationStart?: (iteration: number, maxIterations: number) => void;
   onIterationEnd?: (iteration: number, done: boolean) => void;
-  onLoopComplete?: (iterations: number, finalContent: string) => void;
+  onLoopComplete?: (iterations: number, finalContent: string) => void | Promise<void>;
 }
 
 export class Orchestrator {
@@ -319,42 +319,63 @@ export class Orchestrator {
       finalContent = content;
       completedIterations = i;
 
-      const done = this.checkLoopTermination(content, loopConfig);
+      const done = this.checkLoopTermination(content, loopConfig, conversationId);
       callbacks?.onIterationEnd?.(i, done);
 
       if (done) break;
     }
 
-    callbacks?.onLoopComplete?.(completedIterations, finalContent);
+    await callbacks?.onLoopComplete?.(completedIterations, finalContent);
     return finalContent;
   }
 
   private augmentAgentForLoop(agent: AgentDefinition, config: AgenticLoopConfig): AgentDefinition {
-    if (config.terminationCheck !== "auto") return agent;
+    const augmented = { ...agent };
 
-    const doneInstruction =
-      "\n\nWhen you have fully completed the assigned task, start your final response with `[DONE]`.";
-    return {
-      ...agent,
-      systemPrompt: agent.systemPrompt + doneInstruction,
-    };
+    if (config.terminationCheck === "auto") {
+      const doneInstruction =
+        "\n\nWhen you have fully completed the assigned task, start your final response with `[DONE]`.";
+      augmented.systemPrompt = agent.systemPrompt + doneInstruction;
+    }
+
+    if (config.terminationCheck === "tool") {
+      // Inject finish_task into the agent's tool list if not already present
+      if (!augmented.tools.includes(PREDEFINED_TOOL_IDS.FINISH_TASK)) {
+        augmented.tools = [...augmented.tools, PREDEFINED_TOOL_IDS.FINISH_TASK];
+      }
+    }
+
+    return augmented;
   }
 
-  private checkLoopTermination(content: string, config: AgenticLoopConfig): boolean {
+  private checkLoopTermination(content: string, config: AgenticLoopConfig, conversationId: string): boolean {
     switch (config.terminationCheck) {
       case "auto":
         return content.trimStart().startsWith("[DONE]");
       case "phrase":
         return config.terminationPhrase ? content.includes(config.terminationPhrase) : false;
       case "tool":
-        // Tool-based termination is signalled via the conversation messages
-        return this.hasFinishTaskCall(config);
+        return this.hasFinishTaskCall(conversationId);
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private hasFinishTaskCall(_config: AgenticLoopConfig): boolean {
-    // Phase 2: inspect the last tool message in the conversation for a finish_task call.
+  private hasFinishTaskCall(conversationId: string): boolean {
+    const conversation = this.conversationManager.getConversation(conversationId);
+    if (!conversation) return false;
+    const messages = conversation.messages;
+    // Search backward. Stop when a second assistant message is encountered (i.e. from a
+    // prior iteration), so we only check tool calls made in the most recent iteration.
+    let seenAssistant = false;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i]!;
+      if (msg.role === "tool" && msg.toolCall?.toolId === PREDEFINED_TOOL_IDS.FINISH_TASK) {
+        return true;
+      }
+      if (msg.role === "assistant") {
+        if (seenAssistant) break;
+        seenAssistant = true;
+      }
+    }
     return false;
   }
 }
