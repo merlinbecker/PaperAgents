@@ -456,20 +456,20 @@
 }
 
 .pa-btn-reject:hover {
-  background: #e74c3c;
+  background: #c0392b;
   color: white;
-  border-color: #e74c3c;
+  border-color: #c0392b;
 }
 
 .pa-btn-approve {
-  background: #27ae60;
+  background: #1a7a3c;
   color: white;
-  border-color: #27ae60;
+  border-color: #1a7a3c;
 }
 
 .pa-btn-approve:hover {
-  background: #229954;
-  border-color: #229954;
+  background: #156030;
+  border-color: #156030;
 }
 
 /* ============================================================================
@@ -1347,25 +1347,25 @@
 .pa-api-status-missing {
   background: rgba(231, 76, 60, 0.1);
   border-left: 3px solid #e74c3c;
-  color: #922b21;
+  color: var(--text-normal);
 }
 
 .pa-api-status-set {
   background: rgba(39, 174, 96, 0.1);
   border-left: 3px solid #27ae60;
-  color: #1a5c35;
+  color: var(--text-normal);
 }
 
 .pa-api-status-valid {
   background: rgba(39, 174, 96, 0.15);
   border-left: 3px solid #27ae60;
-  color: #1a5c35;
+  color: var(--text-normal);
 }
 
 .pa-api-status-invalid {
   background: rgba(231, 76, 60, 0.15);
   border-left: 3px solid #e74c3c;
-  color: #922b21;
+  color: var(--text-normal);
 }
 
 /* ============================================================================

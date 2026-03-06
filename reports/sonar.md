@@ -87,12 +87,12 @@ Generated: 2026-03-05 (updated)
 | S6606 | src/parser/validator.ts | 197 | Use `??=` nullish coalescing assignment |
 | S6606 | src/ui/sidebar.ts | 235 | Use `??=` nullish coalescing assignment |
 | S1854 | tests/unit/core/conversation.spec.ts | 229 | Remove useless assignment to `memoryConfig` |
-| css:S7924 | styles.css | 460 | Text contrast requirement not met |
-| css:S7924 | styles.css | 466 | Text contrast requirement not met |
-| css:S7924 | styles.css | 1350 | Text contrast requirement not met |
-| css:S7924 | styles.css | 1356 | Text contrast requirement not met |
-| css:S7924 | styles.css | 1362 | Text contrast requirement not met |
-| css:S7924 | styles.css | 1368 | Text contrast requirement not met |
+| css:S7924 | styles.css | 460 | ~~Text contrast requirement not met~~ ✅ fixed |
+| css:S7924 | styles.css | 466 | ~~Text contrast requirement not met~~ ✅ fixed |
+| css:S7924 | styles.css | 1350 | ~~Text contrast requirement not met~~ ✅ fixed |
+| css:S7924 | styles.css | 1356 | ~~Text contrast requirement not met~~ ✅ fixed |
+| css:S7924 | styles.css | 1362 | ~~Text contrast requirement not met~~ ✅ fixed |
+| css:S7924 | styles.css | 1368 | ~~Text contrast requirement not met~~ ✅ fixed |
 
 ### 🟡 MINOR
 
@@ -107,7 +107,7 @@ Generated: 2026-03-05 (updated)
 | S7781 | src/parser/agent-parser.ts | 204 | Use `String#replaceAll()` |
 | S7781 | src/parser/placeholder.ts | 28 | Use `String#replaceAll()` |
 | S6551 | src/parser/placeholder.ts | 82 | `value` may stringify as `[object Object]` |
-| S6551 | src/ui/forms.ts | 193, 326 | `value` may stringify as `[object Object]` |
+| S6551 | src/ui/forms.ts | 193, 326 | ~~`value` may stringify as `[object Object]`~~ ✅ fixed |
 | S6551 | src/ui/hitl-modal.ts | 133 | `value` may stringify as `[object Object]` |
 | S6606 | src/ui/sidebar.ts | 235 | Use `??=` |
 | S6353 | src/utils/constants.ts | 101 | Use `\w` instead of `[a-zA-Z0-9_]` |
@@ -118,7 +118,9 @@ Generated: 2026-03-05 (updated)
 | S1128 | tests/integration/e2e/scenario4-discovery-exec.spec.ts | 2 | Remove unused import of `TFile` |
 | S1128 | tests/integration/loader/tool-loader.int.spec.ts | 2 | Remove unused import of `TFile` |
 | S7735 | src/parser/yaml-parser.ts | 452 | Unexpected negated condition |
-| javascript:S7772 | create-release.mjs | 3, 4 | Use `node:child_process` / `node:fs` prefix |
+| javascript:S7772 | create-release.mjs | 3, 4, 5 | ~~Use `node:child_process` / `node:fs` / `node:readline` prefix~~ ✅ fixed |
+| javascript:S7772 | esbuild.config.mjs | 2 | ~~Use `node:process` prefix~~ ✅ fixed |
+| javascript:S7772 | version-bump.mjs | 1 | ~~Use `node:fs` prefix~~ ✅ fixed |
 
 ---
 
@@ -179,11 +181,12 @@ Generated: 2026-03-05 (updated)
 14. **[S3358] Extract nested ternary** – replaced nested ternary in `src/core/sandbox.ts` with independent `if/else if/else` statements
 15. **[S4624] Refactor nested template literal** – extracted `snippetSuffix` variable in `YAMLParseError` constructor in `src/parser/yaml-parser.ts`
 16. **[S7735] Unexpected negated condition** – simplified tautological ternary `p.default !== undefined ? p.default : undefined` to `p.default` in `src/parser/yaml-parser.ts`
-17. **[S6551] Object `[object Object]` stringification** – fixed `input.value = String(param.default)` in `src/ui/forms.ts` to use `JSON.stringify` for object values
+17. **[S6551] Object `[object Object]` stringification** – fixed `input.value = String(param.default)` in `src/ui/forms.ts` to use `JSON.stringify` for object values; refactored ternary at line 326–328 to `if/else` so SonarCloud recognizes the type guard
 18. **[S7780] Use `String.raw`** – replaced double-escaped string in `tests/unit/core/sandbox-prepost.spec.ts` with `String.raw` template literal
+19. **[css:S7924] CSS text contrast** – fixed all 6 contrast violations in `styles.css`: darkened `.pa-btn-reject:hover` background (`#e74c3c` → `#c0392b`, 5.4:1), `.pa-btn-approve` background (`#27ae60` → `#1a7a3c`, 5.4:1) and hover (`#229954` → `#156030`); changed API status badge text from hardcoded dark colours to `var(--text-normal)` (`.pa-api-status-missing/set/valid/invalid`)
+20. **[javascript:S7772] `node:` protocol** – added missing `node:` prefix to `readline` in `create-release.mjs`; `process` in `esbuild.config.mjs`; `fs` in `version-bump.mjs`
 
 ### 🔜 Next Steps (ordered by effort / impact)
 
 1. **[S3776] Reduce Cognitive Complexity** – large refactors in 10 functions, highest effort
 2. **Security Hotspots (S5852/S2245/S1523)** – review and decide safe/fix per hotspot
-3. **CSS contrast issues (css:S7924)** – fix 6 contrast issues in `styles.css`
