@@ -8,12 +8,15 @@ import { App, TFile, TFolder, TAbstractFile } from "obsidian";
 import { Agent, LoadToolsResult, ToolFile } from "../types";
 import YAMLParser from "./yaml-parser";
 import ParameterValidator from "./validator";
+import WikilinkResolver from "./wikilink-resolver";
 
 export class CustomToolLoader {
   private readonly app: App;
+  private readonly resolver: WikilinkResolver;
 
   constructor(app: App) {
     this.app = app;
+    this.resolver = new WikilinkResolver(app);
   }
 
   /**
@@ -68,8 +71,11 @@ export class CustomToolLoader {
         return null;
       }
 
+      // Wikilinks im Tool-Inhalt auflösen
+      const resolvedContent = await this.resolver.resolve(content, file.path);
+
       // Parse YAML + Code-Blöcke
-      const parsed = YAMLParser.parseToolFile(content);
+      const parsed = YAMLParser.parseToolFile(resolvedContent);
 
       // Validiere erforderliche Felder
       if (!parsed.frontmatter.id || !parsed.frontmatter.name) {
