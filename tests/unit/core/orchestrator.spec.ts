@@ -7,7 +7,7 @@ import { ConversationManager } from "../../../src/core/conversation";
 import ToolRegistry from "../../../src/core/tool-registry";
 import { AgentDefinition } from "../../../src/types";
 import { requestUrl } from "obsidian";
-import { FinishTaskFactory } from "../../../src/tools/predefined";
+import { FinishTaskFactory, AskUserFactory } from "../../../src/tools/predefined";
 import { PREDEFINED_TOOL_IDS } from "../../../src/utils/constants";
 
 const mockRequestUrl = vi.mocked(requestUrl);
@@ -72,6 +72,7 @@ describe("Orchestrator", () => {
     conversationManager = new ConversationManager();
     toolRegistry = new ToolRegistry();
     toolRegistry.registerPredefined(FinishTaskFactory);
+    toolRegistry.registerPredefined(AskUserFactory);
     orchestrator = new Orchestrator(makeOrchestratorConfig(), conversationManager, toolRegistry);
   });
 
@@ -366,6 +367,62 @@ describe("Orchestrator", () => {
       // Loop should terminate after 1 iteration because finish_task was called
       expect(ends).toHaveLength(1);
       expect(ends[0]).toBe(true);
+    });
+
+    it("injects ask_user tool for every agentic loop run", async () => {
+      mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("[DONE] Done.") as never);
+
+      const agent: AgentDefinition = {
+        ...makeAgent(),
+        agenticLoop: { enabled: true, maxIterations: 3, terminationCheck: "auto" },
+      };
+      const convId = "loop-ask-user-inject";
+      conversationManager.createConversation(agent.id, convId);
+
+      await orchestrator.runAgenticLoop(agent, convId, "Do something");
+
+      const body = getRequestBody();
+      const tools = body.tools as Array<{ function: { name: string } }>;
+      expect(tools).toBeDefined();
+      expect(tools.some((t) => t.function.name === PREDEFINED_TOOL_IDS.ASK_USER)).toBe(true);
+    });
+
+    it("pauses and resumes loop when ask_user is called", async () => {
+      // Iteration 1: agent calls ask_user("What is your name?")
+      // Iteration 2 (after user answer): agent responds with [DONE]
+      mockRequestUrl
+        .mockResolvedValueOnce(makeToolCallStreamResponse("ask_user", { question: "What is your name?" }) as never)
+        .mockResolvedValueOnce(makeStreamResponse("Noted.") as never) // tool result reply
+        .mockResolvedValueOnce(makeStreamResponse("[DONE] Done.") as never);
+
+      const agent: AgentDefinition = {
+        ...makeAgent(),
+        agenticLoop: { enabled: true, maxIterations: 5, terminationCheck: "auto" },
+      };
+      const convId = "loop-hitl-pause";
+      conversationManager.createConversation(agent.id, convId);
+
+      const pausedQuestions: string[] = [];
+      const iterationEnds: Array<{ i: number; done: boolean }> = [];
+
+      await orchestrator.runAgenticLoop(agent, convId, "Research for me", {
+        onHITLPause: async (question) => {
+          pausedQuestions.push(question);
+          return "Alice";
+        },
+        onIterationEnd: (i, done) => iterationEnds.push({ i, done }),
+      });
+
+      // onHITLPause should have been called with the question
+      expect(pausedQuestions).toEqual(["What is your name?"]);
+      // Iteration 1 ends with done=false (HITL pause), iteration 2 ends with done=true
+      expect(iterationEnds.some((e) => !e.done)).toBe(true);
+      expect(iterationEnds.some((e) => e.done)).toBe(true);
+
+      // User's answer should have been added to the conversation
+      const messages = conversationManager.getMessages(convId);
+      const userAnswerMsg = messages.find((m) => m.role === "user" && m.content === "Alice");
+      expect(userAnswerMsg).toBeDefined();
     });
   });
 });

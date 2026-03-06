@@ -3,6 +3,7 @@ import { AgentDefinition, WebSearchAnnotation } from "../types";
 import { ConversationManager } from "../core/conversation";
 import { ConversationFileManager } from "../core/conversation-file-manager";
 import { Orchestrator, OrchestratorCallbacks, AgenticLoopCallbacks } from "../core/orchestrator";
+import { showHITLInputModal } from "./hitl-modal";
 import { globalLogger } from "../utils/logger";
 
 export const VIEW_TYPE_PAPER_AGENTS_CHAT = "paper-agents-chat";
@@ -459,6 +460,14 @@ export class PaperAgentsChatView extends ItemView {
             if (shouldSaveReport && finalContent) {
               await this.saveLoopReport(message, finalContent, agent.id);
             }
+          },
+          onHITLPause: async (question: string) => {
+            this.addSystemMessage(`🙋 Agent is asking: ${question}`);
+            const answer = await showHITLInputModal(this.app, question);
+            if (answer) {
+              this.addMessageToUI("user", answer);
+            }
+            return answer;
           },
         };
         return orch.runAgenticLoop(agent, convId, message, loopCallbacks);

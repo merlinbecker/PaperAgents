@@ -478,18 +478,18 @@ Sequentielle Tool-Calls sind langsamer. Bei Deep Research mit vielen Quellen dau
 ## 7. Implementierungsphasen
 
 ### Phase 1 (MVP) – Agentic Loop Core
-- [ ] `AgenticLoopConfig` in `src/types.ts` hinzufügen
-- [ ] Parser in `src/parser/agent-parser.ts` erweitern (agenticLoop-Block parsen)
-- [ ] `runAgenticLoop`-Methode im `Orchestrator` implementieren (terminationCheck: auto + phrase)
-- [ ] `AgenticLoopCallbacks` im Orchestrator
-- [ ] Chat UI: "▶ Run Task"-Button, der bei Loop-fähigen Agenten erscheint
-- [ ] Chat UI: Iterations-Indikator anzeigen
-- [ ] Beispiel-Agent `deep-research-assistant.md`
+- [x] `AgenticLoopConfig` in `src/types.ts` hinzufügen
+- [x] Parser in `src/parser/agent-parser.ts` erweitern (agenticLoop-Block parsen)
+- [x] `runAgenticLoop`-Methode im `Orchestrator` implementieren (terminationCheck: auto + phrase)
+- [x] `AgenticLoopCallbacks` im Orchestrator
+- [x] Chat UI: "▶ Run Task"-Button, der bei Loop-fähigen Agenten erscheint
+- [x] Chat UI: Iterations-Indikator anzeigen
+- [x] Beispiel-Agent `deep-research-assistant.md`
 
 ### Phase 2 – Robustheit & Tools
-- [ ] `finish_task`-Tool implementieren (terminationCheck: tool)
-- [ ] HITL-Integration: Agent kann nach User-Input fragen während des Loops
-- [ ] `autoSaveReport`: Automatisches Speichern des Ergebnisses
+- [x] `finish_task`-Tool implementieren (terminationCheck: tool)
+- [x] HITL-Integration: Agent kann nach User-Input fragen während des Loops
+- [x] `autoSaveReport`: Automatisches Speichern des Ergebnisses
 
 ### Phase 3 – Optimierung
 - [ ] Parallele Tool-Calls innerhalb einer Iteration
