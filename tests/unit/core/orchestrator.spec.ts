@@ -453,5 +453,34 @@ describe("Orchestrator", () => {
       const userAnswerMsg = messages.find((m) => m.role === "user" && m.content === "Alice");
       expect(userAnswerMsg).toBeDefined();
     });
+
+    it("awaits async onIterationEnd callbacks so persistence runs before next iteration", async () => {
+      mockRequestUrl
+        .mockResolvedValueOnce(makeStreamResponse("Step 1 done.") as never)
+        .mockResolvedValueOnce(makeStreamResponse("[DONE] All done.") as never);
+
+      const agent: AgentDefinition = {
+        ...makeAgent(),
+        agenticLoop: { enabled: true, maxIterations: 5, terminationCheck: "auto", showProgress: true },
+      };
+      const convId = "loop-async-iteration-end";
+      conversationManager.createConversation(agent.id, convId);
+
+      const order: string[] = [];
+      await orchestrator.runAgenticLoop(agent, convId, "Do work", {
+        onIterationStart: (i) => order.push(`start:${i}`),
+        onIterationEnd: async (i, done) => {
+          // Simulate async save (e.g., writing to vault)
+          await Promise.resolve();
+          order.push(`saved:${i}:${done}`);
+        },
+      });
+
+      // Each "saved" entry must appear before the next "start" entry
+      expect(order[0]).toBe("start:1");
+      expect(order[1]).toBe("saved:1:false");
+      expect(order[2]).toBe("start:2");
+      expect(order[3]).toBe("saved:2:true");
+    });
   });
 });

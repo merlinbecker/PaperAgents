@@ -454,7 +454,10 @@ export class PaperAgentsChatView extends ItemView {
         const loopCallbacks: AgenticLoopCallbacks = {
           ...this.makeCallbacks(),
           onIterationStart: (i, max) => this.addIterationIndicator(i, max),
-          onIterationEnd: (i, done) => this.updateIterationIndicator(i, done),
+          onIterationEnd: async (i, done) => {
+            this.updateIterationIndicator(i, done);
+            await this.saveConversation();
+          },
           onLoopComplete: async (iterations, finalContent) => {
             this.addSystemMessage(`Agentic loop completed after ${iterations} iteration(s).`);
             if (shouldSaveReport && finalContent) {

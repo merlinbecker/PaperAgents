@@ -495,7 +495,7 @@ Jede Iteration sendet die gesamte History ans LLM. Bei 10 Iterationen mit Tool-C
 
 ### S4: Keine Persistenz des Loop-Zustands
 Wenn Obsidian während eines Loops geschlossen wird, geht der Zustand verloren.
-**Mitigierung:** Out-of-scope für Phase 1. Die Conversation-Datei wird nach jeder Iteration gespeichert.
+**Mitigierung:** ✅ Implementiert. Die Conversation-Datei wird nach jeder Iteration gespeichert. `onIterationEnd` im Orchestrator ist jetzt async-fähig (`void | Promise<void>`); der Callback in `chat.ts` ruft `saveConversation()` nach jeder Iteration auf.
 
 ### S5: Keine parallele Tool-Ausführung
 Sequentielle Tool-Calls sind langsamer. Bei Deep Research mit vielen Quellen dauert es länger.
@@ -535,7 +535,7 @@ Sequentielle Tool-Calls sind langsamer. Bei Deep Research mit vielen Quellen dau
 | `src/parser/agent-parser.ts` | `agenticLoop:`-Block parsen, `parseAgenticLoopConfig()` |
 | `src/core/openrouter.ts` | `chatStream()` + `buildRequestBody()` um `transforms`-Parameter erweitert |
 | `src/core/orchestrator.ts` | `runAgenticLoop()`, `AgenticLoopCallbacks`, Terminierungslogik; `augmentAgentForLoop()` setzt `transforms: ["middle-out"]` |
-| `src/ui/chat.ts` | "▶ Run Task"-Button, `runAgenticTask()`, Iterations-Indikator |
+| `src/ui/chat.ts` | "▶ Run Task"-Button, `runAgenticTask()`, Iterations-Indikator; `onIterationEnd` speichert Conversation nach jeder Iteration |
 | `src/tools/predefined.ts` | `finish_task`-Tool (Phase 2) |
 | `examples/agents/deep-research-assistant.md` | Beispiel-Agent (NEU) |
 
