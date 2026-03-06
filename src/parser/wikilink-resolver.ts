@@ -67,7 +67,7 @@ export class WikilinkResolver {
       const file = this.resolveFile(linkPath, sourcePath);
 
       // Datei nicht gefunden oder nicht Markdown → Wikilink unverändert lassen
-      if (!file || file.extension !== "md") {
+      if (file?.extension !== "md") {
         continue;
       }
 

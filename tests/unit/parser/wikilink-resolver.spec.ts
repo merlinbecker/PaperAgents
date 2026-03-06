@@ -189,7 +189,7 @@ describe("WikilinkResolver", () => {
       // "self" gets embedded once, but the inner [[self]] stays as-is
       expect(result).toContain("Selbst");
       // After embedding self.md, the inner [[self]] must not be resolved again
-      const embedded = result.match(/Selbst → \[\[self\]\]/);
+      const embedded = /Selbst → \[\[self\]\]/.exec(result);
       expect(embedded).not.toBeNull();
     });
   });
