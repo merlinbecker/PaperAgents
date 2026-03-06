@@ -202,4 +202,99 @@ Date: {{current_date}}
       expect(agent.memory.type).toBe("summary");
     });
   });
+
+  describe("agenticLoop", () => {
+    it("should parse agenticLoop config when enabled is true", () => {
+      const content = makeContent(
+        'id: loop_agent\nname: "Loop Agent"\nagenticLoop:\n  enabled: true\n  maxIterations: 5\n  terminationCheck: auto',
+        "Loop prompt."
+      );
+      const agent = AgentParser.parse(content);
+      expect(agent.agenticLoop).toBeDefined();
+      expect(agent.agenticLoop?.enabled).toBe(true);
+      expect(agent.agenticLoop?.maxIterations).toBe(5);
+      expect(agent.agenticLoop?.terminationCheck).toBe("auto");
+    });
+
+    it("should return undefined agenticLoop when enabled is false", () => {
+      const agent = AgentParser.parse(
+        makeContent('id: no_loop\nname: "No Loop"\nagenticLoop:\n  enabled: false', "Test.")
+      );
+      expect(agent.agenticLoop).toBeUndefined();
+    });
+
+    it("should return undefined agenticLoop when block is absent", () => {
+      const agent = AgentParser.parse(makeContent('id: no_loop\nname: "No Loop"', "Test."));
+      expect(agent.agenticLoop).toBeUndefined();
+    });
+
+    it("should clamp maxIterations to range 1..50", () => {
+      const low = AgentParser.parse(
+        makeContent('id: low\nname: "Low"\nagenticLoop:\n  enabled: true\n  maxIterations: 0', "Test.")
+      );
+      expect(low.agenticLoop?.maxIterations).toBe(1);
+
+      const high = AgentParser.parse(
+        makeContent('id: high\nname: "High"\nagenticLoop:\n  enabled: true\n  maxIterations: 999', "Test.")
+      );
+      expect(high.agenticLoop?.maxIterations).toBe(50);
+    });
+
+    it("should default to auto terminationCheck for unknown value", () => {
+      const agent = AgentParser.parse(
+        makeContent('id: unk\nname: "Unknown"\nagenticLoop:\n  enabled: true\n  terminationCheck: unknown_mode', "Test.")
+      );
+      expect(agent.agenticLoop?.terminationCheck).toBe("auto");
+    });
+
+    it("should parse phrase terminationCheck with terminationPhrase", () => {
+      const agent = AgentParser.parse(
+        makeContent(
+          'id: phrase_loop\nname: "Phrase Loop"\nagenticLoop:\n  enabled: true\n  terminationCheck: phrase\n  terminationPhrase: TASK_DONE',
+          "Test."
+        )
+      );
+      expect(agent.agenticLoop?.terminationCheck).toBe("phrase");
+      expect(agent.agenticLoop?.terminationPhrase).toBe("TASK_DONE");
+    });
+
+    it("should parse tool terminationCheck", () => {
+      const agent = AgentParser.parse(
+        makeContent('id: tool_loop\nname: "Tool Loop"\nagenticLoop:\n  enabled: true\n  terminationCheck: tool', "Test.")
+      );
+      expect(agent.agenticLoop?.terminationCheck).toBe("tool");
+    });
+
+    it("should set showProgress true by default", () => {
+      const agent = AgentParser.parse(
+        makeContent('id: sp_default\nname: "Show Progress"\nagenticLoop:\n  enabled: true', "Test.")
+      );
+      expect(agent.agenticLoop?.showProgress).toBe(true);
+    });
+
+    it("should allow showProgress to be set to false", () => {
+      const agent = AgentParser.parse(
+        makeContent('id: sp_false\nname: "No Show"\nagenticLoop:\n  enabled: true\n  showProgress: false', "Test.")
+      );
+      expect(agent.agenticLoop?.showProgress).toBe(false);
+    });
+
+    it("should parse iterationPrompt", () => {
+      const agent = AgentParser.parse(
+        makeContent(
+          'id: iter_prompt\nname: "Iter Prompt"\nagenticLoop:\n  enabled: true\n  iterationPrompt: Check progress.',
+          "Test."
+        )
+      );
+      expect(agent.agenticLoop?.iterationPrompt).toBe("Check progress.");
+    });
+
+    it("should parse agentic_loop snake_case alias", () => {
+      const agent = AgentParser.parse(
+        makeContent('id: snake\nname: "Snake"\nagentic_loop:\n  enabled: true\n  maxIterations: 3', "Test.")
+      );
+      expect(agent.agenticLoop?.enabled).toBe(true);
+      expect(agent.agenticLoop?.maxIterations).toBe(3);
+    });
+  });
 });

@@ -2,7 +2,7 @@ import { ItemView, WorkspaceLeaf, Notice, TFile } from "obsidian";
 import { AgentDefinition, WebSearchAnnotation } from "../types";
 import { ConversationManager } from "../core/conversation";
 import { ConversationFileManager } from "../core/conversation-file-manager";
-import { Orchestrator, OrchestratorCallbacks } from "../core/orchestrator";
+import { Orchestrator, OrchestratorCallbacks, AgenticLoopCallbacks } from "../core/orchestrator";
 import { globalLogger } from "../utils/logger";
 
 export const VIEW_TYPE_PAPER_AGENTS_CHAT = "paper-agents-chat";
@@ -20,6 +20,7 @@ export class PaperAgentsChatView extends ItemView {
   private messagesContainer: HTMLElement | null = null;
   private inputEl: HTMLTextAreaElement | null = null;
   private sendBtn: HTMLElement | null = null;
+  private runTaskBtn: HTMLButtonElement | null = null;
   private resendBtn: HTMLButtonElement | null = null;
   private conversationSelect: HTMLSelectElement | null = null;
   private newChatPanel: HTMLElement | null = null;
@@ -176,6 +177,7 @@ export class PaperAgentsChatView extends ItemView {
       this.selectedAgent = this.agents.find((a) => a.id === conv.agentId) ?? null;
 
       if (this.conversationSelect) this.conversationSelect.value = filePath;
+      this.updateRunTaskButtonVisibility();
       this.restoreConversationUI(conv.id);
       globalLogger.info(`Loaded conversation ${conv.id} from ${filePath}`);
     } catch (error) {
@@ -298,6 +300,14 @@ export class PaperAgentsChatView extends ItemView {
     });
     this.resendBtn.addEventListener("click", () => void this.continueChat());
 
+    this.runTaskBtn = btnGroup.createEl("button", {
+      cls: "pa-chat-run-task-btn",
+      text: "▶ Run Task",
+      attr: { title: "Start an autonomous agentic loop for this task" },
+    });
+    this.runTaskBtn.style.display = "none";
+    this.runTaskBtn.addEventListener("click", () => void this.runAgenticTask());
+
     this.sendBtn = btnGroup.createEl("button", { cls: "pa-chat-send-btn", text: "Send" });
     this.sendBtn.addEventListener("click", () => void this.sendMessage());
   }
@@ -320,6 +330,7 @@ export class PaperAgentsChatView extends ItemView {
     this.currentConversationId = conv.id;
     this.currentFilePath = null;
     this.clearMessages();
+    this.updateRunTaskButtonVisibility();
 
     try {
       const filePath = await this.fileManager.createConversationFile(conv.id, this.getConversationsPath(), agent.name);
@@ -422,6 +433,30 @@ export class PaperAgentsChatView extends ItemView {
     await this.runLLMOperation(
       (orch, agent, convId) => orch.continueConversation(agent, convId, this.makeCallbacks()),
       "Continue chat error"
+    );
+  }
+
+  private async runAgenticTask(): Promise<void> {
+    if (!this.inputEl || !this.selectedAgent?.agenticLoop?.enabled || !this.currentConversationId || this.isStreaming) return;
+
+    const message = this.inputEl.value.trim();
+    if (!message) return;
+
+    this.inputEl.value = "";
+    this.addMessageToUI("user", message);
+
+    await this.runLLMOperation(
+      (orch, agent, convId) => {
+        const loopCallbacks: AgenticLoopCallbacks = {
+          ...this.makeCallbacks(),
+          onIterationStart: (i, max) => this.addIterationIndicator(i, max),
+          onIterationEnd: (i, done) => this.updateIterationIndicator(i, done),
+          onLoopComplete: (iterations, _content) =>
+            this.addSystemMessage(`Agentic loop completed after ${iterations} iteration(s).`),
+        };
+        return orch.runAgenticLoop(agent, convId, message, loopCallbacks);
+      },
+      "Agentic loop error"
     );
   }
 
@@ -638,7 +673,33 @@ export class PaperAgentsChatView extends ItemView {
       }
     }
     if (this.resendBtn) this.resendBtn.disabled = streaming;
+    if (this.runTaskBtn) this.runTaskBtn.disabled = streaming;
     if (this.inputEl) this.inputEl.disabled = streaming;
+  }
+
+  private updateRunTaskButtonVisibility(): void {
+    if (!this.runTaskBtn) return;
+    this.runTaskBtn.style.display = this.selectedAgent?.agenticLoop?.enabled ? "" : "none";
+  }
+
+  private addIterationIndicator(iteration: number, maxIterations: number): void {
+    if (!this.messagesContainer) return;
+    this.removePlaceholder();
+    const el = this.messagesContainer.createDiv({ cls: "pa-chat-loop-indicator" });
+    el.dataset["iteration"] = String(iteration);
+    el.textContent = `🔄 Iteration ${iteration} / ${maxIterations}`;
+    this.scrollToBottom();
+  }
+
+  private updateIterationIndicator(iteration: number, done: boolean): void {
+    if (!this.messagesContainer) return;
+    const indicators = this.messagesContainer.querySelectorAll<HTMLElement>(".pa-chat-loop-indicator");
+    for (const el of Array.from(indicators)) {
+      if (el.dataset["iteration"] === String(iteration)) {
+        el.textContent = el.textContent?.replace("🔄", done ? "✅" : "⏳") ?? "";
+        break;
+      }
+    }
   }
 
   private scrollToBottom(): void {
