@@ -82,14 +82,9 @@ export class YAMLParser {
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      if (!line) {
-        continue;
-      }
+      if (!line) continue;
       const trimmed = line.trim();
-
-      if (!trimmed || trimmed.startsWith("#")) {
-        continue;
-      }
+      if (!trimmed || trimmed.startsWith("#")) continue;
 
       const leadingSpaces = line.search(/\S/);
 
@@ -97,73 +92,32 @@ export class YAMLParser {
         raise("Expected key-value pair (key: value) or list item", i, line);
       }
 
-      // Array-Item Start (z.B. "- name: foo")
       if (trimmed.startsWith("-")) {
-        if (!currentKey) {
-          raise("List item without a parent array key", i, line);
-          continue; // Skip this line if no currentKey
-        }
-
-        if (!inArray) {
-          inArray = true;
-          currentArray = Array.isArray(result[currentKey]) ? ([...(result[currentKey] as unknown[])]) : [];
-        }
-
-        if (currentItem && nestedObjectKey && nestedObject) {
-          currentItem[nestedObjectKey] = nestedObject;
-          nestedObject = null;
-          nestedObjectKey = null;
-        }
-
-        const itemContent = trimmed.replace(/^-/, "").trim();
-        const item: Record<string, unknown> = {};
-
-        if (itemContent) {
-          if (itemContent.includes(":")) {
-            const [key, value] = this.parseKeyValue(itemContent);
-            if (!key) {
-              raise("Invalid list entry, expected key: value", i, line);
-            }
-            item[key] = value;
-          } else {
-            currentArray.push(this.parseValue(itemContent));
-            currentItem = null;
-            inNestedObject = false;
-            continue;
-          }
-        }
-
-        currentArray.push(item);
-        currentItem = item;
-        inNestedObject = false;
-        continue;
+        const state = { currentKey, currentArray, currentItem, inArray, inNestedObject, nestedObjectKey, nestedObject };
+        const existingArray = currentKey ? (Array.isArray(result[currentKey]) ? (result[currentKey] as unknown[]) : []) : [];
+        const next = this.processArrayItem(state, existingArray, trimmed, i, line, raise);
+        ({ currentKey, currentArray, currentItem, inArray, inNestedObject, nestedObjectKey, nestedObject } = next);
+        if (next.continue) continue;
       }
 
-      // Erkennung von Nested Object (z.B. "parameters:" unter einem Array-Item)
       if (inArray && currentItem && trimmed.endsWith(":") && leadingSpaces > 2) {
         if (nestedObjectKey && nestedObject) {
           currentItem[nestedObjectKey] = nestedObject;
         }
         nestedObjectKey = trimmed.replace(":", "").trim();
-        if (!nestedObjectKey) {
-          raise("Invalid nested object key", i, line);
-        }
+        if (!nestedObjectKey) raise("Invalid nested object key", i, line);
         nestedObject = {};
         inNestedObject = true;
         continue;
       }
 
-      // Properties innerhalb eines Nested Objects
       if (inNestedObject && nestedObject && leadingSpaces > 4) {
         const [key, value] = this.parseKeyValue(trimmed);
-        if (!key) {
-          raise("Invalid nested property, expected key: value", i, line);
-        }
+        if (!key) raise("Invalid nested property, expected key: value", i, line);
         nestedObject[key] = value;
         continue;
       }
 
-      // Beende nested Object wenn Einrückung abnimmt
       if (inArray && inNestedObject && leadingSpaces <= 2 && !trimmed.startsWith("-")) {
         if (nestedObjectKey && nestedObject && currentItem) {
           currentItem[nestedObjectKey] = nestedObject;
@@ -173,27 +127,20 @@ export class YAMLParser {
         nestedObjectKey = null;
       }
 
-      // Properties direkt im Array-Item (aber nicht nested)
       if (inArray && !inNestedObject && leadingSpaces > 2 && !trimmed.startsWith("-") && trimmed.includes(":")) {
         if (currentItem) {
           const [key, value] = this.parseKeyValue(trimmed);
-          if (!key) {
-            raise("Invalid list property, expected key: value", i, line);
-          }
+          if (!key) raise("Invalid list property, expected key: value", i, line);
           currentItem[key] = value;
           continue;
         }
         raise("List property without current item", i, line);
       }
 
-      // Array abschliessen, wenn neuer Top-Level Key beginnt
       const arrayKeyMatch = /^(\w+):\s*$/.exec(trimmed);
       if (arrayKeyMatch?.[1]) {
         if (inArray && currentKey) {
-          if (nestedObjectKey && nestedObject && currentItem) {
-            currentItem[nestedObjectKey] = nestedObject;
-          }
-          result[currentKey] = currentArray;
+          this.flushArray(result, currentKey, currentArray, currentItem, nestedObjectKey, nestedObject);
           currentArray = [];
           currentItem = null;
           nestedObject = null;
@@ -201,19 +148,14 @@ export class YAMLParser {
           inArray = false;
           inNestedObject = false;
         }
-
         currentKey = arrayKeyMatch[1];
         result[currentKey] = result[currentKey] || [];
         continue;
       }
 
-      // Parse Key-Value Paare (Top-Level)
       if (trimmed.includes(":") && leadingSpaces === 0) {
         if (inArray && currentKey) {
-          if (nestedObjectKey && nestedObject && currentItem) {
-            currentItem[nestedObjectKey] = nestedObject;
-          }
-          result[currentKey] = currentArray;
+          this.flushArray(result, currentKey, currentArray, currentItem, nestedObjectKey, nestedObject);
           currentArray = [];
           currentItem = null;
           nestedObject = null;
@@ -221,11 +163,8 @@ export class YAMLParser {
           inArray = false;
           inNestedObject = false;
         }
-
         const [key, value] = this.parseKeyValue(trimmed);
-        if (!key) {
-          raise("Invalid key-value pair", i, line);
-        }
+        if (!key) raise("Invalid key-value pair", i, line);
         result[key] = value;
         currentKey = key;
         continue;
@@ -234,7 +173,6 @@ export class YAMLParser {
       raise("Invalid YAML syntax", i, line);
     }
 
-    // Cleanup ausstehende Items
     if (inArray && currentKey) {
       if (nestedObjectKey && nestedObject && currentItem) {
         currentItem[nestedObjectKey] = nestedObject;
@@ -243,6 +181,73 @@ export class YAMLParser {
     }
 
     return result;
+  }
+
+  private static flushArray(
+    result: YAMLFrontmatter,
+    currentKey: string,
+    currentArray: unknown[],
+    currentItem: Record<string, unknown> | null,
+    nestedObjectKey: string | null,
+    nestedObject: Record<string, unknown> | null
+  ): void {
+    if (nestedObjectKey && nestedObject && currentItem) {
+      currentItem[nestedObjectKey] = nestedObject;
+    }
+    result[currentKey] = currentArray;
+  }
+
+  private static processArrayItem(
+    state: {
+      currentKey: string | null;
+      currentArray: unknown[];
+      currentItem: Record<string, unknown> | null;
+      inArray: boolean;
+      inNestedObject: boolean;
+      nestedObjectKey: string | null;
+      nestedObject: Record<string, unknown> | null;
+    },
+    existingArray: unknown[],
+    trimmed: string,
+    i: number,
+    line: string,
+    raise: (msg: string, idx: number, ln: string) => never
+  ): typeof state & { continue: boolean } {
+    if (!state.currentKey) {
+      raise("List item without a parent array key", i, line);
+    }
+
+    let { currentArray, currentItem, nestedObjectKey, nestedObject } = state;
+    let inArray = state.inArray;
+
+    if (!inArray) {
+      inArray = true;
+      currentArray = [...existingArray];
+    }
+
+    if (currentItem && nestedObjectKey && nestedObject) {
+      currentItem[nestedObjectKey] = nestedObject;
+      nestedObject = null;
+      nestedObjectKey = null;
+    }
+
+    const itemContent = trimmed.replace(/^-/, "").trim();
+    const item: Record<string, unknown> = {};
+
+    if (itemContent) {
+      if (itemContent.includes(":")) {
+        const [key, value] = this.parseKeyValue(itemContent);
+        if (!key) raise("Invalid list entry, expected key: value", i, line);
+        item[key] = value;
+      } else {
+        currentArray.push(this.parseValue(itemContent));
+        return { ...state, currentArray, currentItem: null, inArray, nestedObjectKey, nestedObject, inNestedObject: false, continue: true };
+      }
+    }
+
+    currentArray.push(item);
+    currentItem = item;
+    return { ...state, currentArray, currentItem, inArray, nestedObjectKey, nestedObject, inNestedObject: false, continue: true };
   }
 
   /**
@@ -474,38 +479,29 @@ export class YAMLParser {
       const trimmed = line.trim();
 
       if (trimmed.startsWith("- name:")) {
-        // Neuer Step
-        if (currentStep?.name) {
-          steps.push(currentStep as Step);
-        }
-        const nameMatch = /- name:\s*['"](.*?)['"]/.exec(trimmed) ??
-                         /- name:\s*(\S+)/.exec(trimmed);
-        currentStep = {
-          name: nameMatch?.[1] ?? "",
-          parameters: {},
-        };
-      } else if (trimmed.startsWith("parameters:")) {
-        // Parameters-Section folgt
-        // Wird in nächsten Iterationen behandelt
-      } else if (
-        currentStep &&
-        /^\w+:/.test(trimmed) &&
-        !trimmed.includes("steps:")
-      ) {
-        // Parameter hinzufügen
-        const [key, value] = this.parseKeyValue(trimmed);
-        if (key && currentStep.parameters) {
-          currentStep.parameters[key] = value;
-        }
+        if (currentStep?.name) steps.push(currentStep as Step);
+        currentStep = { name: this.parseStepName(trimmed), parameters: {} };
+      } else if (!trimmed.startsWith("parameters:") && currentStep) {
+        this.addStepParameter(currentStep, trimmed);
       }
     }
 
-    // Letzten Step hinzufügen
-    if (currentStep?.name) {
-      steps.push(currentStep as Step);
-    }
+    if (currentStep?.name) steps.push(currentStep as Step);
 
     return steps;
+  }
+
+  private static parseStepName(trimmed: string): string {
+    const nameMatch = /- name:\s*['"](.*?)['"]/.exec(trimmed) ??
+                     /- name:\s*(\S+)/.exec(trimmed);
+    return nameMatch?.[1] ?? "";
+  }
+
+  private static addStepParameter(step: Partial<Step>, trimmed: string): void {
+    if (/^\w+:/.test(trimmed) && !trimmed.includes("steps:") && step.parameters) {
+      const [key, value] = this.parseKeyValue(trimmed);
+      if (key) step.parameters[key] = value;
+    }
   }
 }
 

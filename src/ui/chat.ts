@@ -523,44 +523,54 @@ export class PaperAgentsChatView extends ItemView {
     if (!this.messagesContainer) return;
 
     if (isStart) {
-      const toolEl = this.messagesContainer.createDiv({ cls: "pa-chat-tool-call" });
-      const details = toolEl.createEl("details");
-      const summary = details.createEl("summary");
-      summary.createSpan({ text: `🔧 Calling: ${toolId}` });
-      summary.createSpan({ cls: "pa-chat-tool-status pa-chat-tool-running", text: " (running...)" });
-
-      const content = details.createDiv({ cls: "pa-chat-tool-content" });
-      content.createEl("h4", { text: "Parameters" });
-      content.createEl("pre").createEl("code", { text: JSON.stringify(params, null, 2) });
-
-      toolEl.dataset["toolId"] = toolId;
+      this.addToolCallStart(toolId, params);
     } else {
-      const toolEls = this.messagesContainer.querySelectorAll(`.pa-chat-tool-call[data-tool-id="${toolId}"]`);
-      const toolEl = toolEls[toolEls.length - 1] as HTMLElement | undefined;
-      if (!toolEl) return;
-
-      const statusEl = toolEl.querySelector(".pa-chat-tool-status");
-      if (statusEl) {
-        statusEl.textContent = error ? " (failed)" : " (done)";
-        statusEl.removeClass("pa-chat-tool-running");
-        statusEl.addClass(error ? "pa-chat-tool-error" : "pa-chat-tool-success");
-      }
-
-      const content = toolEl.querySelector<HTMLElement>(".pa-chat-tool-content");
-      if (content) {
-        if (error) {
-          content.createEl("h4", { text: "Error" });
-          content.createDiv({ cls: "pa-output-error-box", text: error });
-        } else if (result !== undefined) {
-          content.createEl("h4", { text: "Result" });
-          content.createEl("pre").createEl("code", {
-            text: typeof result === "string" ? result : JSON.stringify(result, null, 2),
-          });
-        }
-      }
+      this.addToolCallUpdate(toolId, result, error);
     }
 
     this.scrollToBottom();
+  }
+
+  private addToolCallStart(toolId: string, params: Record<string, unknown>): void {
+    if (!this.messagesContainer) return;
+    const toolEl = this.messagesContainer.createDiv({ cls: "pa-chat-tool-call" });
+    const details = toolEl.createEl("details");
+    const summary = details.createEl("summary");
+    summary.createSpan({ text: `🔧 Calling: ${toolId}` });
+    summary.createSpan({ cls: "pa-chat-tool-status pa-chat-tool-running", text: " (running...)" });
+
+    const content = details.createDiv({ cls: "pa-chat-tool-content" });
+    content.createEl("h4", { text: "Parameters" });
+    content.createEl("pre").createEl("code", { text: JSON.stringify(params, null, 2) });
+
+    toolEl.dataset["toolId"] = toolId;
+  }
+
+  private addToolCallUpdate(toolId: string, result?: unknown, error?: string): void {
+    if (!this.messagesContainer) return;
+    const toolEls = this.messagesContainer.querySelectorAll(`.pa-chat-tool-call[data-tool-id="${toolId}"]`);
+    const toolEl = toolEls[toolEls.length - 1] as HTMLElement | undefined;
+    if (!toolEl) return;
+
+    const statusEl = toolEl.querySelector(".pa-chat-tool-status");
+    if (statusEl) {
+      statusEl.textContent = error ? " (failed)" : " (done)";
+      statusEl.removeClass("pa-chat-tool-running");
+      statusEl.addClass(error ? "pa-chat-tool-error" : "pa-chat-tool-success");
+    }
+
+    const content = toolEl.querySelector<HTMLElement>(".pa-chat-tool-content");
+    if (!content) return;
+
+    if (error) {
+      content.createEl("h4", { text: "Error" });
+      content.createDiv({ cls: "pa-output-error-box", text: error });
+    } else if (result !== undefined) {
+      content.createEl("h4", { text: "Result" });
+      content.createEl("pre").createEl("code", {
+        text: typeof result === "string" ? result : JSON.stringify(result, null, 2),
+      });
+    }
   }
 
   private addStreamingIndicator(): HTMLElement {

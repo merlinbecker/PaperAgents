@@ -252,32 +252,36 @@ export class OpenRouterClient {
       try {
         return await this.performChatRequest(body);
       } catch (error) {
-        if (error instanceof OpenRouterError) {
-          if (!error.retryable || attempt >= MAX_RETRIES) throw error;
-          const delay = this.getRetryDelay(attempt);
-          globalLogger.warn(`OpenRouter ${error.statusCode}, retrying in ${delay}ms`, {
-            attempt: attempt + 1,
-            maxRetries: MAX_RETRIES,
-          });
-          await this.sleep(delay);
-        } else if (attempt >= MAX_RETRIES) {
-          throw new OpenRouterError(
-            `Network error after ${MAX_RETRIES + 1} attempts: ${error instanceof Error ? error.message : String(error)}`,
-            0,
-            false
-          );
-        } else {
-          const delay = this.getRetryDelay(attempt);
-          globalLogger.warn("OpenRouter request error, retrying", {
-            attempt: attempt + 1,
-            error: String(error),
-          });
-          await this.sleep(delay);
-        }
+        await this.handleRetryError(error, attempt);
       }
     }
 
     throw new OpenRouterError("Max retries exceeded", 0, false);
+  }
+
+  private async handleRetryError(error: unknown, attempt: number): Promise<void> {
+    if (error instanceof OpenRouterError) {
+      if (!error.retryable || attempt >= MAX_RETRIES) throw error;
+      const delay = this.getRetryDelay(attempt);
+      globalLogger.warn(`OpenRouter ${error.statusCode}, retrying in ${delay}ms`, {
+        attempt: attempt + 1,
+        maxRetries: MAX_RETRIES,
+      });
+      await this.sleep(delay);
+    } else if (attempt >= MAX_RETRIES) {
+      throw new OpenRouterError(
+        `Network error after ${MAX_RETRIES + 1} attempts: ${error instanceof Error ? error.message : String(error)}`,
+        0,
+        false
+      );
+    } else {
+      const delay = this.getRetryDelay(attempt);
+      globalLogger.warn("OpenRouter request error, retrying", {
+        attempt: attempt + 1,
+        error: String(error),
+      });
+      await this.sleep(delay);
+    }
   }
 
   async chatStream(

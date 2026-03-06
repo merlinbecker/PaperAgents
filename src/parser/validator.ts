@@ -191,78 +191,57 @@ export class ParameterValidator {
     const result: Record<string, unknown> = {};
 
     for (const param of parameters) {
-      let value = input[param.name];
-
-      // Default-Wert verwenden, falls nicht vorhanden
-      value ??= param.default;
-
-      // Type-Konversion
-      switch (param.type) {
-        case "number": {
-          if (value !== null && value !== undefined) {
-            let strVal: string;
-            if (typeof value === "string") {
-              strVal = value;
-            } else if (typeof value === "number" || typeof value === "boolean") {
-              strVal = String(value);
-            } else {
-              strVal = "0";
-            }
-            result[param.name] = Number.parseFloat(strVal);
-          } else {
-            result[param.name] = 0;
-          }
-          break;
-        }
-
-        case "boolean":
-          if (typeof value === "string") {
-            result[param.name] = value === "true" || value === "1";
-          } else {
-            result[param.name] = !!value;
-          }
-          break;
-
-        case "array":
-          if (typeof value === "string") {
-            try {
-              result[param.name] = JSON.parse(value);
-            } catch {
-              result[param.name] = [];
-            }
-          } else if (Array.isArray(value)) {
-            result[param.name] = value;
-          } else {
-            result[param.name] = [];
-          }
-          break;
-
-        case "object":
-          if (typeof value === "string") {
-            try {
-              result[param.name] = JSON.parse(value);
-            } catch {
-              result[param.name] = {};
-            }
-          } else if (typeof value === "object" && value !== null) {
-            result[param.name] = value;
-          } else {
-            result[param.name] = {};
-          }
-          break;
-
-        default:
-          // string
-          if (value !== null && value !== undefined &&
-              (typeof value === "string" || typeof value === "number" || typeof value === "boolean")) {
-            result[param.name] = String(value);
-          } else {
-            result[param.name] = "";
-          }
-      }
+      const raw = input[param.name] ?? param.default;
+      result[param.name] = this.normalizeValue(param.type, raw);
     }
 
     return result;
+  }
+
+  private static normalizeValue(type: string, value: unknown): unknown {
+    switch (type) {
+      case "number": return this.normalizeNumber(value);
+      case "boolean": return this.normalizeBoolean(value);
+      case "array": return this.normalizeArray(value);
+      case "object": return this.normalizeObject(value);
+      default: return this.normalizeString(value);
+    }
+  }
+
+  private static normalizeNumber(value: unknown): number {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === "string") return Number.parseFloat(value);
+    if (typeof value === "number" || typeof value === "boolean") return Number.parseFloat(String(value));
+    return 0;
+  }
+
+  private static normalizeBoolean(value: unknown): boolean {
+    if (typeof value === "string") return value === "true" || value === "1";
+    return !!value;
+  }
+
+  private static normalizeArray(value: unknown): unknown {
+    if (typeof value === "string") {
+      try { return JSON.parse(value); } catch { return []; }
+    }
+    if (Array.isArray(value)) return value;
+    return [];
+  }
+
+  private static normalizeObject(value: unknown): unknown {
+    if (typeof value === "string") {
+      try { return JSON.parse(value); } catch { return {}; }
+    }
+    if (typeof value === "object" && value !== null) return value;
+    return {};
+  }
+
+  private static normalizeString(value: unknown): string {
+    if (value !== null && value !== undefined &&
+        (typeof value === "string" || typeof value === "number" || typeof value === "boolean")) {
+      return String(value);
+    }
+    return "";
   }
 
   /**

@@ -5,7 +5,7 @@
 
 import { ExecutionContext, ExecutionResult, Agent, Step, StepCondition, StepRetry, PlaceholderContext, ToolExecution, Parameter, IToolRegistry } from "../types";
 import { globalLogger } from "../utils/logger";
-import { globalMetrics } from "../utils/metrics";
+import { globalMetrics, TraceContext } from "../utils/metrics";
 import { QuickJSSandbox } from "./sandbox";
 import PlaceholderReplacer from "../parser/placeholder";
 
@@ -138,69 +138,9 @@ export class ToolExecutor {
       }
 
       // ===== CHAIN-TOOL: Sequenzielle Step-Execution =====
-      const steps = agent.steps || [];
-      for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
-        if (!step) continue;
-
-        // Conditional: skip step if condition not met
-        if (step.condition && !this.evaluateCondition(step.condition, stepOutputs, userParameters)) {
-          globalLogger.debug(`Step ${step.name} skipped: condition not met`, { traceId });
-          stepOutputs.set(step.name, { __skipped: true });
-          continue;
-        }
-
-        // Loop: execute step for each item in a list
-        if (step.loop) {
-          const loopResults = await this.executeLoopStep({
-            step, agent, userParameters, stepOutputs, executionId, toolRegistry, allLogs, traceId, parentSpanId: agentSpan.spanId,
-          });
-          stepOutputs.set(step.name, loopResults);
-          continue;
-        }
-
-        globalLogger.debug(`Executing step ${i + 1}/${steps.length}: ${step.name}`, {
-          stepIndex: i,
-          traceId,
-        });
-
-        const stepSpan = globalMetrics.startTrace(traceId, `step.${step.name}`, agentSpan.spanId, {
-          stepIndex: i,
-          stepName: step.name,
-        });
-
-        const context = this.buildExecutionContext(
-          agent, step, userParameters, stepOutputs, executionId
-        );
-
-        // Retry: attempt step multiple times on failure
-        const result = step.retry
-          ? await this.executeWithRetry(step, context, toolRegistry, step.retry)
-          : await this.executeStep(step, context, toolRegistry);
-
-        if (result.log) {
-          allLogs.push(...result.log);
-        }
-
-        if (result.success) {
-          globalMetrics.endTrace(stepSpan, "success");
-          globalMetrics.recordExecution(step.name, stepSpan.duration || 0, true);
-          stepOutputs.set(step.name, result.data);
-        } else if (step.continueOnError) {
-          globalMetrics.endTrace(stepSpan, "error", { error: result.error });
-          globalMetrics.recordExecution(step.name, stepSpan.duration || 0, false);
-          globalLogger.warn(`Step ${step.name} failed but continueOnError is set, continuing`, {
-            error: result.error,
-          });
-          stepOutputs.set(step.name, { __error: true, error: result.error || "Unknown error" });
-        } else {
-          globalMetrics.endTrace(stepSpan, "error", { error: result.error });
-          globalMetrics.recordExecution(step.name, stepSpan.duration || 0, false);
-          throw new Error(
-            `Step ${step?.name} failed: ${result.error || "Unknown error"}`
-          );
-        }
-      }
+      await this.executeChainSteps(
+        agent, toolRegistry, userParameters, stepOutputs, allLogs, traceId, agentSpan.spanId, executionId
+      );
 
       const duration = Date.now() - startTime;
 
@@ -242,6 +182,83 @@ export class ToolExecutor {
         error: error instanceof Error ? error.message : "Unknown error",
         log: allLogs,
       };
+    }
+  }
+
+  private async executeChainSteps(
+    agent: Agent,
+    toolRegistry: IToolRegistry,
+    userParameters: Record<string, unknown>,
+    stepOutputs: Map<string, unknown>,
+    allLogs: ToolExecution[],
+    traceId: string,
+    parentSpanId: string,
+    executionId: string
+  ): Promise<void> {
+    const steps = agent.steps || [];
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      if (!step) continue;
+
+      if (step.condition && !this.evaluateCondition(step.condition, stepOutputs, userParameters)) {
+        globalLogger.debug(`Step ${step.name} skipped: condition not met`, { traceId });
+        stepOutputs.set(step.name, { __skipped: true });
+        continue;
+      }
+
+      if (step.loop) {
+        const loopResults = await this.executeLoopStep({
+          step, agent, userParameters, stepOutputs, executionId, toolRegistry, allLogs, traceId, parentSpanId,
+        });
+        stepOutputs.set(step.name, loopResults);
+        continue;
+      }
+
+      globalLogger.debug(`Executing step ${i + 1}/${steps.length}: ${step.name}`, {
+        stepIndex: i,
+        traceId,
+      });
+
+      const stepSpan = globalMetrics.startTrace(traceId, `step.${step.name}`, parentSpanId, {
+        stepIndex: i,
+        stepName: step.name,
+      });
+
+      const context = this.buildExecutionContext(agent, step, userParameters, stepOutputs, executionId);
+
+      const result = step.retry
+        ? await this.executeWithRetry(step, context, toolRegistry, step.retry)
+        : await this.executeStep(step, context, toolRegistry);
+
+      if (result.log) {
+        allLogs.push(...result.log);
+      }
+
+      this.applyStepResult(step, stepSpan, stepOutputs, result);
+    }
+  }
+
+  private applyStepResult(
+    step: Step,
+    stepSpan: TraceContext,
+    stepOutputs: Map<string, unknown>,
+    result: ExecutionResult
+  ): void {
+    if (result.success) {
+      globalMetrics.endTrace(stepSpan, "success");
+      globalMetrics.recordExecution(step.name, stepSpan.duration || 0, true);
+      stepOutputs.set(step.name, result.data);
+    } else if (step.continueOnError) {
+      globalMetrics.endTrace(stepSpan, "error", { error: result.error });
+      globalMetrics.recordExecution(step.name, stepSpan.duration || 0, false);
+      globalLogger.warn(`Step ${step.name} failed but continueOnError is set, continuing`, {
+        error: result.error,
+      });
+      stepOutputs.set(step.name, { __error: true, error: result.error || "Unknown error" });
+    } else {
+      globalMetrics.endTrace(stepSpan, "error", { error: result.error });
+      globalMetrics.recordExecution(step.name, stepSpan.duration || 0, false);
+      throw new Error(`Step ${step.name} failed: ${result.error || "Unknown error"}`);
     }
   }
 
@@ -417,18 +434,7 @@ export class ToolExecutor {
     stepOutputs: Map<string, unknown>,
     userParameters: Record<string, unknown>
   ): boolean {
-    const fieldParts = condition.field.split(".");
-    let fieldValue: unknown;
-
-    if (fieldParts[0] === "params" || fieldParts[0] === "parameters") {
-      fieldValue = this.resolveNestedField(userParameters, fieldParts.slice(1));
-    } else {
-      const stepName = fieldParts[0] || "";
-      const stepOutput = stepOutputs.get(stepName);
-      fieldValue = fieldParts.length > 1
-        ? this.resolveNestedField(stepOutput, fieldParts.slice(1))
-        : stepOutput;
-    }
+    const fieldValue = this.resolveConditionField(condition.field, stepOutputs, userParameters);
 
     if (condition.equals !== undefined && !condition.operator) {
       return fieldValue === condition.equals;
@@ -449,6 +455,22 @@ export class ToolExecutor {
         return false;
       default: return true;
     }
+  }
+
+  private resolveConditionField(
+    field: string,
+    stepOutputs: Map<string, unknown>,
+    userParameters: Record<string, unknown>
+  ): unknown {
+    const fieldParts = field.split(".");
+    if (fieldParts[0] === "params" || fieldParts[0] === "parameters") {
+      return this.resolveNestedField(userParameters, fieldParts.slice(1));
+    }
+    const stepName = fieldParts[0] || "";
+    const stepOutput = stepOutputs.get(stepName);
+    return fieldParts.length > 1
+      ? this.resolveNestedField(stepOutput, fieldParts.slice(1))
+      : stepOutput;
   }
 
   private resolveNestedField(obj: unknown, path: string[]): unknown {
@@ -556,143 +578,125 @@ export class ToolExecutor {
 
     try {
       // ===== PHASE 1: Pre-Processing =====
-      if (agent.preprocess) {
-        globalLogger.debug("Executing pre-processing", { agent: agent.name });
-        try {
-          const sandbox = new QuickJSSandbox();
-          await sandbox.initialize();
-          currentData = await sandbox.executePreprocess(agent.preprocess, currentData as Record<string, unknown>);
-          log.push({
-            toolName: "preprocess",
-            parameters: {},
-            timestamp: Date.now(),
-            phase: "preprocess",
-          });
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : "Pre-processing failed";
-          globalLogger.error("Pre-processing failed", { agent: agent.name, error: errorMsg });
-          return {
-            success: false,
-            error: `Pre-processing failed: ${errorMsg}`,
-            log,
-          };
-        }
-      }
+      const preprocessResult = await this.executePreprocessPhase(agent, currentData, log);
+      if (!preprocessResult.success) return preprocessResult;
+      currentData = preprocessResult.data;
 
       // ===== PHASE 2: Tool-Execution (Optional) =====
       if (agent.toolDefinition) {
-        globalLogger.debug("Executing tool", { 
-          agent: agent.name, 
-          toolId: agent.toolDefinition.toolId 
-        });
-
-        try {
-          // Hole Tool aus Registry
-          const tool = toolRegistry.getTool(agent.toolDefinition.toolId);
-          if (!tool) {
-            throw new Error(`Tool not found: ${agent.toolDefinition.toolId}`);
-          }
-
-          // Baue Execution-Context mit Placeholder-Replacement
-          const placeholderCtx = PlaceholderReplacer.createContext(currentData as Record<string, unknown>, {});
-          const processedParameters = PlaceholderReplacer.replacePlaceholdersInObject(
-            agent.toolDefinition.parameters,
-            placeholderCtx
-          ) as Record<string, unknown>;
-
-          const context: ExecutionContext = {
-            parameters: processedParameters,
-            previousStepOutputs: {},
-            date: placeholderCtx.date,
-            time: placeholderCtx.time,
-            randomId: placeholderCtx.randomId,
-          };
-
-          // HITL-Check
-          if (tool.shouldRequireHITL(context.parameters)) {
-            const decision = await this.requestHITLApproval(
-              "tool_execution",
-              agent.toolDefinition.toolId,
-              context.parameters
-            );
-
-            if (!decision.approved) {
-              return {
-                success: false,
-                error: decision.reason || "User rejected tool execution",
-                log,
-              };
-            }
-          }
-
-          // Führe Tool aus
-          const toolResult = await tool.execute(context);
-          
-          if (!toolResult.success) {
-            return {
-              success: false,
-              error: `Tool execution failed: ${toolResult.error || "Unknown error"}`,
-              log: [...log, ...(toolResult.log || [])],
-            };
-          }
-
-          currentData = toolResult.data;
-          log.push({
-            toolName: agent.toolDefinition.toolId,
-            parameters: processedParameters,
-            output: toolResult.data,
-            timestamp: Date.now(),
-            phase: "tool_execution",
-          });
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : "Tool execution failed";
-          globalLogger.error("Tool execution failed", { agent: agent.name, error: errorMsg });
-          return {
-            success: false,
-            error: `Tool execution failed: ${errorMsg}`,
-            log,
-          };
-        }
+        const toolResult = await this.executeToolPhase(agent, currentData, toolRegistry, log);
+        if (!toolResult.success) return toolResult;
+        currentData = toolResult.data;
       }
 
       // ===== PHASE 3: Post-Processing =====
-      if (agent.postprocess) {
-        globalLogger.debug("Executing post-processing", { agent: agent.name });
-        try {
-          const sandbox = new QuickJSSandbox();
-          await sandbox.initialize();
-          currentData = await sandbox.executePostprocess(agent.postprocess, currentData);
-          log.push({
-            toolName: "postprocess",
-            parameters: {},
-            timestamp: Date.now(),
-            phase: "postprocess",
-          });
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : "Post-processing failed";
-          globalLogger.error("Post-processing failed", { agent: agent.name, error: errorMsg });
-          return {
-            success: false,
-            error: `Post-processing failed: ${errorMsg}`,
-            log,
-          };
-        }
-      }
+      const postprocessResult = await this.executePostprocessPhase(agent, currentData, log);
+      if (!postprocessResult.success) return postprocessResult;
+      currentData = postprocessResult.data;
 
-      // Success
-      return {
-        success: true,
-        data: currentData,
-        log,
-      };
+      return { success: true, data: currentData, log };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       globalLogger.error("Single tool execution failed", { agent: agent.name, error: errorMsg });
-      return {
-        success: false,
-        error: errorMsg,
-        log,
+      return { success: false, error: errorMsg, log };
+    }
+  }
+
+  private async executePreprocessPhase(
+    agent: Agent,
+    currentData: unknown,
+    log: ToolExecution[]
+  ): Promise<ExecutionResult & { data: unknown }> {
+    if (!agent.preprocess) return { success: true, data: currentData, log: [] };
+    globalLogger.debug("Executing pre-processing", { agent: agent.name });
+    try {
+      const sandbox = new QuickJSSandbox();
+      await sandbox.initialize();
+      const result = await sandbox.executePreprocess(agent.preprocess, currentData as Record<string, unknown>);
+      log.push({ toolName: "preprocess", parameters: {}, timestamp: Date.now(), phase: "preprocess" });
+      return { success: true, data: result, log: [] };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Pre-processing failed";
+      globalLogger.error("Pre-processing failed", { agent: agent.name, error: errorMsg });
+      return { success: false, error: `Pre-processing failed: ${errorMsg}`, data: currentData, log: [] };
+    }
+  }
+
+  private async executeToolPhase(
+    agent: Agent,
+    currentData: unknown,
+    toolRegistry: IToolRegistry,
+    log: ToolExecution[]
+  ): Promise<ExecutionResult & { data: unknown }> {
+    const toolDef = agent.toolDefinition!;
+    globalLogger.debug("Executing tool", { agent: agent.name, toolId: toolDef.toolId });
+    try {
+      const tool = toolRegistry.getTool(toolDef.toolId);
+      if (!tool) throw new Error(`Tool not found: ${toolDef.toolId}`);
+
+      const placeholderCtx = PlaceholderReplacer.createContext(currentData as Record<string, unknown>, {});
+      const processedParameters = PlaceholderReplacer.replacePlaceholdersInObject(
+        toolDef.parameters,
+        placeholderCtx
+      ) as Record<string, unknown>;
+
+      const context: ExecutionContext = {
+        parameters: processedParameters,
+        previousStepOutputs: {},
+        date: placeholderCtx.date,
+        time: placeholderCtx.time,
+        randomId: placeholderCtx.randomId,
       };
+
+      if (tool.shouldRequireHITL(context.parameters)) {
+        const decision = await this.requestHITLApproval("tool_execution", toolDef.toolId, context.parameters);
+        if (!decision.approved) {
+          return { success: false, error: decision.reason || "User rejected tool execution", data: currentData, log: [] };
+        }
+      }
+
+      const toolResult = await tool.execute(context);
+      if (!toolResult.success) {
+        return {
+          success: false,
+          error: `Tool execution failed: ${toolResult.error || "Unknown error"}`,
+          data: currentData,
+          log: toolResult.log || [],
+        };
+      }
+
+      log.push({
+        toolName: toolDef.toolId,
+        parameters: processedParameters,
+        output: toolResult.data,
+        timestamp: Date.now(),
+        phase: "tool_execution",
+      });
+      return { success: true, data: toolResult.data, log: [] };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Tool execution failed";
+      globalLogger.error("Tool execution failed", { agent: agent.name, error: errorMsg });
+      return { success: false, error: `Tool execution failed: ${errorMsg}`, data: currentData, log: [] };
+    }
+  }
+
+  private async executePostprocessPhase(
+    agent: Agent,
+    currentData: unknown,
+    log: ToolExecution[]
+  ): Promise<ExecutionResult & { data: unknown }> {
+    if (!agent.postprocess) return { success: true, data: currentData, log: [] };
+    globalLogger.debug("Executing post-processing", { agent: agent.name });
+    try {
+      const sandbox = new QuickJSSandbox();
+      await sandbox.initialize();
+      const result = await sandbox.executePostprocess(agent.postprocess, currentData);
+      log.push({ toolName: "postprocess", parameters: {}, timestamp: Date.now(), phase: "postprocess" });
+      return { success: true, data: result, log: [] };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Post-processing failed";
+      globalLogger.error("Post-processing failed", { agent: agent.name, error: errorMsg });
+      return { success: false, error: `Post-processing failed: ${errorMsg}`, data: currentData, log: [] };
     }
   }
 }
