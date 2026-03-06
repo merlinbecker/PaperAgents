@@ -99,4 +99,38 @@
 
 ---
 
+## ADR-7: Terminierungsstrategien im Agentic Loop
+
+**Kontext**: Der Agentic Loop muss erkennen, wann die gestellte Aufgabe abgeschlossen ist. Verschiedene LLM-Modelle und Aufgabentypen erfordern unterschiedliche Erkennungsmethoden.
+
+**Entscheidung**: Drei austauschbare Strategien über `terminationCheck`-Konfiguration: `auto` (LLM schreibt `[DONE]`), `phrase` (benutzerdefinierte Stopp-Phrase), `tool` (expliziter `finish_task`-Call).
+
+**Begründung**:
+- `auto` ist einfach zu konfigurieren und funktioniert mit allen Modellen, ist aber anfällig für Halluzinationen
+- `phrase` bietet mehr Kontrolle mit minimalem Overhead
+- `tool` ist die robusteste Methode, da das LLM explizit handeln muss; empfohlen für produktive Agenten
+- Alle drei Strategien sind in `checkLoopTermination()` zusammengefasst und über ein einziges Konfigurationsfeld austauschbar
+
+**Status**: Implementiert (orchestrator.ts, predefined.ts – finish_task-Tool).
+
+---
+
+## ADR-8: OpenRouter `transforms: ["middle-out"]` für Context-Window-Management
+
+**Kontext**: Bei langen Agentic Loops mit vielen Tool-Calls wächst die Conversation-History schnell. Sobald sie das Context-Window des Modells überschreitet, bricht der API-Call ab. Exaktes Token-Counting ist modellspezifisch und aufwändig.
+
+**Entscheidung**: OpenRouter `transforms: ["middle-out"]` wird automatisch für alle Agentic-Loop-Requests aktiviert. Normale Chat-Requests bleiben unverändert.
+
+**Begründung**:
+- Serverseitige Lösung: keine Änderung der lokalen Token-Counting-Logik nötig
+- OpenRouter entfernt Nachrichten aus der Mitte der History (System-Prompt + Anfang + neuestes Ende bleiben erhalten)
+- Löst auch Modell-spezifische Nachrichten-Limits (z.B. Claudes max. 1.000 Messages)
+- `augmentAgentForLoop()` setzt `transforms` auf dem augmentierten Agenten → nur Agentic-Loop-Requests sind betroffen
+
+**Konsequenz**: Informationsverlust bei sehr langen Loops möglich. Für kritische Zwischenschritte sollte `write_file` genutzt werden.
+
+**Status**: Implementiert (orchestrator.ts, openrouter.ts – buildRequestBody).
+
+---
+
 **Zurück:** [Querschnittliche Konzepte ←](08-querschnittliche-konzepte.md) | **Weiter:** [Qualitätsanforderungen →](10-qualitaetsanforderungen.md)

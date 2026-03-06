@@ -46,6 +46,7 @@ Diese Dokumentation beschreibt die Architektur von **Paper Agents**, einem Obsid
    - Chain-Tool-Ausführung
    - HITL-Bestätigung
    - Agenten-Konversation
+   - **Agentic Loop** (neu)
 
 7. **[Verteilungssicht](07-verteilungssicht.md)**
    - Deployment-Architektur (C4 Deployment Diagram)
@@ -56,10 +57,11 @@ Diese Dokumentation beschreibt die Architektur von **Paper Agents**, einem Obsid
 8. **[Querschnittliche Konzepte](08-querschnittliche-konzepte.md)**
    - Sicherheitskonzept (Sandbox, HITL, Datenschutz)
    - Tool-Definitions-Format
-   - Agenten-Definitions-Format
+   - Agenten-Definitions-Format (inkl. Agentic Loop Konfiguration)
    - Design Patterns
    - Logging und Error-Handling
    - Plugin-Lifecycle
+   - **Agentic Loop Konzept** (neu)
 
 9. **[Architekturentscheidungen](09-architekturentscheidungen.md)**
    - ADR-1: QuickJS-WASM als Sandbox
@@ -68,6 +70,8 @@ Diese Dokumentation beschreibt die Architektur von **Paper Agents**, einem Obsid
    - ADR-4: Factory Pattern für Tool-Registry
    - ADR-5: Approximatives Token-Counting
    - ADR-6: Zweischichtige Conversation-Persistenz (JSON + Markdown)
+   - **ADR-7: Terminierungsstrategien im Agentic Loop** (neu)
+   - **ADR-8: OpenRouter transforms für Context-Window-Management** (neu)
 
 10. **[Qualitätsanforderungen](10-qualitaetsanforderungen.md)**
     - Qualitätsbaum

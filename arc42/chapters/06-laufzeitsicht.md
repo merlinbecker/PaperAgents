@@ -135,6 +135,52 @@ Orchestrator         Chat-UI (onError)       Nutzer
 | Credits | `402`, `insufficient` | „Unzureichendes Guthaben." |
 | Modell | `model not found` | „Modell nicht verfügbar." |
 
+## 6.8 Agentic Loop
+
+Der Agentic Loop ermöglicht autonome, mehrstufige Aufgabenbearbeitung ohne manuelle Nutzereingriffe zwischen den Iterationen.
+
+```
+Nutzer               Chat-UI               Orchestrator          OpenRouter API       Tools
+  │                    │                       │                       │                 │
+  ├─▶ Run Task─────────▶│                       │                       │                 │
+  │                    ├─runAgenticTask()──────▶│                       │                 │
+  │                    │                       ├─augmentAgentForLoop() │                 │
+  │                    │                       │  (tools, transforms)  │                 │
+  │                    │                       │                       │                 │
+  │                    │ [Loop: i=1..maxIter]   │                       │                 │
+  │                    │ ┌─────────────────────┤                       │                 │
+  │◀─🔄 Iteration i────┤ │ onIterationStart    │                       │                 │
+  │                    │ │                     ├─continueConversation──▶│                 │
+  │                    │ │                     │◀─LLM + Tool-Calls──────┤◀──tool results──┤
+  │                    │ │                     │                       │                 │
+  │                    │ │ getAskUserQuestion()─▶                       │                 │
+  │                    │ │                     │                       │                 │
+  │                    │ │ ask_user aufgerufen?│                       │                 │
+  │                    │ ├── Ja: onHITLPause   │                       │                 │
+  │◀─🙋 Agent fragt────┤ │ HITLInputModal      │                       │                 │
+  ├─Nutzer-Antwort─────▶│ │                     │                       │                 │
+  │                    ├─┤─addMessage──────────▶│                       │                 │
+  │                    │ │                     │                       │                 │
+  │                    │ │ onIterationEnd      │                       │                 │
+  │                    │ │ saveConversation()  │                       │                 │
+  │                    │ │                     │                       │                 │
+  │                    │ │ checkLoopTermination│                       │                 │
+  │                    │ │ done? ──── Nein─────┘                       │                 │
+  │                    │ └── Ja                │                       │                 │
+  │                    │ onLoopComplete        │                       │                 │
+  │◀─✅ Ergebnis────────┤                       │                       │                 │
+```
+
+**Terminierungsstrategien:**
+
+| Strategie | Beschreibung |
+|-----------|--------------|
+| `auto` | LLM schreibt `[DONE]` am Anfang der Antwort; System-Prompt instruiert das Modell |
+| `phrase` | Benutzerdefinierte Stopp-Phrase (`terminationPhrase` im Frontmatter) |
+| `tool` | LLM ruft explizit `finish_task({ summary })` auf; robusteste Methode |
+
+**Persistenz während des Loops:** Nach jeder Iteration wird die Conversation-Datei gespeichert (async `onIterationEnd` → `saveConversation()`). Bei einem Absturz gehen maximal die Schritte der laufenden Iteration verloren.
+
 ---
 
 **Zurück:** [Bausteinsicht ←](05-bausteinsicht.md) | **Weiter:** [Verteilungssicht →](07-verteilungssicht.md)
