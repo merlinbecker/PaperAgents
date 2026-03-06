@@ -81,11 +81,9 @@ export class AgentParser {
       let currentKey: string | null = null;
       let currentArray: unknown[] = [];
       let inArray = false;
-      // Generic nested-object state (key → accumulator)
       let nestedKey: string | null = null;
       let nestedObj: Record<string, unknown> = {};
 
-      // Keys that trigger nested-object parsing and how they appear in the YAML
       const nestedKeys: Record<string, string> = {
         "memory:": "memory",
         "websearchConfig:": "websearchConfig",
@@ -110,38 +108,22 @@ export class AgentParser {
         }
 
         if (leadingSpaces === 0 && trimmed.includes(":")) {
-          // Flush pending array
           if (inArray && currentKey) {
             result[currentKey] = currentArray;
             currentArray = [];
             inArray = false;
           }
-          // Flush pending nested object
           if (nestedKey) {
             result[nestedKey] = nestedObj;
             nestedKey = null;
             nestedObj = {};
           }
 
-          if (trimmed === "tools:") {
-            currentKey = "tools";
-            inArray = true;
-            currentArray = [];
-            continue;
-          }
-
-          const nestedTarget = nestedKeys[trimmed];
-          if (nestedTarget !== undefined) {
-            nestedKey = nestedTarget;
-            nestedObj = {};
-            continue;
-          }
-
-          const [key, value] = YAMLParser.parseKeyValue(trimmed);
-          if (key) {
-            result[key] = value;
-            currentKey = key;
-          }
+          const next = this.processTopLevelKey(trimmed, nestedKeys, result, currentKey);
+          currentKey = next.currentKey;
+          inArray = next.inArray;
+          if (next.inArray) currentArray = [];
+          if (next.nestedKey) { nestedKey = next.nestedKey; nestedObj = {}; }
         }
       }
 
@@ -155,6 +137,30 @@ export class AgentParser {
       }
       throw error;
     }
+  }
+
+  private static processTopLevelKey(
+    trimmed: string,
+    nestedKeys: Record<string, string>,
+    result: Record<string, unknown>,
+    currentKey: string | null
+  ): { currentKey: string | null; inArray: boolean; nestedKey: string | null } {
+    if (trimmed === "tools:") {
+      return { currentKey: "tools", inArray: true, nestedKey: null };
+    }
+
+    const nestedTarget = nestedKeys[trimmed];
+    if (nestedTarget !== undefined) {
+      return { currentKey, inArray: false, nestedKey: nestedTarget };
+    }
+
+    const [key, value] = YAMLParser.parseKeyValue(trimmed);
+    if (key) {
+      result[key] = value;
+      return { currentKey: key, inArray: false, nestedKey: null };
+    }
+
+    return { currentKey, inArray: false, nestedKey: null };
   }
 
   private static extractSections(body: string): {

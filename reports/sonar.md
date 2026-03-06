@@ -32,16 +32,16 @@ Generated: 2026-03-05 (updated)
 
 | Rule | File | Line | Message |
 |---|---|---|---|
-| S3776 | src/core/openrouter.ts | 242 | Refactor function – Cognitive Complexity 16 > 15 |
-| S3776 | src/ui/chat.ts | 516 | Refactor function – Cognitive Complexity 23 > 15 |
-| S3776 | src/core/tool-executor.ts | 70 | Refactor function – Cognitive Complexity 25 > 15 |
-| S3776 | src/core/tool-executor.ts | 415 | Refactor function – Cognitive Complexity 16 > 15 |
-| S3776 | src/core/tool-executor.ts | 549 | Refactor function – Cognitive Complexity 30 > 15 |
-| S3776 | src/parser/agent-parser.ts | 77 | Refactor function – Cognitive Complexity 37 > 15 |
-| S3776 | src/parser/placeholder.ts | 32 | Refactor function – Cognitive Complexity 20 > 15 |
-| S3776 | src/parser/validator.ts | 187 | Refactor function – Cognitive Complexity 44 > 15 |
-| S3776 | src/parser/yaml-parser.ts | 60 | Refactor function – Cognitive Complexity 102 > 15 |
-| S3776 | src/parser/yaml-parser.ts | 466 | Refactor function – Cognitive Complexity 19 > 15 |
+| S3776 | src/core/openrouter.ts | 242 | ~~Refactor function – Cognitive Complexity 16 > 15~~ ✅ fixed |
+| S3776 | src/ui/chat.ts | 516 | ~~Refactor function – Cognitive Complexity 23 > 15~~ ✅ fixed |
+| S3776 | src/core/tool-executor.ts | 70 | ~~Refactor function – Cognitive Complexity 25 > 15~~ ✅ fixed |
+| S3776 | src/core/tool-executor.ts | 415 | ~~Refactor function – Cognitive Complexity 16 > 15~~ ✅ fixed |
+| S3776 | src/core/tool-executor.ts | 549 | ~~Refactor function – Cognitive Complexity 30 > 15~~ ✅ fixed |
+| S3776 | src/parser/agent-parser.ts | 77 | ~~Refactor function – Cognitive Complexity 37 > 15~~ ✅ fixed |
+| S3776 | src/parser/placeholder.ts | 32 | ~~Refactor function – Cognitive Complexity 20 > 15~~ ✅ fixed |
+| S3776 | src/parser/validator.ts | 187 | ~~Refactor function – Cognitive Complexity 44 > 15~~ ✅ fixed |
+| S3776 | src/parser/yaml-parser.ts | 60 | ~~Refactor function – Cognitive Complexity 102 > 15~~ ✅ fixed |
+| S3776 | src/parser/yaml-parser.ts | 466 | ~~Refactor function – Cognitive Complexity 19 > 15~~ ✅ fixed |
 
 ### 🟠 MAJOR
 
@@ -185,8 +185,18 @@ Generated: 2026-03-05 (updated)
 18. **[S7780] Use `String.raw`** – replaced double-escaped string in `tests/unit/core/sandbox-prepost.spec.ts` with `String.raw` template literal
 19. **[css:S7924] CSS text contrast** – fixed all 6 contrast violations in `styles.css`: darkened `.pa-btn-reject:hover` background (`#e74c3c` → `#c0392b`, 5.4:1), `.pa-btn-approve` background (`#27ae60` → `#1a7a3c`, 5.4:1) and hover (`#229954` → `#156030`); changed API status badge text from hardcoded dark colours to `var(--text-normal)` (`.pa-api-status-missing/set/valid/invalid`)
 20. **[javascript:S7772] `node:` protocol** – added missing `node:` prefix to `readline` in `create-release.mjs`; `process` in `esbuild.config.mjs`; `fs` in `version-bump.mjs`
+21. **[S3776] Reduce Cognitive Complexity** – extracted helper methods to reduce CC below 15 in all 10 affected functions:
+    - `src/core/openrouter.ts` `chat()` (CC 16 → ≤15): extracted `handleRetryError()` helper
+    - `src/ui/chat.ts` `addToolCallToUI()` (CC 23 → ≤15): split into `addToolCallStart()` and `addToolCallUpdate()` helpers
+    - `src/core/tool-executor.ts` `executeAgent()` (CC 25 → ≤15): extracted `executeChainSteps()` and `applyStepResult()` helpers
+    - `src/core/tool-executor.ts` `evaluateCondition()` (CC 16 → ≤15): extracted `resolveConditionField()` helper
+    - `src/core/tool-executor.ts` `executeSingleTool()` (CC 30 → ≤15): extracted `executePreprocessPhase()`, `executeToolPhase()`, and `executePostprocessPhase()` helpers
+    - `src/parser/agent-parser.ts` `parseFrontmatter()` (CC 37 → ≤15): extracted `processTopLevelKey()` helper
+    - `src/parser/placeholder.ts` `getValue()` (CC 20 → ≤15): extracted `traversePath()` helper
+    - `src/parser/validator.ts` `normalizeInput()` (CC 44 → ≤15): extracted `normalizeValue()`, `normalizeNumber()`, `normalizeBoolean()`, `normalizeArray()`, `normalizeObject()`, `normalizeString()` helpers
+    - `src/parser/yaml-parser.ts` `parseYAML()` (CC 102 → ≤15): extracted `flushArray()` and `processArrayItem()` helpers
+    - `src/parser/yaml-parser.ts` `parseSteps()` (CC 19 → ≤15): extracted `parseStepName()` and `addStepParameter()` helpers
 
 ### 🔜 Next Steps (ordered by effort / impact)
 
-1. **[S3776] Reduce Cognitive Complexity** – large refactors in 10 functions, highest effort
-2. **Security Hotspots (S5852/S2245/S1523)** – review and decide safe/fix per hotspot
+1. **Security Hotspots (S5852/S2245/S1523)** – review and decide safe/fix per hotspot

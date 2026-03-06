@@ -31,21 +31,15 @@ export class PlaceholderReplacer {
 
   private static getValue(context: PlaceholderContext, path: string): unknown {
     const parts = this.parsePath(path);
-    if (parts.length === 0) {
-      return null;
-    }
+    if (parts.length === 0) return null;
 
     const first = parts[0];
-    if (!first) {
-      return null;
-    }
+    if (!first) return null;
 
-    // simple specials
     if (first === "date") return context.date;
     if (first === "time") return context.time;
     if (first === "random_id") return context.randomId;
 
-    // param_x or param_name
     if (first === "param_name" || first.startsWith("param_")) {
       const paramName = first === "param_name" ? parts.slice(1).join(".") : path;
       return context.parameters[paramName];
@@ -53,27 +47,26 @@ export class PlaceholderReplacer {
 
     if (first === "prev_step") {
       const outputs = context.previousStepOutputs;
-      let current: unknown = outputs["prev_step"] ?? outputs["__last"];
-      for (let i = 1; i < parts.length; i++) {
-        const part = parts[i];
-        if (current === null || current === undefined || !part) return null;
-        current = (current as Record<string, unknown>)[part];
-      }
-      return current;
+      const root = outputs["prev_step"] ?? outputs["__last"];
+      return this.traversePath(root, parts, 1);
     }
 
-    let current: unknown = context.previousStepOutputs[first];
-    if (current !== undefined) {
-      for (let i = 1; i < parts.length; i++) {
-        const part = parts[i];
-        if (current === null || current === undefined || !part) return null;
-        current = (current as Record<string, unknown>)[part];
-      }
-      return current;
+    const stepValue = context.previousStepOutputs[first];
+    if (stepValue !== undefined) {
+      return this.traversePath(stepValue, parts, 1);
     }
 
-    // fallback to parameters
     return context.parameters[path];
+  }
+
+  private static traversePath(root: unknown, parts: string[], startIndex: number): unknown {
+    let current = root;
+    for (let i = startIndex; i < parts.length; i++) {
+      const part = parts[i];
+      if (current === null || current === undefined || !part) return null;
+      current = (current as Record<string, unknown>)[part];
+    }
+    return current;
   }
 
   private static valueToString(value: unknown): string {
