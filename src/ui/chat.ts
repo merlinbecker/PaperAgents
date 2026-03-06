@@ -445,19 +445,71 @@ export class PaperAgentsChatView extends ItemView {
     this.inputEl.value = "";
     this.addMessageToUI("user", message);
 
+    const agentLoop = this.selectedAgent.agenticLoop;
+    const shouldSaveReport = agentLoop?.autoSaveReport === true;
+
     await this.runLLMOperation(
       (orch, agent, convId) => {
         const loopCallbacks: AgenticLoopCallbacks = {
           ...this.makeCallbacks(),
           onIterationStart: (i, max) => this.addIterationIndicator(i, max),
           onIterationEnd: (i, done) => this.updateIterationIndicator(i, done),
-          onLoopComplete: (iterations, _content) =>
-            this.addSystemMessage(`Agentic loop completed after ${iterations} iteration(s).`),
+          onLoopComplete: async (iterations, finalContent) => {
+            this.addSystemMessage(`Agentic loop completed after ${iterations} iteration(s).`);
+            if (shouldSaveReport && finalContent) {
+              await this.saveLoopReport(message, finalContent, agent.id);
+            }
+          },
         };
         return orch.runAgenticLoop(agent, convId, message, loopCallbacks);
       },
       "Agentic loop error"
     );
+  }
+
+  private async saveLoopReport(taskMessage: string, content: string, agentId: string): Promise<void> {
+    const MAX_SLUG_LENGTH = 40;
+    try {
+      const date = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const slug = taskMessage
+        .slice(0, MAX_SLUG_LENGTH)
+        .replace(/[^a-zA-Z0-9äöüÄÖÜß]+/g, "-")
+        .replace(/^-|-$/g, "");
+      const fileName = `${date}_${slug}.md`;
+      const reportsPath = `${this.getConversationsPath()}/reports`;
+      const filePath = `${reportsPath}/${fileName}`;
+
+      const reportContent = this.buildReportContent(agentId, taskMessage, content);
+
+      const existing = this.app.vault.getAbstractFileByPath(reportsPath);
+      if (!existing) {
+        await this.app.vault.createFolder(reportsPath);
+      }
+
+      await this.app.vault.create(filePath, reportContent);
+      this.addSystemMessage(`Report saved: ${filePath}`);
+    } catch (error) {
+      globalLogger.error("Failed to save loop report", { error });
+    }
+  }
+
+  private buildReportContent(agentId: string, taskMessage: string, content: string): string {
+    const escapedTask = taskMessage.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return [
+      "---",
+      "report: true",
+      `agentId: ${agentId}`,
+      `createdAt: ${new Date().toISOString()}`,
+      `task: "${escapedTask}"`,
+      "---",
+      "",
+      "# Task Report",
+      "",
+      `**Task:** ${taskMessage}`,
+      "",
+      content,
+      "",
+    ].join("\n");
   }
 
   private async regenerateFrom(messageIndex: number): Promise<void> {
