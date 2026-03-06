@@ -261,6 +261,8 @@ export interface AgentDefinition {
   maxTokens?: number;
   websearchConfig?: WebSearchConfig;
   agenticLoop?: AgenticLoopConfig;
+  /** OpenRouter message transforms to apply (e.g. ["middle-out"] for context-window compression). Internal use only – not persisted in agent frontmatter. */
+  transforms?: string[];
 }
 
 export interface AgentFrontmatter {

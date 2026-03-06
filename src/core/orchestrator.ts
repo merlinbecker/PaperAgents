@@ -125,7 +125,7 @@ export class Orchestrator {
       onError: callbacks?.onError,
     };
 
-    const response = await this.client.chatStream(messages, streamCallbacks, tools, agent.model, plugins);
+    const response = await this.client.chatStream(messages, streamCallbacks, tools, agent.model, plugins, agent.transforms);
     const choice = response.choices[0];
     if (!choice) return { content: null, done: true };
 
@@ -362,6 +362,13 @@ export class Orchestrator {
     if (!augmented.tools.includes(PREDEFINED_TOOL_IDS.ASK_USER)) {
       augmented.tools = [...augmented.tools, PREDEFINED_TOOL_IDS.ASK_USER];
     }
+
+    // Enable middle-out context-window compression via OpenRouter transforms.
+    // This prevents context-overflow errors during long agentic loops by letting
+    // OpenRouter automatically truncate middle messages when the prompt exceeds
+    // the model's context limit, preserving the beginning (system + task) and
+    // the most recent messages.
+    augmented.transforms = ["middle-out"];
 
     return augmented;
   }

@@ -387,6 +387,35 @@ describe("Orchestrator", () => {
       expect(tools.some((t) => t.function.name === PREDEFINED_TOOL_IDS.ASK_USER)).toBe(true);
     });
 
+    it("sends transforms: [middle-out] in agentic loop requests", async () => {
+      mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("[DONE] Done.") as never);
+
+      const agent: AgentDefinition = {
+        ...makeAgent(),
+        agenticLoop: { enabled: true, maxIterations: 3, terminationCheck: "auto" },
+      };
+      const convId = "loop-transforms";
+      conversationManager.createConversation(agent.id, convId);
+
+      await orchestrator.runAgenticLoop(agent, convId, "Do something");
+
+      const body = getRequestBody();
+      expect(body.transforms).toEqual(["middle-out"]);
+    });
+
+    it("does not send transforms in regular sendMessage calls", async () => {
+      mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("Hello!") as never);
+
+      const agent = makeAgent(); // no agenticLoop
+      const convId = "regular-no-transforms";
+      conversationManager.createConversation(agent.id, convId);
+
+      await orchestrator.sendMessage(agent, convId, "Hello");
+
+      const body = getRequestBody();
+      expect(body.transforms).toBeUndefined();
+    });
+
     it("pauses and resumes loop when ask_user is called", async () => {
       // Iteration 1: agent calls ask_user("What is your name?")
       // Iteration 2 (after user answer): agent responds with [DONE]
