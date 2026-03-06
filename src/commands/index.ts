@@ -9,6 +9,7 @@ import { executionHistory } from "../core/history";
 import { HistoryPanelModal } from "../ui/history-panel";
 import { TemplateBrowserModal, ToolTemplate } from "../ui/template-browser";
 import { WorkflowViewModal } from "../ui/workflow-view";
+import { CanvasModal } from "../ui/canvas-modal";
 
 export function registerCommands(plugin: PaperAgents): void {
   plugin.addCommand({
@@ -66,6 +67,14 @@ export function registerCommands(plugin: PaperAgents): void {
       openWorkflowView(plugin);
     },
   });
+
+  plugin.addCommand({
+    id: "apply-agent-canvas",
+    name: "Apply interactive agent to document",
+    callback: () => {
+      openCanvasModal(plugin);
+    },
+  });
 }
 
 function openTemplateBrowser(plugin: PaperAgents): void {
@@ -119,4 +128,13 @@ function openWorkflowView(plugin: PaperAgents): void {
   };
 
   new WorkflowViewModal(plugin.app, agentAsWorkflow).open();
+}
+
+function openCanvasModal(plugin: PaperAgents): void {
+  new CanvasModal(
+    plugin.app,
+    plugin.loadedAgents,
+    plugin.conversationManager,
+    () => plugin.orchestrator
+  ).open();
 }
