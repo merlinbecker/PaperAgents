@@ -27,8 +27,12 @@ Pre-/Post-Processing-Code wird in einer **QuickJS-WASM-Sandbox** ausgeführt:
 | `rest_request` | POST, PUT, DELETE | ✅ Ja |
 | `read_file` | Alle Leseoperationen | ❌ Nein |
 | `search_files` | Alle Suchoperationen | ❌ Nein |
+| `finish_task` | Agentic Loop beenden | ❌ Nein |
+| `ask_user` | Frage an Nutzer im Agentic Loop | ❌ Nein (Pause auf Loop-Ebene) |
 
 Der HITL-Dialog zeigt: Tool-Name, Step, Parameter und bietet Approve/Reject-Buttons.
+
+Im Agentic Loop löst `ask_user` keine HITL-Bestätigung aus, sondern pausiert den Loop und öffnet das `HITLInputModal` mit der Agenten-Frage. Der Nutzer gibt eine Antwort ein, die als User-Message in die Konversation eingefügt wird. Danach läuft der Loop weiter.
 
 ### Datenschutz
 
@@ -125,6 +129,44 @@ Du bist ein hilfreicher Recherche-Assistent...
 Datum: {{current_date}}
 Vault: {{vault_path}}
 ```
+
+### Agenten mit Agentic Loop
+
+Agenten können mit `agenticLoop: enabled: true` in den autonomen Modus versetzt werden:
+
+```markdown
+---
+agent: true
+id: deep_research
+name: "Deep Research Assistant"
+model: openai/gpt-4o
+tools:
+  - websearch
+  - write_file
+  - read_file
+memory:
+  type: conversation
+  maxMessages: 100
+agenticLoop:
+  enabled: true            # Schaltet den autonomen Modus ein
+  maxIterations: 8         # Maximale Iterationen (1–50, Default: 10) – hier auf 8 gesetzt
+  terminationCheck: tool   # "auto" | "phrase" | "tool"
+  showProgress: true       # Iterations-Fortschritt in der UI anzeigen
+  autoSaveReport: false    # Ergebnis automatisch als Markdown-Datei speichern
+---
+```
+
+**Felder für `agenticLoop`:**
+
+| Feld | Typ | Default | Beschreibung |
+|------|-----|---------|--------------|
+| `enabled` | `boolean` | `false` | Aktiviert den autonomen Loop |
+| `maxIterations` | `number` | `10` | Maximale Iterationen (1–50, Sicherheitsgrenze) |
+| `terminationCheck` | `"auto" \| "phrase" \| "tool"` | `"auto"` | Erkennungsmethode für Aufgabenabschluss |
+| `terminationPhrase` | `string` | – | Stopp-Phrase bei `terminationCheck: phrase` (in diesem Modus erforderlich) |
+| `iterationPrompt` | `string` | – | User-Message, die zu Beginn jeder Iteration (ab Iteration 2) eingefügt wird |
+| `showProgress` | `boolean` | `true` | Zeigt Iterationsfortschritt in der UI |
+| `autoSaveReport` | `boolean` | `false` | Speichert Endergebnis automatisch als Markdown-Datei |
 
 ### Konversations-Dateiformat (Markdown, round-trip-fähig, speicherbar)
 
@@ -247,6 +289,49 @@ onunload():
 - **Datei anlegen**: Beim Start einer neuen Konversation via `ConversationFileManager.createConversationFile()`
 - **Laden**: Beim Öffnen der Chat-View oder bei Auswahl aus dem Conversation-Dropdown
 - **Bidirektionale Synchronisierung**: `vault.on('modify')` erkennt externe Änderungen und lädt die Konversation automatisch neu
+
+## 8.9 Agentic Loop Konzept
+
+Der Agentic Loop ermöglicht autonome, mehrstufige Aufgabenbearbeitung. Der Nutzer startet die Aufgabe über den "▶ Run Task"-Button (nur sichtbar bei Agenten mit `agenticLoop.enabled: true`); danach iteriert der Agent eigenständig.
+
+### Makro-Ebene vs. Mikro-Ebene
+
+| Ebene | Beschreibung |
+|-------|--------------|
+| **Mikro (Tool-Call-Loop)** | `maxToolCallRounds`-Schleife im Orchestrator: LLM → Tool → LLM → … → Finalantwort (ReAct-Muster innerhalb einer Iteration) |
+| **Makro (Agentic Loop)** | Nach der Finalantwort prüft der Loop, ob die Gesamtaufgabe abgeschlossen ist. Falls nicht, startet die nächste Iteration. |
+
+### Terminierungsstrategien
+
+| Strategie | Funktionsweise | Vor- / Nachteil |
+|-----------|---------------|-----------------|
+| `auto` | LLM beginnt Antwort mit `[DONE]`; System-Prompt instruiert das Modell | Einfach, anfällig für Halluzinationen |
+| `phrase` | Benutzerdefinierte Stopp-Phrase (`terminationPhrase`) im Content | Zuverlässiger als auto, erfordert präzise System-Prompt-Instruktion |
+| `tool` | LLM ruft `finish_task({ summary })` explizit auf | Robusteste Methode; erfordert Tool-Aufruf des LLM |
+
+### HITL-Integration im Agentic Loop
+
+Das `ask_user`-Tool wird automatisch in jeden Agentic-Loop-Agenten injiziert. Wenn das LLM `ask_user({ question })` aufruft:
+1. `getAskUserQuestion()` im Orchestrator erkennt den Call.
+2. `onHITLPause(question)` Callback wird aufgerufen.
+3. Chat-UI öffnet `HITLInputModal` und wartet auf Nutzerantwort.
+4. Antwort wird als User-Message in die Konversation eingefügt.
+5. Loop setzt mit der nächsten Iteration fort.
+
+### Context-Window-Management
+
+Für Agentic-Loop-Requests wird OpenRouter `transforms: ["middle-out"]` automatisch aktiviert:
+- Wenn die Nachrichtenhistory das Context-Window überschreitet, entfernt OpenRouter Nachrichten **aus der Mitte**.
+- System-Prompt + initiale Aufgabe (Anfang) und neueste Schritte (Ende) werden beibehalten.
+- Verhindert Context-Overflow-Fehler ohne manuelle Token-Zählung.
+- Normale Chat-Requests erhalten kein `transforms`.
+
+### Persistenz im Agentic Loop
+
+Nach **jeder Iteration** wird die Conversation-Datei gespeichert:
+- `onIterationEnd` im Orchestrator ist `void | Promise<void>`.
+- Der Callback in `chat.ts` ruft `saveConversation()` async auf.
+- Bei Obsidian-Absturz während des Loops gehen maximal die Schritte der laufenden Iteration verloren.
 
 ---
 

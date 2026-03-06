@@ -144,6 +144,7 @@ Input-Parameter
 - Callback-basiertes Streaming an UI: `onToken`, `onToolCallStart`, `onToolCallEnd`, `onComplete`, `onError`
 - Konvertiert Agenten-Definitionen zu OpenRouter Tool-Schemas
 - Integration mit `globalMetrics`/`globalLogger` für Tracing und Metriken
+- **Agentic Loop**: `runAgenticLoop()` iteriert eigenständig bis zur Terminierungsbedingung (max. `maxIterations`); `augmentAgentForLoop()` injiziert `finish_task`- und `ask_user`-Tools und setzt `transforms: ["middle-out"]`; `checkLoopTermination()` prüft alle drei Strategien (`auto`, `phrase`, `tool`); `getAskUserQuestion()` erkennt HITL-Pausen; `AgenticLoopCallbacks` umfasst `onIterationStart`, `onIterationEnd` (async), `onLoopComplete`, `onHITLPause`
 
 ### Persistence (`persistence.ts`)
 
@@ -211,8 +212,12 @@ Input-Parameter
 | `write_file` | Datei erstellen/modifizieren | `filePath` (string), `content` (string), `overwrite` (boolean) | **Ja, immer** |
 | `rest_request` | HTTP-Requests an externe APIs | `url` (string), `method` (string), `headers` (object), `body` (string) | **Ja bei POST/PUT/DELETE** |
 | `websearch` | Serverseitige Web-Suche via OpenRouter-Plugin | Keine lokalen Parameter | Nein (serverseitig) |
+| `finish_task` | Agentic Loop beenden und Zusammenfassung liefern | `summary` (string, required), `reportPath` (string, optional) | Nein |
+| `ask_user` | Im Agentic Loop nach Nutzer-Input fragen (HITL-Pause) | `question` (string, required) | Nein (Pause auf Loop-Ebene) |
 
 `websearch` ist kein lokal ausgeführtes Tool. Es aktiviert das OpenRouter Web-Search-Plugin (`"plugins": [{"id": "web-search"}]`) im API-Request. Quellenangaben werden im Chat als klickbare Links angezeigt. Konfigurierbar via `websearchConfig.maxResults` im Agenten-Frontmatter.
+
+`finish_task` und `ask_user` sind ausschließlich für den Agentic Loop gedacht. Sie werden vom Orchestrator automatisch injiziert, wenn `agenticLoop.enabled: true` konfiguriert ist. `finish_task` terminiert den Loop bei `terminationCheck: "tool"`; `ask_user` pausiert den Loop und öffnet ein HITL-Modal.
 
 **Coverage**: 84.43%
 
