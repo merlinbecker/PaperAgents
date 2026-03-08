@@ -45,24 +45,24 @@ C4Container
 
 - **Verantwortung**: Registrierung aller Plugin-Commands, extrahiert aus main.ts
 - **Datei**: `src/commands/index.ts` (~120 Zeilen)
-- **Commands**: open-sidebar, open-chat, reload-custom-tools, reload-agents, show-history, browse-templates, show-workflow
+- **Commands**: open-sidebar, open-chat, reload-custom-tools, reload-agents, show-history, browse-templates, show-workflow, apply-agent-canvas
 
 #### UI Layer
 
-- **Verantwortung**: Benutzerinteraktion, Tool-Übersicht, Chat, Formular-Eingabe, Bestätigungsdialoge, History, Templates, Workflow-Visualisierung
-- **Dateien**: `src/ui/sidebar.ts`, `src/ui/chat.ts`, `src/ui/forms.ts`, `src/ui/hitl-modal.ts`, `src/ui/output-panel.ts`, `src/ui/history-panel.ts`, `src/ui/template-browser.ts`, `src/ui/workflow-view.ts`
+- **Verantwortung**: Benutzerinteraktion, Tool-Übersicht, Chat, Formular-Eingabe, Bestätigungsdialoge, History, Templates, Workflow-Visualisierung, Agent Canvas
+- **Dateien**: `src/ui/sidebar.ts`, `src/ui/chat.ts`, `src/ui/forms.ts`, `src/ui/hitl-modal.ts`, `src/ui/output-panel.ts`, `src/ui/history-panel.ts`, `src/ui/template-browser.ts`, `src/ui/workflow-view.ts`, `src/ui/canvas-modal.ts`
 - **Schnittstellen**: Obsidian UI-API (View, Modal, Setting), ToolRegistry, ToolExecutor, Orchestrator, ExecutionHistory
 
 #### Core Execution Layer
 
-- **Verantwortung**: Tool-Ausführung, Tool-Verwaltung, Konversations-State, LLM-Orchestrierung, API-Kommunikation, Execution History, Markdown-Persistierung von Conversations
-- **Dateien**: `src/core/tool-executor.ts`, `src/core/tool-registry.ts`, `src/core/conversation.ts`, `src/core/conversation-file-manager.ts`, `src/core/sandbox.ts`, `src/core/openrouter.ts`, `src/core/orchestrator.ts`, `src/core/history.ts`, `src/core/persistence.ts`
+- **Verantwortung**: Tool-Ausführung, Tool-Verwaltung, Konversations-State, LLM-Orchestrierung, API-Kommunikation, Execution History, Markdown-Persistierung von Conversations, Agent-Canvas-Dokumentoperationen
+- **Dateien**: `src/core/tool-executor.ts`, `src/core/tool-registry.ts`, `src/core/conversation.ts`, `src/core/conversation-file-manager.ts`, `src/core/sandbox.ts`, `src/core/openrouter.ts`, `src/core/orchestrator.ts`, `src/core/history.ts`, `src/core/persistence.ts`, `src/core/canvas-agent.ts`
 - **Schnittstellen**: Parser-Layer (Eingabe), Tools-Layer (Ausführung), UI-Layer (Ergebnisse), OpenRouter API (LLM)
 
 #### Parser & Validation Layer
 
-- **Verantwortung**: Markdown/YAML-Parsing, Parametervalidierung, Placeholder-Auflösung, Tool-Discovery
-- **Dateien**: `src/parser/yaml-parser.ts`, `src/parser/validator.ts`, `src/parser/placeholder.ts`, `src/parser/tool-loader.ts`, `src/parser/agent-parser.ts`
+- **Verantwortung**: Markdown/YAML-Parsing, Parametervalidierung, Placeholder-Auflösung, Tool-Discovery, Wikilink-Auflösung
+- **Dateien**: `src/parser/yaml-parser.ts`, `src/parser/validator.ts`, `src/parser/placeholder.ts`, `src/parser/tool-loader.ts`, `src/parser/agent-parser.ts`, `src/parser/wikilink-resolver.ts`
 - **Schnittstellen**: Vault (Markdown-Dateien), Core-Layer (geparste Definitionen)
 
 #### Tools Layer
@@ -164,6 +164,16 @@ Input-Parameter
 - JSON-basierter Datenaustausch (Input/Output)
 - **Coverage**: 69.26%
 
+### CanvasAgent (`canvas-agent.ts`)
+
+- **Dokument-Annotation** mit AI-Agenten als Obsidian-Callout-Blöcke
+- Methoden: `buildInitialPrompt(content)`, `buildSelectionPrompt(selection)`, `appendAgentCallout(file, agentName, text)`, `appendUserCallout(file, text)`, `removeCallout(file, calloutText)`, `parseInlinePlacement(responseText)`, `insertCalloutAfterParagraph(content, callout, N)`, `extractCanvasCallouts(content)`, `getActiveEditorSelection()`
+- Canvas-Callouts werden durch `<!-- paper-agents-canvas -->`-Marker identifiziert
+- `appendAgentCallout` / `appendUserCallout` geben den genauen Callout-Text zurück (für spätere Löschung via `removeCallout`)
+- **Inline-Platzierung**: Agent-Antworten mit `@after-paragraph-N:` am Anfang werden nach Absatz N eingefügt
+- **Multi-Agenten**: Jeder Agent erhält eine eigene Konversation; Callouts werden sequenziell angehängt
+- **Coverage**: 94 %+ (53 Unit-Tests)
+
 ## 5.3 Ebene 2 – Parser & Validation Layer
 
 ### YAML-Parser (`yaml-parser.ts`)
@@ -203,6 +213,16 @@ Input-Parameter
 - Fehlerbehandlung für invalide Definitionen
 - **Coverage**: 69.74%
 
+### WikilinkResolver (`wikilink-resolver.ts`)
+
+- **Ladezeit-Auflösung** von `[[Wikilinks]]` in Agenten- und Tool-Definitionen
+- Methode: `resolve(content, sourcePath?): Promise<string>`
+- **Pfadauflösung**: primär `MetadataCache.getFirstLinkpathDest()`, Fallback direkte Vault-Pfade
+- **Rekursion**: bis zu `maxDepth` (Standard: 3) mit `visited`-Set für Zyklenschutz
+- **Einbettungsformat**: Wrapper-Kommentare `<!-- wikilink:pfad -->` / `<!-- /wikilink:pfad -->` für Transparenz
+- Nur `.md`-Dateien werden eingebettet; Wikilinks auf andere Dateitypen bleiben unverändert
+- Konfigurierbar via `WikilinkResolverOptions` (`maxDepth`, `wrapContent`)
+
 ## 5.4 Ebene 2 – Tools Layer (Predefined Tools)
 
 | Tool | Funktion | Parameter | HITL |
@@ -220,6 +240,37 @@ Input-Parameter
 `finish_task` und `ask_user` sind ausschließlich für den Agentic Loop gedacht. Sie werden vom Orchestrator automatisch injiziert, wenn `agenticLoop.enabled: true` konfiguriert ist. `finish_task` terminiert den Loop bei `terminationCheck: "tool"`; `ask_user` pausiert den Loop und öffnet ein HITL-Modal.
 
 **Coverage**: 84.43%
+
+## 5.5 Ebene 2 – Agent Canvas (UI Layer)
+
+### CanvasModal (`canvas-modal.ts`)
+
+- **Interaktives Canvas-Modal** für dokumentzentrierte AI-Kollaboration
+- **Agent-Auswahl**: Automatisch via `paper-agent`-Frontmatter oder manuell via Dropdown
+- **Selektions-Kontext**: Wenn im Editor Text selektiert ist, wird nur die Selektion als Kontext gesendet
+- **Streaming-Anzeige**: Agent-Tokens werden live im Modal dargestellt
+- **Follow-up-Eingabe**: Nutzer kann nach der ersten Antwort weitere Nachrichten senden; alle werden als Callouts ins Dokument geschrieben
+- **Callout-Löschung**: 🗑️-Button pro Nachricht entfernt den Callout aus Dokument und Modal
+- **Diff-Ansicht**: 📊-Button zeigt Statistik (Zeilenzahl vorher/nachher) und Liste aller Canvas-Callouts mit Titel und Body-Vorschau
+- **Multi-Agenten-Modus**: Wenn ≥ 2 Agenten geladen sind, kann der Nutzer mehrere Agenten per Checkbox wählen und sie sequenziell ausführen lassen; visueller Trenner `── Running: <Agent Name> ──` zwischen den Läufen
+
+```
+CanvasModal.startSession()
+    │
+    ├─ CanvasAgent.getActiveEditorSelection()
+    ├─ CanvasAgent.buildInitialPrompt() / buildSelectionPrompt()
+    │
+    ▼
+Orchestrator.continueConversation()
+    │
+    ├─ onToken → Streaming-Anzeige im Modal
+    │
+    └─ onComplete
+           │
+           └─ CanvasAgent.appendAgentCallout() → vault.modify()
+                  │
+                  └─ Callout-Text wird im Modal für 🗑️-Button gespeichert
+```
 
 ---
 

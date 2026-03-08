@@ -29,6 +29,8 @@
 - **Chat-UI**: Konversations-Auswahl aus Markdown-Dateien, Streaming, Quellenangaben
 - **Observability**: Execution-History, Metriken (Dauer, Erfolgsrate, p95), Tracing
 - **Mobile-kompatibel**: Funktioniert auf Desktop, iOS und Android
+- **Agent Canvas**: KI-Annotation von Dokumenten als Obsidian-Callout-Blöcke; Inline-Platzierung, Diff-Ansicht, Multi-Agenten-Modus
+- **Wikilink-Auflösung**: `[[Wikilinks]]` in Agenten- und Tool-Definitionen werden beim Laden aufgelöst und eingebettet
 
 ## 1.2 Qualitätsziele
 
