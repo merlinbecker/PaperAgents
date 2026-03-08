@@ -177,33 +177,35 @@ When `paper-agent` is found in the frontmatter, the agent selection step is skip
 
 ## Acceptance Criteria
 
-- [ ] Command `paper-agents:apply-agent-canvas` appears in the Obsidian command palette.
-- [ ] Sidebar shows a canvas button (🖊️) that opens the Canvas Modal.
-- [ ] If active document has `paper-agent: <id>` frontmatter, that agent is auto-selected.
-- [ ] Without frontmatter, user can select an agent from the dropdown.
-- [ ] On confirmation, the document content is sent to the agent as context.
-- [ ] Agent response is appended to the document as a callout with agent name and timestamp.
-- [ ] User can type follow-up messages; they are appended as user callouts, and agent replies are appended next.
-- [ ] Previous callouts are excluded from subsequent context builds.
-- [ ] Streaming tokens are visible in the modal while the response is generated.
-- [ ] Graceful error handling: no API key → Notice; no agents loaded → Notice.
+- [x] Command `paper-agents:apply-agent-canvas` appears in the Obsidian command palette.
+- [x] Sidebar shows a canvas button (🖊️) that opens the Canvas Modal.
+- [x] If active document has `paper-agent: <id>` frontmatter, that agent is auto-selected.
+- [x] Without frontmatter, user can select an agent from the dropdown.
+- [x] On confirmation, the document content is sent to the agent as context.
+- [x] Agent response is appended to the document as a callout with agent name and timestamp.
+- [x] User can type follow-up messages; they are appended as user callouts, and agent replies are appended next.
+- [x] Previous callouts are excluded from subsequent context builds.
+- [x] Streaming tokens are visible in the modal while the response is generated.
+- [x] Graceful error handling: no API key → Notice; no agents loaded → Notice.
 
 ---
 
 ## Future Enhancements
 
 - **Inline placement**: Use a special markup in the agent response to indicate where to insert the callout (e.g., `@after-paragraph-3:`).
-- **Callout dismissal**: Allow users to delete individual agent callouts with a button.
+- **Callout dismissal**: Allow users to delete individual agent callouts with a button. ✅ *Implemented in Phase 2*
 - **Document diff view**: Show a side-by-side diff of the original document and the agent-annotated version.
 - **Multi-agent canvas**: Support running multiple agents on the same document and merging their annotations.
-- **Selection-scoped context**: User selects text before triggering the command; only that selection is sent to the agent.
+- **Selection-scoped context**: User selects text before triggering the command; only that selection is sent to the agent. ✅ *Implemented in Phase 3*
 
 ---
 
 ## Timeline
 
-| Phase | Content |
-|---|---|
-| **Phase 1** (this PR) | Core implementation: command, modal, callout injection, frontmatter support |
-| **Phase 2** | Inline placement hints, callout dismissal |
-| **Phase 3** | Multi-agent, selection-scoped context |
+| Phase | Content | Status |
+|---|---|---|
+| **Phase 1** | Core implementation: command, modal, callout injection, frontmatter support | ✅ Fertig |
+| **Phase 2** | Callout dismissal (🗑️-Button) | ✅ Fertig |
+| **Phase 3** | Selection-scoped context | ✅ Fertig |
+| **Phase 4** | Inline placement hints, document diff view | 🔲 Offen |
+| **Phase 5** | Multi-agent canvas | 🔲 Offen |

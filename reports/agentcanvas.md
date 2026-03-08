@@ -2,7 +2,7 @@
 
 ## Zusammenfassung
 
-Der Plan in `plans/agentcanvas.md` wurde weiter umgesetzt. Phase 1 (Core-Implementierung) war bereits vollständig abgeschlossen. In diesem Durchgang wurde Phase 2 umgesetzt: **Callout-Löschung (Callout Dismissal)**. Alle 361 Tests (davon 29 speziell für den Canvas-Agent) laufen durch, und der Build schlägt fehlerfrei.
+Der Plan in `plans/agentcanvas.md` wurde vollständig durch Phase 3 ergänzt. Phase 1 (Core-Implementierung) und Phase 2 (Callout-Löschung) waren bereits abgeschlossen. In diesem Durchgang wurde Phase 3 umgesetzt: **Selektions-Kontext (Selection-scoped context)**. Alle 367 Tests (davon 35 speziell für den Canvas-Agent) laufen durch, und der Build schlägt fehlerfrei.
 
 ---
 
@@ -19,7 +19,7 @@ Der Plan in `plans/agentcanvas.md` wurde weiter umgesetzt. Phase 1 (Core-Impleme
 | `src/main.ts` | Methode `activateCanvas()` implementiert; `sidebar.setOnOpenCanvas()`-Callback verdrahtet; Import von `CanvasModal` und `CanvasAgent` ergänzt | ✅ Fertig |
 | `tests/unit/core/canvas-agent.spec.ts` | 24 Unit-Tests für `CanvasAgent` (Phase 1) | ✅ Fertig |
 
-### Phase 2 – Callout Dismissal
+### Phase 2 – Callout Dismissal (bereits fertig)
 
 | Datei | Tätigkeit | Status |
 |---|---|---|
@@ -27,10 +27,23 @@ Der Plan in `plans/agentcanvas.md` wurde weiter umgesetzt. Phase 1 (Core-Impleme
 | `src/core/canvas-agent.ts` | Neue Methode `removeCallout(file, calloutText): Promise<boolean>` – entfernt den genauen Callout-Block aus dem Dokument anhand des gespeicherten Callout-Texts; gibt `true` zurück, wenn das Callout gefunden und entfernt wurde | ✅ Fertig |
 | `src/ui/canvas-modal.ts` | `addMessageToDisplay()` erhält optionalen Parameter `calloutText`; wenn übergeben, wird ein 🗑️-Dismiss-Button in den Message-Header eingefügt | ✅ Fertig |
 | `src/ui/canvas-modal.ts` | Neue private Methode `dismissCallout(file, calloutText, entryEl)` – ruft `canvasAgent.removeCallout()` auf und entfernt das Element aus dem Modal bei Erfolg | ✅ Fertig |
-| `src/ui/canvas-modal.ts` | `sendToAgent()` überarbeitet: `addMessageToDisplay("assistant", ...)` wurde aus `onComplete` herausgezogen und wird jetzt nach `appendAgentCallout()` aufgerufen, mit dem zurückgegebenen Callout-Text | ✅ Fertig |
-| `src/ui/canvas-modal.ts` | `sendFollowUp()` überarbeitet: Callout-Text von `appendUserCallout()` wird gespeichert und an `addMessageToDisplay("user", ...)` übergeben | ✅ Fertig |
 | `styles.css` | CSS-Klassen für das Canvas Modal hinzugefügt: Layout, Nachrichten-Anzeige, Dismiss-Button, Streaming-Bereich, Eingabefeld, Sende-Button | ✅ Fertig |
-| `tests/unit/core/canvas-agent.spec.ts` | 5 neue Tests: Rückgabewert von `appendAgentCallout` und `appendUserCallout`; 3 Tests für `removeCallout` (Entfernen vorhanden, nicht vorhanden, Round-Trip mit append) | ✅ Fertig |
+| `tests/unit/core/canvas-agent.spec.ts` | 5 neue Tests: Rückgabewert von `appendAgentCallout` und `appendUserCallout`; 3 Tests für `removeCallout` | ✅ Fertig |
+
+### Phase 3 – Selektions-Kontext
+
+| Datei | Tätigkeit | Status |
+|---|---|---|
+| `src/core/canvas-agent.ts` | Neue Methode `getActiveEditorSelection(): string \| null` – liest die aktuelle Textselektion aus dem aktiven Editor via `workspace.activeEditor`; gibt `null` zurück wenn nichts selektiert ist | ✅ Fertig |
+| `src/core/canvas-agent.ts` | Neue Methode `buildSelectionPrompt(selectionContent): string` – erstellt den Initialprompt für eine Selektions-basierte Konversation (analog zu `buildInitialPrompt`, aber mit `=== SELECTED TEXT ===` Rahmen) | ✅ Fertig |
+| `src/ui/canvas-modal.ts` | `activeSelection`-Property ergänzt; in `onOpen()` wird `getActiveEditorSelection()` aufgerufen und gespeichert | ✅ Fertig |
+| `src/ui/canvas-modal.ts` | `renderHeader()`: Wenn eine Selektion aktiv ist, wird ein Hinweis „✂️ Using selected text as context (N chars)" angezeigt | ✅ Fertig |
+| `src/ui/canvas-modal.ts` | `renderStartButton()`: Button-Text ist „Analyze selection" statt „Start canvas session" wenn eine Selektion vorhanden | ✅ Fertig |
+| `src/ui/canvas-modal.ts` | `startSession()`: Wenn `activeSelection` gesetzt ist, wird `buildSelectionPrompt()` statt `buildInitialPrompt()` verwendet; kein `readFile`-Aufruf nötig | ✅ Fertig |
+| `styles.css` | Neue CSS-Klasse `.pa-canvas-selection-hint` für die Selektions-Anzeige im Header | ✅ Fertig |
+| `tests/unit/core/canvas-agent.spec.ts` | 6 neue Tests: 4 für `getActiveEditorSelection` (mit Selektion, leer, nur Whitespace, kein Editor); 2 für `buildSelectionPrompt` | ✅ Fertig |
+
+---
 
 ### Callout-Format (gemäß Spezifikation)
 
@@ -67,6 +80,7 @@ User-Callout:
 | Streaming-Tokens sind im Modal sichtbar | ✅ |
 | Fehlerbehandlung: kein API-Key → Notice; keine Agenten geladen → Notice | ✅ |
 | Callout-Löschung: 🗑️-Button im Modal entfernt den Callout aus Dokument und Modal | ✅ |
+| Selektions-Kontext: Wenn Text selektiert ist, wird nur die Selektion als Kontext gesendet | ✅ |
 
 ---
 
@@ -81,18 +95,19 @@ User-Callout:
 | Konversation wird über den bestehenden `ConversationManager` und `Orchestrator` abgewickelt | Kein Doppelcode. Der existierende Mechanismus übernimmt Konversationshistorie, Streaming und Tool-Calls ohne Anpassungen. |
 | `appendAgentCallout`/`appendUserCallout` geben den Callout-Text zurück | Ermöglicht dem Aufrufer (Modal), den exakten Text für die spätere Löschung zu speichern, ohne ihn ein zweites Mal mit einem möglicherweise anderen Timestamp zu generieren. |
 | `removeCallout` verwendet `String.replace()` mit dem exakten Callout-Text | Da der Callout-Text einen eindeutigen ISO-Timestamp enthält, ist ein falsches Entfernen praktisch ausgeschlossen. Kein komplexes Parsing erforderlich. |
-| Dismiss-Button (`🗑️`) im Message-Header statt separatem Delete-Button außerhalb | Minimales UI-Footprint. Der Button ist sichtbar genug ohne den Lesefluss zu stören; `opacity: 0.5` im Normalzustand, `opacity: 1` + roter Hintergrund beim Hover. |
+| Dismiss-Button (`🗑️`) im Message-Header statt separatem Delete-Button außerhalb | Minimales UI-Footprint. Der Button ist sichtbar genug ohne den Lesefluss zu stören. |
+| `workspace.activeEditor` per Duck-Typing für Selektions-Lesen | Vermeidet einen harten Import von `MarkdownView`, der den Test-Mock aufwendig erweitern würde. Die duck-typed Schnittstelle ist stabil genug für diesen read-only Zugriff. |
+| `getActiveEditorSelection()` in `CanvasAgent` statt direkt im Modal | Klare Separation of Concerns: `CanvasAgent` kapselt alle Dokument-/Editor-Zugriffe; das Modal ist rein für UI zuständig. Ermöglicht einfacheres Unit-Testing. |
 
 ---
 
-## Noch nicht umgesetzte Features (Phase 2 & 3)
+## Noch nicht umgesetzte Features
 
 | Feature | Beschreibung | Phase |
 |---|---|---|
-| Inline-Platzierung | Agent-Antwort an einer bestimmten Stelle im Dokument einfügen (z.B. nach Absatz 3), statt immer ans Ende | Phase 2 |
-| Dokument-Diff | Side-by-Side-Vergleich von Original und annotierter Version | Phase 2 |
-| Multi-Agenten-Canvas | Mehrere Agenten gleichzeitig auf dasselbe Dokument anwenden und Annotationen zusammenführen | Phase 3 |
-| Selektions-Kontext | Nutzer markiert Text vor dem Command-Aufruf; nur die Selektion wird als Kontext gesendet | Phase 3 |
+| Inline-Platzierung | Agent-Antwort an einer bestimmten Stelle im Dokument einfügen (z.B. nach Absatz 3), statt immer ans Ende | Phase 4 |
+| Dokument-Diff | Side-by-Side-Vergleich von Original und annotierter Version | Phase 4 |
+| Multi-Agenten-Canvas | Mehrere Agenten gleichzeitig auf dasselbe Dokument anwenden und Annotationen zusammenführen | Phase 5 |
 
 ---
 

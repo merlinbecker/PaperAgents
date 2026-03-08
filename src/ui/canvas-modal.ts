@@ -23,6 +23,7 @@ export class CanvasModal extends Modal {
 
   private selectedAgent: AgentDefinition | null = null;
   private activeFile: TFile | null = null;
+  private activeSelection: string | null = null;
   private conversationId: string | null = null;
   private isStreaming = false;
 
@@ -54,6 +55,7 @@ export class CanvasModal extends Modal {
     contentEl.addClass("pa-canvas-modal");
 
     this.activeFile = this.canvasAgent.getActiveFile();
+    this.activeSelection = this.canvasAgent.getActiveEditorSelection();
 
     this.renderHeader();
     this.renderAgentSelection();
@@ -81,6 +83,14 @@ export class CanvasModal extends Modal {
       header.createEl("p", {
         cls: "pa-canvas-no-file",
         text: "⚠️ No active Markdown document found. Open a document first.",
+      });
+    }
+
+    if (this.activeSelection) {
+      const charCount = this.activeSelection.length;
+      header.createEl("p", {
+        cls: "pa-canvas-selection-hint",
+        text: `✂️ Using selected text as context (${charCount} chars)`,
       });
     }
   }
@@ -137,9 +147,10 @@ export class CanvasModal extends Modal {
 
   private renderStartButton(container: HTMLElement): void {
     const row = container.createDiv({ cls: "pa-canvas-start-row" });
+    const label = this.activeSelection ? "Analyze selection" : "Start canvas session";
     this.startBtn = row.createEl("button", {
       cls: "pa-canvas-start-btn mod-cta",
-      text: "Start canvas session",
+      text: label,
     });
     this.startBtn.addEventListener("click", () => { void this.startSession(); });
   }
@@ -199,9 +210,14 @@ export class CanvasModal extends Modal {
     }
 
     try {
-      const content = await this.canvasAgent.readFile(this.activeFile);
-      const docContext = this.canvasAgent.buildDocumentContext(content);
-      const initialPrompt = this.canvasAgent.buildInitialPrompt(docContext);
+      let initialPrompt: string;
+      if (this.activeSelection) {
+        initialPrompt = this.canvasAgent.buildSelectionPrompt(this.activeSelection);
+      } else {
+        const content = await this.canvasAgent.readFile(this.activeFile);
+        const docContext = this.canvasAgent.buildDocumentContext(content);
+        initialPrompt = this.canvasAgent.buildInitialPrompt(docContext);
+      }
 
       // Create conversation
       const conversation = this.conversationManager.createConversation(this.selectedAgent.id);
@@ -312,7 +328,7 @@ export class CanvasModal extends Modal {
       if (this.sendBtn) this.sendBtn.disabled = false;
       if (this.startBtn) {
         this.startBtn.disabled = false;
-        this.startBtn.textContent = "Restart session";
+        this.startBtn.textContent = this.activeSelection ? "Analyze selection" : "Restart session";
       }
     }
   }
