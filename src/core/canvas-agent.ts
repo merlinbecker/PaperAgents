@@ -211,6 +211,40 @@ export class CanvasAgent {
   }
 
   // ============================================================================
+  // Selection context
+  // ============================================================================
+
+  /**
+   * Returns the currently selected text in the active editor, or null if
+   * nothing is selected or no Markdown editor is active.
+   *
+   * Uses duck-typing against the workspace to avoid a hard dependency on
+   * MarkdownView (which would require importing it and updating the test mock).
+   */
+  getActiveEditorSelection(): string | null {
+    const workspace = this.app.workspace as unknown as {
+      activeEditor?: { editor?: { getSelection(): string } | null } | null;
+    };
+    const selection = workspace.activeEditor?.editor?.getSelection();
+    return selection && selection.trim() ? selection.trim() : null;
+  }
+
+  /**
+   * Builds the initial prompt sent to the agent when a text selection is the
+   * context (rather than the full document).
+   */
+  buildSelectionPrompt(selectionContent: string): string {
+    return (
+      "You are reviewing the following selected text from a document. " +
+      "Provide annotations, feedback, or analysis. " +
+      "When referencing a specific part of the text, quote it briefly.\n\n" +
+      "=== SELECTED TEXT ===\n" +
+      selectionContent +
+      "\n=== END ==="
+    );
+  }
+
+  // ============================================================================
   // Agent resolution helper
   // ============================================================================
 

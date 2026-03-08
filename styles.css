@@ -1625,12 +1625,19 @@
 .pa-canvas-file-hint {
   font-size: 0.85em;
   color: var(--text-muted);
+  margin: 0 0 4px 0;
+}
+
+.pa-canvas-selection-hint {
+  font-size: 0.85em;
+  color: var(--text-accent);
   margin: 0 0 14px 0;
 }
 
 .pa-canvas-no-file {
   color: var(--text-warning);
   font-size: 0.9em;
+  margin: 0 0 14px 0;
 }
 
 .pa-canvas-agent-selection {

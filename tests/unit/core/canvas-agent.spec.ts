@@ -13,13 +13,18 @@ function makeApp(overrides: Partial<{
   activeFile: unknown;
   readContent: string;
   frontmatter: Record<string, unknown> | null;
+  selection: string | null;
 }> = {}): unknown {
   const content = overrides.readContent ?? "";
   const frontmatter = overrides.frontmatter !== undefined ? overrides.frontmatter : null;
+  const selection = overrides.selection !== undefined ? overrides.selection : null;
 
   return {
     workspace: {
       getActiveFile: vi.fn(() => overrides.activeFile ?? null),
+      activeEditor: selection !== null
+        ? { editor: { getSelection: vi.fn(() => selection) } }
+        : null,
     },
     vault: {
       read: vi.fn(async () => content),
@@ -354,6 +359,52 @@ describe("CanvasAgent", () => {
   describe("CANVAS_FRONTMATTER_KEY constant", () => {
     it("matches the expected key name", () => {
       expect(CANVAS_FRONTMATTER_KEY).toBe("paper-agent");
+    });
+  });
+
+  describe("getActiveEditorSelection", () => {
+    it("returns the trimmed selection when text is selected", () => {
+      const app = makeApp({ selection: "  selected text  " }) as never;
+      const canvasAgent = new CanvasAgent(app);
+      expect(canvasAgent.getActiveEditorSelection()).toBe("selected text");
+    });
+
+    it("returns null when selection is an empty string", () => {
+      const app = makeApp({ selection: "" }) as never;
+      const canvasAgent = new CanvasAgent(app);
+      expect(canvasAgent.getActiveEditorSelection()).toBeNull();
+    });
+
+    it("returns null when selection is only whitespace", () => {
+      const app = makeApp({ selection: "   " }) as never;
+      const canvasAgent = new CanvasAgent(app);
+      expect(canvasAgent.getActiveEditorSelection()).toBeNull();
+    });
+
+    it("returns null when no editor is active", () => {
+      const app = makeApp() as never; // no activeEditor
+      const canvasAgent = new CanvasAgent(app);
+      expect(canvasAgent.getActiveEditorSelection()).toBeNull();
+    });
+  });
+
+  describe("buildSelectionPrompt", () => {
+    let canvasAgent: CanvasAgent;
+    beforeEach(() => {
+      canvasAgent = new CanvasAgent(makeApp() as never);
+    });
+
+    it("wraps selection with framing prompt", () => {
+      const selection = "Important paragraph to review.";
+      const prompt = canvasAgent.buildSelectionPrompt(selection);
+      expect(prompt).toContain("=== SELECTED TEXT ===");
+      expect(prompt).toContain("=== END ===");
+      expect(prompt).toContain(selection);
+    });
+
+    it("contains instruction about annotations", () => {
+      const prompt = canvasAgent.buildSelectionPrompt("some text");
+      expect(prompt.toLowerCase()).toMatch(/annot|feedback|review/i);
     });
   });
 });
