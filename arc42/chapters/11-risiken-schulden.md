@@ -29,8 +29,8 @@
 | TS9 | Parallele Tool-Calls im Agentic Loop | Mittel | Offen | Tool-Calls innerhalb einer Iteration werden sequenziell ausgeführt. Parallelisierung (z.B. mehrere websearch-Calls gleichzeitig) wäre für Deep-Research-Agenten nützlich |
 | TS10 | Summary-Memory für lange Loops | Niedrig | Offen | `memory.type: summary` für Agentic Loops: Zwischenzusammenfassungen statt vollständiger History reduzieren Token-Verbrauch bei sehr langen Loops |
 | TS11 | Kosten-Tracking pro Loop-Durchlauf | Niedrig | Offen | Token-Kosten pro Iteration tracken und in der UI anzeigen; aktuell keine Loop-spezifische Auswertung |
-| TS12 | Kognitive Komplexität `agent-parser.ts::parseFrontmatter` | Mittel | Offen | SonarQube S3776: Komplexität 34/15. `parseFrontmatter` wurde bereits auf `processTopLevelKey` aufgeteilt; vollständiges Refactoring erfordert weitere Zerlegung (~1 Tag) |
-| TS13 | Kognitive Komplexität `yaml-parser.ts::parseYAML` | Hoch | Offen | SonarQube S3776: Komplexität 74/15. `parseYAML` ist ein zustandsbehafteter YAML-Parser; vollständiges Refactoring auf mehrere Klassen/Methoden ist umfangreiche Arbeit (~2 Tage) |
+| TS12 | Kognitive Komplexität `agent-parser.ts::parseFrontmatter` | Mittel | Offen | SonarQube S3776 (AZyQ6SApmGxIOc1HzKkM): Komplexität 34/15. `parseFrontmatter` wurde bereits auf `processTopLevelKey` aufgeteilt; vollständiges Refactoring erfordert weitere Zerlegung (~1 Tag) |
+| TS13 | Kognitive Komplexität `yaml-parser.ts::parseYAML` | Hoch | Offen | SonarQube S3776 (AZzJ9xvjnpfnfw46DC0T): Komplexität 74/15. `parseYAML` ist ein zustandsbehafteter YAML-Parser; vollständiges Refactoring auf mehrere Klassen/Methoden ist umfangreiche Arbeit (~2 Tage) |
 
 ## 11.3 Behobene Schulden (seit v0.0.1)
 
