@@ -44,7 +44,7 @@ function makeStreamResponse(content: string | string[]): object {
 
 /** Build a mock SSE response that contains a single tool call followed by finish. */
 function makeToolCallStreamResponse(toolName: string, args: Record<string, unknown>): object {
-  const argsStr = JSON.stringify(args).replace(/"/g, '\\"');
+  const argsStr = JSON.stringify(args).replaceAll('"', String.raw`\"`);
   const lines = [
     `data: {"id":"gen","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call1","type":"function","function":{"name":"${toolName}","arguments":""}}]},"finish_reason":null}]}`,
     `data: {"id":"gen","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"${argsStr}"}}]},"finish_reason":null}]}`,

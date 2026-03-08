@@ -21,7 +21,7 @@ export interface WikilinkResolverOptions {
 }
 
 /** Regex, die alle [[...]] Wikilinks im Text findet. */
-const WIKILINK_REGEX = /\[\[([^\]\[]{1,1000})\]\]/g;
+const WIKILINK_REGEX = /\[\[([^\][]{1,1000})\]\]/g;
 
 const DEFAULT_MAX_DEPTH = 3;
 

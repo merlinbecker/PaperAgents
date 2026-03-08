@@ -94,7 +94,8 @@ export class YAMLParser {
 
       if (trimmed.startsWith("-")) {
         const state = { currentKey, currentArray, currentItem, inArray, inNestedObject, nestedObjectKey, nestedObject };
-        const existingArray = currentKey ? (Array.isArray(result[currentKey]) ? (result[currentKey] as unknown[]) : []) : [];
+        const currentKeyArray = currentKey && Array.isArray(result[currentKey]) ? (result[currentKey] as unknown[]) : [];
+        const existingArray = currentKey ? currentKeyArray : [];
         const next = this.processArrayItem(state, existingArray, trimmed, i, line, raise);
         ({ currentKey, currentArray, currentItem, inArray, inNestedObject, nestedObjectKey, nestedObject } = next);
         if (next.continue) continue;

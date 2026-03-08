@@ -26,6 +26,15 @@ interface LoopStepContext {
 }
 
 /**
+ * Trace context for chain step execution (S107: reduces parameter count)
+ */
+interface ChainTraceContext {
+  traceId: string;
+  parentSpanId: string;
+  executionId: string;
+}
+
+/**
  * HITL Decision Interface
  * Wird an UI-Layer für Benutzer-Bestätigung übergeben
  */
@@ -140,7 +149,8 @@ export class ToolExecutor {
 
       // ===== CHAIN-TOOL: Sequenzielle Step-Execution =====
       await this.executeChainSteps(
-        agent, toolRegistry, userParameters, stepOutputs, allLogs, traceId, agentSpan.spanId, executionId
+        agent, toolRegistry, userParameters, stepOutputs, allLogs,
+        { traceId, parentSpanId: agentSpan.spanId, executionId }
       );
 
       const duration = Date.now() - startTime;
@@ -192,10 +202,9 @@ export class ToolExecutor {
     userParameters: Record<string, unknown>,
     stepOutputs: Map<string, unknown>,
     allLogs: ToolExecution[],
-    traceId: string,
-    parentSpanId: string,
-    executionId: string
+    trace: ChainTraceContext
   ): Promise<void> {
+    const { traceId, parentSpanId, executionId } = trace;
     const steps = agent.steps || [];
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
