@@ -407,4 +407,209 @@ describe("CanvasAgent", () => {
       expect(prompt.toLowerCase()).toMatch(/annot|feedback|review/i);
     });
   });
+
+  // ── Phase 4 – Inline placement ─────────────────────────────────────────────
+
+  describe("parseInlinePlacement", () => {
+    let canvasAgent: CanvasAgent;
+    beforeEach(() => {
+      canvasAgent = new CanvasAgent(makeApp() as never);
+    });
+
+    it("returns null paragraphIndex and unchanged text when no hint is present", () => {
+      const result = canvasAgent.parseInlinePlacement("Just some response.");
+      expect(result.paragraphIndex).toBeNull();
+      expect(result.cleanedText).toBe("Just some response.");
+    });
+
+    it("parses @after-paragraph-3: from the start of the response", () => {
+      const result = canvasAgent.parseInlinePlacement("@after-paragraph-3: The annotation text.");
+      expect(result.paragraphIndex).toBe(3);
+      expect(result.cleanedText).toBe("The annotation text.");
+    });
+
+    it("parses hint with newline separator", () => {
+      const result = canvasAgent.parseInlinePlacement("@after-paragraph-1:\nFirst paragraph annotation.");
+      expect(result.paragraphIndex).toBe(1);
+      expect(result.cleanedText).toBe("First paragraph annotation.");
+    });
+
+    it("returns null for paragraph index 0 (must be >= 1)", () => {
+      const result = canvasAgent.parseInlinePlacement("@after-paragraph-0: bad hint");
+      expect(result.paragraphIndex).toBeNull();
+    });
+
+    it("returns null paragraphIndex when hint appears mid-text (not at start)", () => {
+      const result = canvasAgent.parseInlinePlacement("Some text @after-paragraph-2: more text");
+      expect(result.paragraphIndex).toBeNull();
+      expect(result.cleanedText).toBe("Some text @after-paragraph-2: more text");
+    });
+
+    it("is case-insensitive", () => {
+      const result = canvasAgent.parseInlinePlacement("@After-Paragraph-5: My note.");
+      expect(result.paragraphIndex).toBe(5);
+      expect(result.cleanedText).toBe("My note.");
+    });
+  });
+
+  describe("insertCalloutAfterParagraph", () => {
+    let canvasAgent: CanvasAgent;
+    beforeEach(() => {
+      canvasAgent = new CanvasAgent(makeApp() as never);
+    });
+
+    it("inserts callout after paragraph 1", () => {
+      const doc = "Para 1.\n\nPara 2.\n\nPara 3.";
+      const callout = "\n<!-- callout -->\n> text\n";
+      const result = canvasAgent.insertCalloutAfterParagraph(doc, callout, 1);
+      expect(result.indexOf("Para 1.")).toBeLessThan(result.indexOf("<!-- callout -->"));
+      expect(result.indexOf("<!-- callout -->")).toBeLessThan(result.indexOf("Para 2."));
+    });
+
+    it("inserts callout after paragraph 2", () => {
+      const doc = "Para 1.\n\nPara 2.\n\nPara 3.";
+      const callout = "\n<!-- callout -->\n> text\n";
+      const result = canvasAgent.insertCalloutAfterParagraph(doc, callout, 2);
+      expect(result.indexOf("Para 2.")).toBeLessThan(result.indexOf("<!-- callout -->"));
+      expect(result.indexOf("<!-- callout -->")).toBeLessThan(result.indexOf("Para 3."));
+    });
+
+    it("appends at end when paragraphIndex exceeds paragraph count", () => {
+      const doc = "Only one paragraph.";
+      const callout = "\n<!-- callout -->\n> text\n";
+      const result = canvasAgent.insertCalloutAfterParagraph(doc, callout, 99);
+      expect(result).toBe(doc + callout);
+    });
+
+    it("preserves all original content", () => {
+      const doc = "A.\n\nB.\n\nC.";
+      const callout = "\n<!-- callout -->\n> note\n";
+      const result = canvasAgent.insertCalloutAfterParagraph(doc, callout, 2);
+      expect(result).toContain("A.");
+      expect(result).toContain("B.");
+      expect(result).toContain("C.");
+      expect(result).toContain("<!-- callout -->");
+    });
+  });
+
+  describe("appendAgentCallout with inline placement hint", () => {
+    it("appends at end when no placement hint is present", async () => {
+      const originalContent = "# Doc\n\nSome content.";
+      const app = makeApp({ readContent: originalContent }) as never;
+      const canvasAgent = new CanvasAgent(app);
+
+      const fakeFile = { extension: "md" } as never;
+      await canvasAgent.appendAgentCallout(fakeFile, "Bot", "Normal response.");
+
+      const vault = (app as { vault: { modify: ReturnType<typeof vi.fn> } }).vault;
+      const writtenContent = vault.modify.mock.calls[0]?.[1] as string;
+      expect(writtenContent.endsWith("Normal response.\n")).toBe(true);
+    });
+
+    it("inserts callout inline when @after-paragraph-1: hint is present", async () => {
+      const originalContent = "Paragraph 1.\n\nParagraph 2.";
+      let storedContent = originalContent;
+      const modifyMock = vi.fn(async (_f: unknown, c: string) => { storedContent = c; });
+      const readMock = vi.fn(async () => storedContent);
+      const app = {
+        workspace: { getActiveFile: vi.fn(() => null), activeEditor: null },
+        vault: { read: readMock, modify: modifyMock },
+        metadataCache: { getFileCache: vi.fn(() => null) },
+      } as never;
+      const canvasAgent = new CanvasAgent(app);
+
+      const fakeFile = {} as never;
+      await canvasAgent.appendAgentCallout(fakeFile, "Bot", "@after-paragraph-1: Note on first para.");
+
+      expect(storedContent.indexOf("Paragraph 1.")).toBeLessThan(storedContent.indexOf("Note on first para."));
+      expect(storedContent.indexOf("Note on first para.")).toBeLessThan(storedContent.indexOf("Paragraph 2."));
+    });
+
+    it("returns callout text without the placement hint", async () => {
+      const app = makeApp({ readContent: "Para 1.\n\nPara 2." }) as never;
+      const canvasAgent = new CanvasAgent(app);
+      const fakeFile = {} as never;
+      const calloutText = await canvasAgent.appendAgentCallout(fakeFile, "Bot", "@after-paragraph-1: Note.");
+      expect(calloutText).not.toContain("@after-paragraph-1:");
+      expect(calloutText).toContain("Note.");
+    });
+  });
+
+  // ── Phase 4 – Diff view ────────────────────────────────────────────────────
+
+  describe("extractCanvasCallouts", () => {
+    let canvasAgent: CanvasAgent;
+    beforeEach(() => {
+      canvasAgent = new CanvasAgent(makeApp() as never);
+    });
+
+    it("returns empty array when no canvas callouts are present", () => {
+      const doc = "# Title\n\nNormal content.";
+      expect(canvasAgent.extractCanvasCallouts(doc)).toHaveLength(0);
+    });
+
+    it("extracts a single agent callout", () => {
+      const doc = [
+        "# Doc",
+        "",
+        CANVAS_MARKER,
+        "> [!note] 🤖 Agent: Bot *(2026-01-01T10:00:00Z)*",
+        ">",
+        "> Some feedback.",
+        "",
+        "Footer.",
+      ].join("\n");
+
+      const callouts = canvasAgent.extractCanvasCallouts(doc);
+      expect(callouts).toHaveLength(1);
+      expect(callouts[0]?.type).toBe("agent");
+      expect(callouts[0]?.body).toContain("Some feedback.");
+    });
+
+    it("extracts both agent and user callouts", () => {
+      const doc = [
+        "Doc text.",
+        CANVAS_MARKER,
+        "> [!note] 🤖 Agent: Bot *(2026-01-01T10:00:00Z)*",
+        ">",
+        "> Agent response.",
+        "",
+        CANVAS_MARKER,
+        "> [!question] 👤 User *(2026-01-01T10:01:00Z)*",
+        ">",
+        "> User reply.",
+      ].join("\n");
+
+      const callouts = canvasAgent.extractCanvasCallouts(doc);
+      expect(callouts).toHaveLength(2);
+      expect(callouts[0]?.type).toBe("agent");
+      expect(callouts[1]?.type).toBe("user");
+    });
+
+    it("extracts title text without '> ' prefix", () => {
+      const doc = [
+        CANVAS_MARKER,
+        "> [!note] 🤖 Agent: Research Bot *(2026-01-01T00:00:00Z)*",
+        ">",
+        "> Content.",
+      ].join("\n");
+
+      const callouts = canvasAgent.extractCanvasCallouts(doc);
+      expect(callouts[0]?.title).toBe("[!note] 🤖 Agent: Research Bot *(2026-01-01T00:00:00Z)*");
+    });
+  });
+
+  // ── Phase 4 – buildInitialPrompt includes placement hint instructions ──────
+
+  describe("buildInitialPrompt (Phase 4 update)", () => {
+    let canvasAgent: CanvasAgent;
+    beforeEach(() => {
+      canvasAgent = new CanvasAgent(makeApp() as never);
+    });
+
+    it("mentions @after-paragraph-N: placement hint syntax", () => {
+      const prompt = canvasAgent.buildInitialPrompt("# Doc\n\nContent.");
+      expect(prompt).toContain("@after-paragraph-N:");
+    });
+  });
 });
