@@ -1796,3 +1796,121 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Phase 4: Diff view ───────────────────────────────────────────────────── */
+
+.pa-canvas-diff-section {
+  margin-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 10px;
+}
+
+.pa-canvas-diff-btn {
+  background: none;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 4px 12px;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.pa-canvas-diff-btn:hover {
+  background: var(--background-secondary);
+  color: var(--text-normal);
+}
+
+.pa-canvas-diff-content {
+  margin-top: 10px;
+}
+
+.pa-canvas-diff-header {
+  margin-bottom: 8px;
+}
+
+.pa-canvas-diff-stats {
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+
+.pa-canvas-diff-empty {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.pa-canvas-diff-error {
+  color: var(--text-error);
+  font-size: 0.85em;
+}
+
+.pa-canvas-diff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pa-canvas-diff-callout {
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: var(--background-secondary);
+  border-left: 3px solid var(--color-accent);
+  font-size: 0.85em;
+}
+
+.pa-canvas-diff-callout-title {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.pa-canvas-diff-callout-body {
+  margin: 0;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
+/* ── Phase 5: Multi-agent canvas ─────────────────────────────────────────── */
+
+.pa-canvas-multi-toggle-row {
+  margin-bottom: 10px;
+}
+
+.pa-canvas-multi-toggle-label {
+  font-size: 0.9em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pa-canvas-multi-agent {
+  margin-bottom: 10px;
+}
+
+.pa-canvas-multi-hint {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  margin: 0 0 6px 0;
+}
+
+.pa-canvas-agent-checkbox-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 0.9em;
+}
+
+.pa-canvas-agent-checkbox-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.pa-canvas-agent-separator {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 8px 0;
+  font-style: italic;
+}

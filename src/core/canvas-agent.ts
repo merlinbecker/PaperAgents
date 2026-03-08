@@ -108,7 +108,10 @@ export class CanvasAgent {
   buildInitialPrompt(documentContent: string): string {
     return (
       "You are reviewing the following document. Provide annotations, feedback, or analysis. " +
-      "When referencing a specific part of the document, quote it briefly.\n\n" +
+      "When referencing a specific part of the document, quote it briefly. " +
+      "To place your annotation after a specific paragraph, start your response with " +
+      "`@after-paragraph-N:` (e.g., `@after-paragraph-3:`) on the first line. " +
+      "Otherwise your annotation will be appended at the end of the document.\n\n" +
       "=== DOCUMENT ===\n" +
       documentContent +
       "\n=== END ==="
@@ -121,11 +124,22 @@ export class CanvasAgent {
 
   /**
    * Appends an agent-response callout block to the given file.
+   * If the responseText starts with an `@after-paragraph-N:` hint, the callout
+   * is inserted after paragraph N instead of being appended at the end.
    * Returns the exact callout text that was appended (can be used to remove it later).
    */
   async appendAgentCallout(file: TFile, agentName: string, responseText: string): Promise<string> {
-    const callout = this.formatAgentCallout(agentName, responseText);
-    await this.appendToFile(file, callout);
+    const { paragraphIndex, cleanedText } = this.parseInlinePlacement(responseText);
+    const callout = this.formatAgentCallout(agentName, cleanedText);
+
+    if (paragraphIndex !== null) {
+      const current = await this.app.vault.read(file);
+      const updated = this.insertCalloutAfterParagraph(current, callout, paragraphIndex);
+      await this.app.vault.modify(file, updated);
+    } else {
+      await this.appendToFile(file, callout);
+    }
+
     return callout;
   }
 
@@ -255,4 +269,133 @@ export class CanvasAgent {
   resolveAgent(agentId: string, agents: AgentDefinition[]): AgentDefinition | null {
     return agents.find((a) => a.id === agentId) ?? null;
   }
+
+  // ============================================================================
+  // Inline placement (Phase 4)
+  // ============================================================================
+
+  /**
+   * Parses an inline placement hint from an agent response.
+   *
+   * Hints take the form `@after-paragraph-N:` at the very start of the
+   * response (optionally followed by a newline). N must be a positive integer.
+   *
+   * Returns `{ paragraphIndex: N, cleanedText }` when a valid hint is found,
+   * or `{ paragraphIndex: null, cleanedText: responseText }` when there is no
+   * hint or the hint is malformed.
+   */
+  parseInlinePlacement(responseText: string): { paragraphIndex: number | null; cleanedText: string } {
+    const match = /^@after-paragraph-(\d+):\s*/i.exec(responseText);
+    if (!match || !match[1]) {
+      return { paragraphIndex: null, cleanedText: responseText };
+    }
+    const paragraphIndex = parseInt(match[1], 10);
+    if (!Number.isFinite(paragraphIndex) || paragraphIndex < 1) {
+      return { paragraphIndex: null, cleanedText: responseText };
+    }
+    return { paragraphIndex, cleanedText: responseText.slice(match[0].length) };
+  }
+
+  /**
+   * Inserts a callout block after the N-th paragraph in the document content.
+   *
+   * Paragraphs are counted as consecutive non-blank lines separated by blank
+   * lines (similar to how Markdown renders). If `paragraphIndex` is larger
+   * than the number of paragraphs, the callout is appended to the end.
+   *
+   * The `calloutText` is expected to start with `\n` (as produced by
+   * `formatAgentCallout`), so the insertion is seamless.
+   */
+  insertCalloutAfterParagraph(content: string, calloutText: string, paragraphIndex: number): string {
+    const lines = content.split("\n");
+    let currentParagraph = 0;
+    let inParagraph = false;
+    let targetLastLine = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i] ?? "";
+      const isBlank = line.trim() === "";
+
+      if (!isBlank && !inParagraph) {
+        inParagraph = true;
+        currentParagraph++;
+      }
+
+      if (inParagraph && !isBlank && currentParagraph === paragraphIndex) {
+        targetLastLine = i; // updated on each non-blank line of the target paragraph
+      }
+
+      if (isBlank && inParagraph) {
+        inParagraph = false;
+        if (currentParagraph === paragraphIndex) {
+          break; // end of the target paragraph found
+        }
+      }
+    }
+
+    // If paragraphIndex exceeds the number of paragraphs, fall back to append
+    if (currentParagraph < paragraphIndex || targetLastLine === -1) {
+      return content + calloutText;
+    }
+
+    const before = lines.slice(0, targetLastLine + 1).join("\n");
+    const after = lines.slice(targetLastLine + 1).join("\n");
+    // calloutText starts with \n; after starts with the separator lines
+    return before + calloutText + after;
+  }
+
+  // ============================================================================
+  // Diff view helpers (Phase 4)
+  // ============================================================================
+
+  /**
+   * Extracts all canvas callout blocks from document content.
+   *
+   * Returns an array of objects describing each callout:
+   *  - `type`: `"agent"` for `[!note]` callouts, `"user"` for `[!question]` callouts
+   *  - `raw`: the full callout string including marker
+   *  - `title`: the callout title line (without `> `)
+   *  - `body`: the body text of the callout (lines with `> ` prefix stripped)
+   */
+  extractCanvasCallouts(content: string): Array<{ type: "agent" | "user"; raw: string; title: string; body: string }> {
+    const result: Array<{ type: "agent" | "user"; raw: string; title: string; body: string }> = [];
+    const lines = content.split("\n");
+    let blockLines: string[] = [];
+    let inBlock = false;
+
+    const flushBlock = () => {
+      if (!inBlock || blockLines.length === 0) return;
+      const raw = blockLines.join("\n");
+      const titleLine = blockLines.find((l) => l.startsWith("> [!")) ?? "";
+      const title = titleLine.replace(/^> /, "");
+      const bodyLines = blockLines
+        .filter((l) => l.startsWith("> ") && !l.startsWith("> [!") && l !== ">")
+        .map((l) => l.replace(/^> /, ""));
+      const body = bodyLines.join("\n");
+      const type: "agent" | "user" = title.includes("[!question]") ? "user" : "agent";
+      result.push({ type, raw, title, body });
+      blockLines = [];
+      inBlock = false;
+    };
+
+    for (const line of lines) {
+      if (line.trim() === CANVAS_MARKER) {
+        flushBlock();
+        inBlock = true;
+        blockLines = [line];
+        continue;
+      }
+      if (inBlock) {
+        if (line.startsWith(">") || line.trim() === "") {
+          blockLines.push(line);
+        } else {
+          flushBlock();
+        }
+      }
+    }
+    flushBlock();
+
+    return result;
+  }
 }
+

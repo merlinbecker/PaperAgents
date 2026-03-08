@@ -22,10 +22,13 @@ export class CanvasModal extends Modal {
   private readonly getOrchestrator: () => Orchestrator | null;
 
   private selectedAgent: AgentDefinition | null = null;
+  private selectedAgents: AgentDefinition[] = [];
+  private multiAgentMode = false;
   private activeFile: TFile | null = null;
   private activeSelection: string | null = null;
   private conversationId: string | null = null;
   private isStreaming = false;
+  private originalDocumentContent: string | null = null;
 
   // UI elements
   private agentSelectEl: HTMLSelectElement | null = null;
@@ -35,6 +38,7 @@ export class CanvasModal extends Modal {
   private responseContainer: HTMLElement | null = null;
   private streamingEl: HTMLElement | null = null;
   private conversationPanel: HTMLElement | null = null;
+  private diffSection: HTMLElement | null = null;
 
   constructor(
     app: App,
@@ -106,6 +110,7 @@ export class CanvasModal extends Modal {
       const resolved = this.canvasAgent.resolveAgent(autoAgentId, this.agents);
       if (resolved) {
         this.selectedAgent = resolved;
+        this.selectedAgents = [resolved];
         section.createEl("p", {
           cls: "pa-canvas-auto-agent",
           text: `Agent from frontmatter: ${resolved.name}`,
@@ -123,26 +128,82 @@ export class CanvasModal extends Modal {
       return;
     }
 
-    // Manual agent selection
-    const row = section.createDiv({ cls: "pa-canvas-agent-row" });
-    row.createEl("label", { text: "Select agent:", attr: { for: "pa-canvas-agent-select" } });
-
-    this.agentSelectEl = row.createEl("select", { cls: "pa-canvas-agent-select" });
-    this.agentSelectEl.id = "pa-canvas-agent-select";
-
-    for (const agent of this.agents) {
-      const opt = this.agentSelectEl.createEl("option", { text: agent.name, value: agent.id });
-      opt.value = agent.id;
+    // Multi-agent toggle (only when there are multiple agents)
+    if (this.agents.length > 1) {
+      const toggleRow = section.createDiv({ cls: "pa-canvas-multi-toggle-row" });
+      const toggleLabel = toggleRow.createEl("label", { cls: "pa-canvas-multi-toggle-label" });
+      const toggleCheckbox = toggleLabel.createEl("input", { type: "checkbox" });
+      toggleCheckbox.type = "checkbox";
+      toggleLabel.appendText(" Multi-agent mode");
+      toggleCheckbox.addEventListener("change", () => {
+        this.multiAgentMode = toggleCheckbox.checked;
+        this.renderAgentSelectionBody(section, singleRow, multiRow);
+      });
     }
 
-    this.selectedAgent = this.agents[0] ?? null;
+    const singleRow = section.createDiv({ cls: "pa-canvas-agent-row" });
+    const multiRow = section.createDiv({ cls: "pa-canvas-multi-agent" });
 
-    this.agentSelectEl.addEventListener("change", () => {
-      const id = this.agentSelectEl?.value ?? "";
-      this.selectedAgent = this.canvasAgent.resolveAgent(id, this.agents);
-    });
+    this.renderAgentSelectionBody(section, singleRow, multiRow);
 
     this.renderStartButton(section);
+  }
+
+  private renderAgentSelectionBody(
+    _section: HTMLElement,
+    singleRow: HTMLElement,
+    multiRow: HTMLElement
+  ): void {
+    singleRow.empty();
+    multiRow.empty();
+
+    if (this.multiAgentMode) {
+      singleRow.style.display = "none";
+      multiRow.style.display = "block";
+
+      // Checkbox list for every agent
+      multiRow.createEl("p", { cls: "pa-canvas-multi-hint", text: "Select agents to run sequentially:" });
+      this.selectedAgents = [];
+
+      for (const agent of this.agents) {
+        const row = multiRow.createDiv({ cls: "pa-canvas-agent-checkbox-row" });
+        const lbl = row.createEl("label");
+        const cb = lbl.createEl("input", { type: "checkbox" });
+        cb.type = "checkbox";
+        lbl.appendText(` ${agent.name}`);
+
+        cb.addEventListener("change", () => {
+          if (cb.checked) {
+            this.selectedAgents.push(agent);
+          } else {
+            this.selectedAgents = this.selectedAgents.filter((a) => a.id !== agent.id);
+          }
+        });
+      }
+
+      // In multi-agent mode selectedAgent is unused; we use selectedAgents
+      this.selectedAgent = null;
+    } else {
+      singleRow.style.display = "flex";
+      multiRow.style.display = "none";
+
+      singleRow.createEl("label", { text: "Select agent:", attr: { for: "pa-canvas-agent-select" } });
+      this.agentSelectEl = singleRow.createEl("select", { cls: "pa-canvas-agent-select" });
+      this.agentSelectEl.id = "pa-canvas-agent-select";
+
+      for (const agent of this.agents) {
+        this.agentSelectEl.createEl("option", { text: agent.name, value: agent.id });
+      }
+
+      this.selectedAgent = this.agents[0] ?? null;
+      this.selectedAgents = this.selectedAgent ? [this.selectedAgent] : [];
+
+      this.agentSelectEl.addEventListener("change", () => {
+        const id = this.agentSelectEl?.value ?? "";
+        this.selectedAgent = this.canvasAgent.resolveAgent(id, this.agents);
+        this.selectedAgents = this.selectedAgent ? [this.selectedAgent] : [];
+      });
+    }
   }
 
   private renderStartButton(container: HTMLElement): void {
@@ -152,7 +213,13 @@ export class CanvasModal extends Modal {
       cls: "pa-canvas-start-btn mod-cta",
       text: label,
     });
-    this.startBtn.addEventListener("click", () => { void this.startSession(); });
+    this.startBtn.addEventListener("click", () => {
+      if (this.multiAgentMode) {
+        void this.startMultiAgentSession();
+      } else {
+        void this.startSession();
+      }
+    });
   }
 
   private renderConversationPanel(): void {
@@ -179,6 +246,10 @@ export class CanvasModal extends Modal {
       text: "Send (Ctrl+Enter)",
     });
     this.sendBtn.addEventListener("click", () => { void this.sendFollowUp(); });
+
+    // Diff section (hidden until session started)
+    this.diffSection = this.contentEl.createDiv({ cls: "pa-canvas-diff-section" });
+    this.diffSection.style.display = "none";
   }
 
   // ============================================================================
@@ -215,6 +286,7 @@ export class CanvasModal extends Modal {
         initialPrompt = this.canvasAgent.buildSelectionPrompt(this.activeSelection);
       } else {
         const content = await this.canvasAgent.readFile(this.activeFile);
+        this.originalDocumentContent = content;
         const docContext = this.canvasAgent.buildDocumentContext(content);
         initialPrompt = this.canvasAgent.buildInitialPrompt(docContext);
       }
@@ -223,10 +295,11 @@ export class CanvasModal extends Modal {
       const conversation = this.conversationManager.createConversation(this.selectedAgent.id);
       this.conversationId = conversation.id;
 
-      // Show conversation panel
+      // Show conversation panel and diff button
       if (this.conversationPanel) {
         this.conversationPanel.style.display = "block";
       }
+      this.renderDiffButton();
 
       await this.sendToAgent(orchestrator, initialPrompt);
     } catch (error) {
@@ -237,6 +310,72 @@ export class CanvasModal extends Modal {
       if (this.startBtn) {
         this.startBtn.disabled = false;
         this.startBtn.textContent = "Start canvas session";
+      }
+    }
+  }
+
+  /**
+   * Runs all selected agents sequentially against the active document.
+   * Each agent gets its own conversation and appends its callouts independently.
+   */
+  private async startMultiAgentSession(): Promise<void> {
+    const orchestrator = this.getOrchestrator();
+
+    if (!orchestrator) {
+      new Notice("No orchestrator available. Please configure your OpenRouter API key in settings.");
+      return;
+    }
+
+    if (this.selectedAgents.length === 0) {
+      new Notice("Please select at least one agent.");
+      return;
+    }
+
+    if (!this.activeFile) {
+      new Notice("No active document. Open a Markdown file first.");
+      return;
+    }
+
+    if (this.startBtn) {
+      this.startBtn.disabled = true;
+      this.startBtn.textContent = "Running…";
+    }
+
+    try {
+      const content = await this.canvasAgent.readFile(this.activeFile);
+      this.originalDocumentContent = content;
+      const docContext = this.canvasAgent.buildDocumentContext(content);
+
+      // Show conversation panel
+      if (this.conversationPanel) {
+        this.conversationPanel.style.display = "block";
+      }
+      this.renderDiffButton();
+
+      // Run each selected agent sequentially
+      for (const agent of this.selectedAgents) {
+        const initialPrompt = this.canvasAgent.buildInitialPrompt(docContext);
+        const conversation = this.conversationManager.createConversation(agent.id);
+        this.conversationId = conversation.id;
+        this.selectedAgent = agent;
+
+        if (this.responseContainer) {
+          this.responseContainer.createEl("p", {
+            cls: "pa-canvas-agent-separator",
+            text: `── Running: ${agent.name} ──`,
+          });
+        }
+
+        await this.sendToAgent(orchestrator, initialPrompt);
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      new Notice(`Multi-agent session failed: ${msg}`);
+      globalLogger.error("Multi-agent canvas error", { error: msg });
+    } finally {
+      if (this.startBtn) {
+        this.startBtn.disabled = false;
+        this.startBtn.textContent = "Run all agents";
       }
     }
   }
@@ -375,6 +514,85 @@ export class CanvasModal extends Modal {
       const msg = error instanceof Error ? error.message : String(error);
       new Notice(`Failed to remove callout: ${msg}`);
       globalLogger.error("Canvas dismissal error", { error: msg });
+    }
+  }
+
+  /**
+   * Renders the "📊 View diff" button that toggles the diff section.
+   * Called once when the session starts.
+   */
+  private renderDiffButton(): void {
+    if (!this.diffSection) return;
+    this.diffSection.style.display = "block";
+    this.diffSection.empty();
+
+    const btn = this.diffSection.createEl("button", {
+      cls: "pa-canvas-diff-btn",
+      text: "📊 View diff",
+      attr: { title: "Show annotations added to the document" },
+    });
+
+    const diffContent = this.diffSection.createDiv({ cls: "pa-canvas-diff-content" });
+    diffContent.style.display = "none";
+
+    btn.addEventListener("click", () => {
+      if (diffContent.style.display === "none") {
+        diffContent.style.display = "block";
+        btn.textContent = "📊 Hide diff";
+        void this.renderDiffView(diffContent);
+      } else {
+        diffContent.style.display = "none";
+        btn.textContent = "📊 View diff";
+      }
+    });
+  }
+
+  /**
+   * Reads the current document and renders a summary of added annotations
+   * (all canvas callout blocks) compared to the original content.
+   */
+  private async renderDiffView(container: HTMLElement): Promise<void> {
+    container.empty();
+
+    if (!this.activeFile) return;
+
+    let currentContent: string;
+    try {
+      currentContent = await this.canvasAgent.readFile(this.activeFile);
+    } catch {
+      container.createEl("p", { text: "Could not read document.", cls: "pa-canvas-diff-error" });
+      return;
+    }
+
+    const callouts = this.canvasAgent.extractCanvasCallouts(currentContent);
+    const originalLines = this.originalDocumentContent
+      ? this.canvasAgent.buildDocumentContext(this.originalDocumentContent).split("\n").length
+      : 0;
+    const currentLines = this.canvasAgent.buildDocumentContext(currentContent).split("\n").length;
+
+    const header = container.createDiv({ cls: "pa-canvas-diff-header" });
+    header.createEl("span", {
+      cls: "pa-canvas-diff-stats",
+      text: `Original: ${originalLines} lines → Current: ${currentLines} lines   |   Annotations added: ${callouts.length}`,
+    });
+
+    if (callouts.length === 0) {
+      container.createEl("p", {
+        cls: "pa-canvas-diff-empty",
+        text: "No annotations in document yet.",
+      });
+      return;
+    }
+
+    const list = container.createDiv({ cls: "pa-canvas-diff-list" });
+    for (const callout of callouts) {
+      const item = list.createDiv({ cls: "pa-canvas-diff-callout" });
+      const icon = callout.type === "agent" ? "🤖" : "👤";
+      item.createEl("strong", { cls: "pa-canvas-diff-callout-title", text: `${icon} ${callout.title}` });
+      if (callout.body) {
+        const preview = callout.body.length > 120 ? callout.body.slice(0, 120) + "…" : callout.body;
+        item.createEl("p", { cls: "pa-canvas-diff-callout-body", text: preview });
+      }
     }
   }
 

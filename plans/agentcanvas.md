@@ -55,6 +55,9 @@ Obsidian's native **callout** blocks (`> [!note] …`) are the ideal representat
   ```
   You are reviewing the following document. Provide annotations, feedback, or analysis.
   When referencing a specific part of the document, quote it briefly.
+  To place your annotation after a specific paragraph, start your response with
+  `@after-paragraph-N:` (e.g., `@after-paragraph-3:`) on the first line.
+  Otherwise your annotation will be appended at the end of the document.
 
   === DOCUMENT ===
   {document_content}
@@ -92,6 +95,33 @@ Obsidian's native **callout** blocks (`> [!note] …`) are the ideal representat
 
 - Agent tokens stream into the modal in real-time.
 - The callout is inserted into the document only once the full response is complete (to avoid partial writes).
+
+### FR-7: Inline placement hints (Phase 4)
+
+- The agent can include `@after-paragraph-N:` at the very beginning of its response to indicate where the callout should be inserted.
+- Example: `@after-paragraph-3: Your annotation here.` inserts the callout after paragraph 3.
+- The `buildInitialPrompt` includes instructions about the hint syntax so the model can use it.
+- `CanvasAgent.parseInlinePlacement(responseText)` strips the hint and returns the paragraph index.
+- `CanvasAgent.insertCalloutAfterParagraph(content, calloutText, N)` inserts the formatted callout after the N-th paragraph.
+- If the index is out of range or no hint is present, the callout is appended at the end (existing behaviour unchanged).
+
+### FR-8: Document diff view (Phase 4)
+
+- After the first agent response is written to the document, a **📊 View diff** button appears below the conversation panel.
+- Clicking the button reveals a collapsible diff section showing:
+  - Original vs. current document line counts (excluding canvas callouts).
+  - A list of all canvas callout blocks (agent and user) that have been added, with their title and a truncated body preview.
+- `CanvasAgent.extractCanvasCallouts(content)` returns structured metadata for each callout block.
+
+### FR-9: Multi-agent canvas (Phase 5)
+
+- When two or more agents are loaded, a **Multi-agent mode** checkbox appears in the agent-selection section.
+- When enabled, all agents are shown as individual checkboxes.
+- Clicking **Start canvas session** (or **Run all agents**) runs each selected agent **sequentially**:
+  1. Each agent gets its own `ConversationManager` conversation.
+  2. The same document context (without prior canvas callouts) is sent to every agent.
+  3. Each agent's response is appended as a separate callout block.
+- A visual separator (`── Running: <Agent Name> ──`) appears in the conversation panel between agents.
 
 ---
 
@@ -187,15 +217,20 @@ When `paper-agent` is found in the frontmatter, the agent selection step is skip
 - [x] Previous callouts are excluded from subsequent context builds.
 - [x] Streaming tokens are visible in the modal while the response is generated.
 - [x] Graceful error handling: no API key → Notice; no agents loaded → Notice.
+- [x] Callout-dismissal: 🗑️-Button im Modal entfernt den Callout aus Dokument und Modal.
+- [x] Selektions-Kontext: Wenn Text selektiert ist, wird nur die Selektion als Kontext gesendet.
+- [x] Inline placement: Agent response starting with `@after-paragraph-N:` is inserted after paragraph N.
+- [x] Document diff view: 📊 button reveals a list of all added callouts with title/body preview.
+- [x] Multi-agent canvas: Multi-agent mode checkbox, sequential agent execution, visual agent separator.
 
 ---
 
 ## Future Enhancements
 
-- **Inline placement**: Use a special markup in the agent response to indicate where to insert the callout (e.g., `@after-paragraph-3:`).
+- **Inline placement**: Use a special markup in the agent response to indicate where to insert the callout (e.g., `@after-paragraph-3:`). ✅ *Implemented in Phase 4*
 - **Callout dismissal**: Allow users to delete individual agent callouts with a button. ✅ *Implemented in Phase 2*
-- **Document diff view**: Show a side-by-side diff of the original document and the agent-annotated version.
-- **Multi-agent canvas**: Support running multiple agents on the same document and merging their annotations.
+- **Document diff view**: Show a side-by-side diff of the original document and the agent-annotated version. ✅ *Implemented in Phase 4*
+- **Multi-agent canvas**: Support running multiple agents on the same document and merging their annotations. ✅ *Implemented in Phase 5*
 - **Selection-scoped context**: User selects text before triggering the command; only that selection is sent to the agent. ✅ *Implemented in Phase 3*
 
 ---
@@ -207,5 +242,5 @@ When `paper-agent` is found in the frontmatter, the agent selection step is skip
 | **Phase 1** | Core implementation: command, modal, callout injection, frontmatter support | ✅ Fertig |
 | **Phase 2** | Callout dismissal (🗑️-Button) | ✅ Fertig |
 | **Phase 3** | Selection-scoped context | ✅ Fertig |
-| **Phase 4** | Inline placement hints, document diff view | 🔲 Offen |
-| **Phase 5** | Multi-agent canvas | 🔲 Offen |
+| **Phase 4** | Inline placement hints (`@after-paragraph-N:`), document diff view (📊) | ✅ Fertig |
+| **Phase 5** | Multi-agent canvas (sequential execution, agent checkboxes) | ✅ Fertig |
