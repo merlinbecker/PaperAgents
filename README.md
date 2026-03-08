@@ -1,8 +1,8 @@
 # Paper Agents
 
-**Obsidian Plugin for Agent and Tool Workflows in Markdown**
+**Obsidian Plugin für KI-Agenten und Tool-Workflows – direkt in Markdown**
 
-![Version](https://img.shields.io/badge/version-0.0.26-blue)
+![Version](https://img.shields.io/badge/version-0.0.53-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=merlinbecker_PaperAgents&metric=alert_status)](https://sonarcloud.io/project/overview?id=merlinbecker_PaperAgents)
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=merlinbecker_PaperAgents&metric=bugs)](https://sonarcloud.io/project/overview?id=merlinbecker_PaperAgents)
@@ -17,79 +17,80 @@
 
 ---
 
-## Projektübersicht
+## Was ist Paper Agents?
 
-**Paper Agents** ist ein Obsidian-Plugin, das Entwicklern ermöglicht, **Agenten und Tools in Markdown zu definieren, zu testen und auszuführen**. Das Plugin kombiniert die Einfachheit von Markdown mit der Leistungsfähigkeit von AI-Agenten und Workflow-Automatisierung.
-
-### Kernziele
-
-- **Markdown-native Definition**: Agenten und Tools werden strukturiert in Markdown-Dateien beschrieben
-- **Ausführung und Interaktion**: Parsing, Tool-Ausführung (inkl. Pre-/Post-Processing in Sandbox) und Agenten-Interaktion
-- **OpenRouter-Integration**: API-basierte Kommunikation mit LLMs inkl. Streaming und Tool-Calling
-- **Entwicklerfreundlichkeit**: Playground für Experimente mit Fokus auf Flexibilität
-- **Kontinuierliche Entwicklung**: Verteilung über BRAT-Plugin-Beta-Releases
-
-### Designphilosophie
+**Paper Agents** verwandelt Obsidian in einen vollwertigen KI-Agenten-Sandbox. Agenten, Tools und Workflows werden direkt in Markdown-Dateien definiert – ohne externe Konfigurationstools, ohne komplizierte Frameworks. Einfach schreiben, sofort testen.
 
 > *"Wenn du einen Agenten nicht auf Papier skizzieren kannst, verstehst du ihn nicht. Wenn du ihn nicht in 30 Sekunden testen kannst, ist es kein Tool – es ist eine Karriere."*
-
-Paper Agents verfolgt einen **pragmatischen Ansatz** ohne komplexe Frameworks. Der Fokus liegt auf **Experimentation** – nicht auf Produktivsystemen.
-
-> Siehe [arc42/chapters/INDEX.md](arc42/chapters/INDEX.md) für die vollständige Architekturdokumentation.
 
 ---
 
 ## Features
 
-### Implementiert (v0.0.2)
+### 🖊️ Agent Canvas – KI direkt ins Dokument
 
-**Tool-Engine:**
-- Markdown-Native Tool-Definitionen via YAML Frontmatter
-- 4 Vordefinierte Tools: `search_files`, `read_file`, `write_file`, `rest_request`
-- Pre-/Post-Processing in QuickJS-WASM-Sandbox (10 MB Memory, 5 s Timeout)
-- Custom Tool Support mit automatischer Discovery
-- Human-in-the-Loop (HITL) für kritische Operationen
-- Chain-Tools mit Placeholder-Support
+Das **Highlight-Feature**: Öffne ein beliebiges Markdown-Dokument, wähle einen Agenten und lass ihn dein Dokument annotieren. Agenten-Antworten erscheinen als native Obsidian-Callouts direkt im Text – strukturiert, durchsuchbar, dauerhaft.
 
-**LLM-Integration (OpenRouter):**
-- OpenRouter API-Client mit SSE-Streaming (Token-by-Token-Ausgabe)
-- Tool-Calling-Protokoll (OpenAI-kompatibel)
-- Rate-Limiting und Retry-Logik (429, 500, 502, 503)
-- Multi-Modell-Support (konfigurierbar in Settings)
-- API-Key-Validierung
-- WebSearch Plugin: serverseitige Web-Suche via OpenRouter (aktiviert per `websearch` Tool in Agent-Definition, Quellenangaben im Chat)
+- **Dokumentenkontext**: Der Agent analysiert das gesamte aktive Dokument
+- **Textselektion**: Markiere einen Abschnitt und lass nur diesen kommentieren
+- **Inline-Platzierung**: Mit `@after-paragraph-N:` platziert der Agent seine Annotation exakt nach dem gewünschten Absatz
+- **Vorgemerkter Agent**: `paper-agent: research-assistant` im Frontmatter startet Canvas automatisch mit dem passenden Agenten
+- **Multi-Agent-Modus**: Mehrere Agenten parallel auf ein Dokument anwenden
+- **Diff-Ansicht**: Alle Canvas-Callouts auf einen Blick überblicken und verwalten
+- **Bidirektional**: Canvas-Callouts werden beim nächsten Aufruf automatisch aus dem Kontext gefiltert – kein Rauschen in der Agenten-Antwort
 
-**Agenten-System:**
-- Agenten-Notation: System-Prompts, Tools, Memory und Kontext in Markdown
-- Konversationslogik: State-Management, Token-Counting, Memory-Management
-- Orchestrierung: Multi-Turn-Loop (User → LLM → Tool-Calls → Feedback → LLM)
-- Agenten-Loading aus Vault mit Reload-Command
-- Konversationen als Markdown-Dateien im Vault (bidirektional: externe Änderungen laden sich automatisch neu)
+### 💬 Chat View – Vollwertige Konversationen mit Agenten
 
-**UI-Komponenten:**
-- Chat-View mit Streaming-Anzeige, Agent-Auswahl, Tool-Call-Display
-- Sidebar mit Tool- und Agenten-Übersicht
-- Tool-Execution Output Panel mit Copy-to-Clipboard
-- Execution History mit Filter/Suche/Export
-- Template Browser (Import/Export von Tools und Agenten)
-- Workflow View (visuelle Chain-Darstellung)
-- Dynamische Parameter-Formulare und HITL-Modal
+- Streaming-Antworten Token für Token mit animiertem Cursor
+- Aufklappbare Tool-Call-Blöcke mit Parametern und Ergebnis
+- **Konversationen als Markdown-Dateien** im Vault – lesbar, bearbeitbar, versionierbar
+- Automatisches Laden der letzten Konversation beim Öffnen
+- **Antwort neu generieren**: ↺-Button für jede Assistenz-Antwort
+- **Konversationshistorie neu senden**: Gespräch nach externer Bearbeitung fortführen
+- Klassifizierte Fehlermeldungen (Timeout, Rate-Limit, Auth, Netzwerk, Credits)
 
-**Advanced Chain-Features:**
-- Conditional Steps (`condition.equals` oder `condition.operator`/`value`)
-- Loops über Datenlisten (`loop.over`, `loop.as`)
-- Retry-Logik mit exponential Backoff
-- `continueOnError` für fehlertolerante Chains
+### 🔧 Tool-Engine
 
-**Observability:**
-- Execution-Metriken (Dauer, Erfolgsrate, p95)
-- Tracing mit Request-IDs durch die Pipeline
-- Persistente Execution History (JSON im Vault)
+- **4 eingebaute Tools**: `search_files`, `read_file`, `write_file`, `rest_request`
+- **Custom Tools**: YAML-basierte Tool-Definitionen als Markdown-Dateien im Vault
+- **QuickJS-Sandbox**: Sicheres Pre-/Post-Processing in isolierter JavaScript-Umgebung (10 MB, 5 s Timeout)
+- **Human-in-the-Loop (HITL)**: Bestätigung bei schreibenden Operationen
 
-**Qualität:**
-- Mobile-Kompatibel (Desktop, iOS, Android)
-- TypeScript Strict Mode (minimale `any`-Types)
-- 283 Tests, alle grün (23 Test-Dateien, Unit- und Integrationstests)
+### 🤖 Agenten-System
+
+- Agenten als Markdown-Dateien: System-Prompt, Tools, Memory, Modell – alles an einem Ort
+- **OpenRouter-Integration**: Zugang zu hunderten Modellen (GPT-4o, Claude, Gemini, Llama u.v.m.)
+- SSE-Streaming, Tool-Calling (OpenAI-kompatibel), Retry-Logik (429/500/502/503)
+- **WebSearch**: Serverseitige Web-Suche via OpenRouter mit Quellenangaben im Chat
+- Proaktives Rate-Limiting und AbortController-basierte Timeouts
+
+### ⛓️ Fortgeschrittene Chain-Features
+
+- **Conditional Steps**: Bedingte Ausführung mit 8 Operatoren (eq, neq, gt, lt, gte, lte, contains, exists)
+- **Loops**: Iteration über Datenlisten mit `loop.over` und `loop.as`
+- **Retry mit Backoff**: Automatische Wiederholung mit exponentialem Backoff
+- **continueOnError**: Fehlertolerante Chains – ein fehlgeschlagener Schritt stoppt nicht die ganze Pipeline
+
+### 📊 Observability & History
+
+- Persistente Execution History (Markdown im Vault)
+- Execution-Metriken: Dauer, Erfolgsrate, p95
+- Tracing mit Request-IDs durch die gesamte Pipeline
+- Export, Suche und Filter in der History-Ansicht
+
+### 🖥️ UI-Komponenten
+
+- **Sidebar**: Tool- und Agenten-Übersicht mit interaktiven Beispielen
+- **Output Panel**: Strukturierte Tool-Ergebnisse mit Copy-to-Clipboard
+- **Template Browser**: Tools und Agenten importieren/exportieren
+- **Workflow View**: Visuelle Chain-Darstellung
+- **Dynamische Formulare** und HITL-Bestätigungsdialoge
+
+### ✅ Qualität
+
+- Läuft auf Desktop, iOS und Android (kein `isDesktopOnly`)
+- TypeScript Strict Mode
+- **385 Tests** in 25 Dateien, alle grün
 
 ---
 
@@ -113,26 +114,35 @@ Paper Agents verfolgt einen **pragmatischen Ansatz** ohne komplexe Frameworks. D
 
 ### 1. API-Key konfigurieren
 
-1. Besuche [OpenRouter](https://openrouter.ai) und erstelle einen API-Key
-2. In Obsidian: **Settings → Paper Agents → API Key** eintragen
+1. Besuche [OpenRouter](https://openrouter.ai) und erstelle einen kostenlosen API-Key
+2. In Obsidian: **Settings → Community plugins → Paper Agents → API Key** eintragen
 3. Klicke **Validate** um den Key zu prüfen
 4. Wähle dein bevorzugtes Modell (Standard: `openai/gpt-4o`)
 
 ### 2. Sidebar öffnen
 
-Klicke das Bot-Icon in der linken Ribbon, oder nutze die Command Palette:
-- `Ctrl/Cmd + P` → "Open Paper Agents Sidebar"
+Klicke das Bot-Icon in der linken Ribbon, oder öffne die Command Palette:
+- `Ctrl/Cmd + P` → „Open sidebar"
 
 ### 3. Chat starten
 
-- `Ctrl/Cmd + P` → "Open Chat" um den Chat-View zu öffnen
+- `Ctrl/Cmd + P` → „Open agent chat"
 - Wähle eine bestehende Konversation aus dem Dropdown oder erstelle eine neue
-- Sende Nachrichten und sieh Streaming-Responses + Tool-Calls
-- Konversationen werden automatisch als Markdown-Dateien im Vault gespeichert
+- Sende Nachrichten und sieh Streaming-Antworten mit Tool-Call-Details
+- Konversationen werden automatisch als Markdown-Dateien im Vault gespeichert und sind bidirektional editierbar
 
-### 4. Vordefinierte Tools nutzen
+### 4. Agent Canvas nutzen
 
-Klicke ein Tool in der Sidebar um ein Eingabeformular zu öffnen. Die Ergebnisse erscheinen im Output Panel.
+Öffne ein beliebiges Markdown-Dokument und wähle in der Command Palette:
+- `Ctrl/Cmd + P` → „Apply interactive agent to document"
+
+Der Agent analysiert dein Dokument und antwortet direkt als Obsidian-Callout im Text. Optional: Text markieren, um nur den ausgewählten Abschnitt zu kommentieren. Für einen fest zugeordneten Agenten einfach ins Frontmatter schreiben:
+
+```yaml
+---
+paper-agent: research-assistant
+---
+```
 
 ### 5. Custom Tools erstellen
 
@@ -164,8 +174,7 @@ parameters:
 ```
 ```
 
-**Custom Tools neu laden:**
-- Command Palette → "Reload Custom Tools"
+Command Palette → „Reload custom tools" um neue Tools zu laden.
 
 ### 6. Agenten erstellen
 
@@ -219,13 +228,14 @@ Zugriff via **Settings → Community plugins → Paper Agents**:
 
 | Command | Beschreibung |
 |---------|-------------|
-| Open Paper Agents Sidebar | Tool- und Agenten-Übersicht öffnen |
-| Open Chat | Chat-View öffnen |
-| Reload Custom Tools | Custom Tools aus Vault neu laden |
-| Reload Agents | Agenten-Definitionen neu laden |
-| Show Execution History | Ausführungsprotokoll anzeigen |
-| Browse Templates | Template Browser öffnen |
-| Show Workflow View | Visuelle Chain-Darstellung |
+| Open sidebar | Tool- und Agenten-Übersicht öffnen |
+| Open agent chat | Chat-View öffnen |
+| Apply interactive agent to document | Agent Canvas auf aktives Dokument anwenden |
+| Reload custom tools | Custom Tools aus Vault neu laden |
+| Reload agents | Agenten-Definitionen neu laden |
+| Show execution history | Ausführungsprotokoll anzeigen |
+| Browse templates | Template Browser öffnen |
+| Show workflow view | Visuelle Chain-Darstellung |
 
 ---
 
@@ -297,88 +307,24 @@ steps:
 
 ---
 
-## Sicherheit & Validierung
+## Sicherheit
 
 ### Human-in-the-Loop (HITL)
 
-| Tool | Operation | HITL erforderlich? |
-|------|-----------|-------------------|
-| `write_file` | Alle | Ja, immer |
-| `rest_request` | GET | Nein |
-| `rest_request` | POST/PUT/DELETE | Ja |
-| `read_file` | Alle | Nein |
-| `search_files` | Alle | Nein |
+| Tool | Operation | Bestätigung erforderlich? |
+|------|-----------|--------------------------|
+| `write_file` | Alle | ✅ Ja, immer |
+| `rest_request` | POST/PUT/DELETE | ✅ Ja |
+| `rest_request` | GET | ❌ Nein |
+| `read_file` | Alle | ❌ Nein |
+| `search_files` | Alle | ❌ Nein |
 
 ### JavaScript-Sandbox
 
 Pre-/Post-Processing-Code läuft in einer **QuickJS-Sandbox**:
-- Isolation vom Node.js-Prozess
+- Isolation vom Host-Prozess
 - Memory-Limit (10 MB), Timeout-Limit (5 Sekunden)
 - Blockierte Patterns: `require()`, `eval()`, `process`, `global`, `Function()`
-
----
-
-## Architektur
-
-```
-Paper Agents
-├── Types & Parser (Phase 1)
-│   ├── types.ts         - Zentrale Typ-Definitionen
-│   ├── yaml-parser.ts   - YAML Frontmatter-Parsing
-│   ├── agent-parser.ts  - Agenten-Notation-Parsing
-│   ├── placeholder.ts   - Platzhalter-Ersetzung
-│   ├── validator.ts     - Parameter-Validierung
-│   └── tool-loader.ts   - Custom Tool Discovery
-│
-├── Core (Phase 2–4)
-│   ├── tool-registry.ts - Tool-Verwaltung / Factory Pattern
-│   ├── tool-executor.ts - 3-Phasen-Execution + Advanced Chain Features
-│   ├── sandbox.ts       - QuickJS sichere JavaScript-Ausführung
-│   ├── conversation.ts  - Konversations-State-Management
-│   ├── openrouter.ts    - OpenRouter API-Client (SSE, Tool-Calling, Retry)
-│   ├── orchestrator.ts  - LLM-Orchestrierung (Multi-Turn-Loop)
-│   └── history.ts       - Persistente Execution History
-│
-├── Tools
-│   └── predefined.ts    - 4 Standard-Tools
-│
-├── UI
-│   ├── sidebar.ts       - Tool- & Agenten-Übersicht
-│   ├── chat.ts          - Chat-View mit Streaming
-│   ├── forms.ts         - Dynamische Parameter-Formulare
-│   ├── hitl-modal.ts    - Bestätigungsdialoge
-│   ├── output-panel.ts  - Execution-Ergebnis-Anzeige
-│   ├── history-panel.ts - Ausführungsprotokoll
-│   ├── template-browser.ts - Template Import/Export
-│   └── workflow-view.ts - Visuelle Chain-Darstellung
-│
-└── Utils
-    ├── constants.ts     - Zentrale Konstanten
-    ├── logger.ts        - Debug-Logging
-    └── metrics.ts       - Execution-Metriken & Tracing
-```
-
-### Design Patterns
-
-- **Factory Pattern**: Tool-Erstellung und -Registrierung
-- **Strategy Pattern**: Austauschbare Tool-Ausführungslogik (Single vs. Chain)
-- **Observer Pattern**: HITL-Callbacks, Streaming-Callbacks
-- **Pipeline Pattern**: 3-Phasen-Execution (Pre → Tool → Post)
-- **Orchestrator Pattern**: Multi-Turn LLM ↔ Tool-Calling Loop
-
----
-
-## Projektphasen
-
-| Phase | Status | Beschreibung |
-|-------|--------|-------------|
-| 1: Plugin-Grundgerüst | Abgeschlossen | Build, TypeScript, Tests, Basis-Typen |
-| 2: Tool-Engine | Abgeschlossen | 4 Tools, Registry, Executor, Custom Tools |
-| 3: Sandbox & Security | Abgeschlossen | QuickJS, Pre/Post-Processing, HITL |
-| 4.1: Agenten-Notation | Abgeschlossen | AgentParser, Beispiel-Agenten |
-| 4.2: Konversationslogik | Abgeschlossen | ConversationManager, Token-Counting |
-| 4.3: OpenRouter-Integration | Abgeschlossen | API-Client, Chat-UI, Orchestrierung |
-| 4.4: Advanced Features | Abgeschlossen | Conditional, Loops, Retry, History, Metrics |
 
 ---
 
@@ -388,27 +334,9 @@ Paper Agents
 npm install          # Abhängigkeiten installieren
 npm run dev          # Development Build (Watch-Modus)
 npm run build        # Production Build
-npm test             # Tests ausführen
+npm test             # Tests ausführen (385 Tests, alle grün)
 npm run lint         # Linting
 ```
-
-**283 Tests** in 23 Dateien, alle grün.
-
----
-
-## Code Coverage
-
-Coverage wird mit `npm test` (`vitest --coverage`) gemessen. Ausgeschlossen sind nicht-testbare Obsidian-Infrastruktur-Dateien (`main.ts`, `settings.ts`, `commands/**`, `ui/**`).
-
-| Layer | Statements | Branches | Functions |
-|-------|-----------|----------|-----------|
-| **Gesamt (testbarer Code)** | **84.62 %** | **77.44 %** | **82.80 %** |
-| src/core | 81.72 % | 73.97 % | 83.87 % |
-| src/parser | 89.47 % | 80.41 % | 95.91 % |
-| src/tools | 91.89 % | 82.22 % | 76.00 % |
-| src/utils | 81.81 % | 84.61 % | 56.52 % |
-
-**Ziel:** ≥ 80 % Statement-Coverage für alle testbaren Layer.
 
 ---
 
@@ -416,12 +344,11 @@ Coverage wird mit `npm test` (`vitest --coverage`) gemessen. Ausgeschlossen sind
 
 | Dokumentation | Gehe zu... |
 |-------------|------------|
-| Das Projekt verstehen | [README.md](README.md) |
 | Architektur & Roadmap | [arc42/chapters/INDEX.md](arc42/chapters/INDEX.md) |
-| Ein Custom Tool erstellen | [manuals/tools.md](manuals/tools.md) |
-| Beispiele sehen | [examples/](examples/) |
-| Ein Release machen | [RELEASE.md](RELEASE.md) |
-| AI-Agent-Richtlinien | [AGENTS.md](AGENTS.md) |
+| Chat View Handbuch | [manuals/chat-view.md](manuals/chat-view.md) |
+| Custom Tools erstellen | [manuals/tools.md](manuals/tools.md) |
+| Beispiele | [examples/](examples/) |
+| Changelog | [CHANGELOG.md](CHANGELOG.md) |
 
 ---
 
@@ -435,13 +362,13 @@ MIT © [Merlin Becker](https://github.com/merlinbecker)
 
 - **Issues**: [GitHub Issues](https://github.com/merlinbecker/PaperAgents/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/merlinbecker/PaperAgents/discussions)
-- **Buy me a beer**: [BuyMeACoffee](https://buymeacoffee.com/merlinbecker)
+- **Buy me a coffee**: [BuyMeACoffee](https://buymeacoffee.com/merlinbecker)
 
 ---
 
-**Aktuelle Version:** 0.0.26
-**Status:** Beta (Phase 4.3 + 4.4 abgeschlossen, WebSearch und Conversation-Rework integriert)
-**Letzte Aktualisierung:** 5. März 2026
+**Aktuelle Version:** 0.0.53  
+**Status:** Beta – aktiv in Entwicklung  
+**Letzte Aktualisierung:** März 2026
 
 ---
 
