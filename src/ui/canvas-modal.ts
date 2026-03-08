@@ -236,14 +236,15 @@ export class CanvasModal extends Modal {
 
     if (this.inputEl) this.inputEl.value = "";
 
-    // Append user callout to document
+    // Append user callout to document and capture callout text for dismissal
+    let userCalloutText: string | undefined;
     try {
-      await this.canvasAgent.appendUserCallout(this.activeFile, message);
+      userCalloutText = await this.canvasAgent.appendUserCallout(this.activeFile, message);
     } catch (error) {
       globalLogger.warn("Failed to append user callout", { error });
     }
 
-    this.addMessageToDisplay("user", message);
+    this.addMessageToDisplay("user", message, userCalloutText);
 
     await this.sendToAgent(orchestrator, message);
   }
@@ -262,6 +263,8 @@ export class CanvasModal extends Modal {
     }
 
     try {
+      let completedContent = "";
+
       await orchestrator.sendMessage(
         this.selectedAgent,
         this.conversationId,
@@ -274,11 +277,11 @@ export class CanvasModal extends Modal {
             }
           },
           onComplete: (content: string) => {
+            completedContent = content;
             if (this.streamingEl) {
               this.streamingEl.style.display = "none";
               this.streamingEl.textContent = "";
             }
-            this.addMessageToDisplay("assistant", content);
             streamBuffer = "";
           },
           onError: (error: Error) => {
@@ -290,11 +293,15 @@ export class CanvasModal extends Modal {
         }
       );
 
-      // Append agent callout to document
+      // Append agent callout to document and display it with dismiss support
       const agentName = this.selectedAgent.name;
-      const lastAssistantMessage = this.getLastAssistantMessage();
-      if (lastAssistantMessage && this.activeFile) {
-        await this.canvasAgent.appendAgentCallout(this.activeFile, agentName, lastAssistantMessage);
+      if (completedContent && this.activeFile) {
+        const calloutText = await this.canvasAgent.appendAgentCallout(
+          this.activeFile,
+          agentName,
+          completedContent
+        );
+        this.addMessageToDisplay("assistant", completedContent, calloutText);
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -314,27 +321,45 @@ export class CanvasModal extends Modal {
   // UI helpers
   // ============================================================================
 
-  private addMessageToDisplay(role: "user" | "assistant", content: string): void {
+  private addMessageToDisplay(role: "user" | "assistant", content: string, calloutText?: string): void {
     if (!this.responseContainer) return;
 
     const entry = this.responseContainer.createDiv({
       cls: `pa-canvas-message pa-canvas-message-${role}`,
     });
+
+    const header = entry.createDiv({ cls: "pa-canvas-message-header" });
     const label = role === "user" ? "👤 You" : `🤖 ${this.selectedAgent?.name ?? "Agent"}`;
-    entry.createEl("strong", { text: label });
+    header.createEl("strong", { text: label });
+
+    if (calloutText && this.activeFile) {
+      const file = this.activeFile;
+      const dismissBtn = header.createEl("button", {
+        cls: "pa-canvas-dismiss-btn",
+        text: "🗑️",
+        attr: { title: "Remove this callout from the document" },
+      });
+      dismissBtn.addEventListener("click", () => {
+        void this.dismissCallout(file, calloutText, entry);
+      });
+    }
+
     entry.createEl("p", { text: content });
   }
 
-  private getLastAssistantMessage(): string | null {
-    if (!this.conversationId) return null;
-    const messages = this.conversationManager.getMessages(this.conversationId);
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
-      if (msg && msg.role === "assistant") {
-        return msg.content;
+  private async dismissCallout(file: TFile, calloutText: string, entryEl: HTMLElement): Promise<void> {
+    try {
+      const removed = await this.canvasAgent.removeCallout(file, calloutText);
+      if (removed) {
+        entryEl.remove();
+      } else {
+        new Notice("Callout not found in document – it may have been deleted already.");
       }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      new Notice(`Failed to remove callout: ${msg}`);
+      globalLogger.error("Canvas dismissal error", { error: msg });
     }
-    return null;
   }
 
   private tryResolveAgentFromFrontmatter(): string | null {

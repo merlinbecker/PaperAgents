@@ -243,6 +243,18 @@ describe("CanvasAgent", () => {
       expect(writtenContent).toContain("Good feedback!");
       expect(writtenContent).toContain("My Agent");
     });
+
+    it("returns the appended callout text", async () => {
+      const app = makeApp({ readContent: "# Doc" }) as never;
+      const canvasAgent = new CanvasAgent(app);
+
+      const fakeFile = { extension: "md" } as never;
+      const calloutText = await canvasAgent.appendAgentCallout(fakeFile, "My Agent", "Good feedback!");
+
+      expect(calloutText).toContain(CANVAS_MARKER);
+      expect(calloutText).toContain("My Agent");
+      expect(calloutText).toContain("Good feedback!");
+    });
   });
 
   describe("appendUserCallout", () => {
@@ -259,6 +271,77 @@ describe("CanvasAgent", () => {
       const [, writtenContent] = vault.modify.mock.calls[0] as [unknown, string];
       expect(writtenContent).toContain("Follow-up question?");
       expect(writtenContent).toContain("[!question]");
+    });
+
+    it("returns the appended callout text", async () => {
+      const app = makeApp({ readContent: "# Doc" }) as never;
+      const canvasAgent = new CanvasAgent(app);
+
+      const fakeFile = { extension: "md" } as never;
+      const calloutText = await canvasAgent.appendUserCallout(fakeFile, "Follow-up question?");
+
+      expect(calloutText).toContain(CANVAS_MARKER);
+      expect(calloutText).toContain("[!question]");
+      expect(calloutText).toContain("Follow-up question?");
+    });
+  });
+
+  describe("removeCallout", () => {
+    it("removes an existing callout and returns true", async () => {
+      const callout = "\n<!-- paper-agents-canvas -->\n> [!note] 🤖 Agent: Bot *(2026-01-01T10:00:00Z)*\n>\n> Some response.\n";
+      const originalContent = "# Doc\n\nSome content." + callout + "Footer.";
+      const app = makeApp({ readContent: originalContent }) as never;
+      const canvasAgent = new CanvasAgent(app);
+
+      const fakeFile = { extension: "md" } as never;
+      const result = await canvasAgent.removeCallout(fakeFile as never, callout);
+
+      expect(result).toBe(true);
+      const vault = (app as { vault: { modify: ReturnType<typeof vi.fn> } }).vault;
+      expect(vault.modify).toHaveBeenCalledOnce();
+      const [, writtenContent] = vault.modify.mock.calls[0] as [unknown, string];
+      expect(writtenContent).toContain("# Doc");
+      expect(writtenContent).toContain("Footer.");
+      expect(writtenContent).not.toContain("Some response.");
+      expect(writtenContent).not.toContain(CANVAS_MARKER);
+    });
+
+    it("returns false and does not modify file when callout is not found", async () => {
+      const originalContent = "# Doc\n\nNo callouts here.";
+      const app = makeApp({ readContent: originalContent }) as never;
+      const canvasAgent = new CanvasAgent(app);
+
+      const fakeFile = { extension: "md" } as never;
+      const result = await canvasAgent.removeCallout(fakeFile as never, "nonexistent callout text");
+
+      expect(result).toBe(false);
+      const vault = (app as { vault: { modify: ReturnType<typeof vi.fn> } }).vault;
+      expect(vault.modify).not.toHaveBeenCalled();
+    });
+
+    it("can remove a callout returned by appendAgentCallout", async () => {
+      const originalContent = "# Doc\n\nContent.";
+      // Set up app so that read always returns the most recently modified content
+      let currentContent = originalContent;
+      const modifyMock = vi.fn(async (_file: unknown, content: string) => {
+        currentContent = content;
+      });
+      const readMock = vi.fn(async () => currentContent);
+      const app = {
+        workspace: { getActiveFile: vi.fn(() => null) },
+        vault: { read: readMock, modify: modifyMock },
+        metadataCache: { getFileCache: vi.fn(() => null) },
+      } as never;
+      const canvasAgent = new CanvasAgent(app);
+
+      const fakeFile = { extension: "md" } as never;
+      const calloutText = await canvasAgent.appendAgentCallout(fakeFile, "Agent", "My response");
+      expect(currentContent).toContain("My response");
+
+      const removed = await canvasAgent.removeCallout(fakeFile, calloutText);
+      expect(removed).toBe(true);
+      expect(currentContent).not.toContain("My response");
+      expect(currentContent).toContain("# Doc");
     });
   });
 

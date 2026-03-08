@@ -121,18 +121,37 @@ export class CanvasAgent {
 
   /**
    * Appends an agent-response callout block to the given file.
+   * Returns the exact callout text that was appended (can be used to remove it later).
    */
-  async appendAgentCallout(file: TFile, agentName: string, responseText: string): Promise<void> {
+  async appendAgentCallout(file: TFile, agentName: string, responseText: string): Promise<string> {
     const callout = this.formatAgentCallout(agentName, responseText);
     await this.appendToFile(file, callout);
+    return callout;
   }
 
   /**
    * Appends a user-message callout block to the given file.
+   * Returns the exact callout text that was appended (can be used to remove it later).
    */
-  async appendUserCallout(file: TFile, userMessage: string): Promise<void> {
+  async appendUserCallout(file: TFile, userMessage: string): Promise<string> {
     const callout = this.formatUserCallout(userMessage);
     await this.appendToFile(file, callout);
+    return callout;
+  }
+
+  /**
+   * Removes a specific canvas callout block from the file.
+   * The calloutText parameter must be the exact string returned by
+   * appendAgentCallout or appendUserCallout.
+   *
+   * Returns true if the callout was found and removed, false otherwise.
+   */
+  async removeCallout(file: TFile, calloutText: string): Promise<boolean> {
+    const current = await this.app.vault.read(file);
+    const updated = current.replace(calloutText, "");
+    if (updated === current) return false;
+    await this.app.vault.modify(file, updated);
+    return true;
   }
 
   // ============================================================================
