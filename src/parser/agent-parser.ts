@@ -115,7 +115,6 @@ export class AgentParser {
           if (inArray && currentKey) {
             result[currentKey] = currentArray;
             currentArray = [];
-            inArray = false;
           }
           if (nestedKey) {
             result[nestedKey] = nestedObj;
@@ -171,32 +170,41 @@ export class AgentParser {
     systemPrompt: string;
     contextTemplate?: string;
   } {
-    let systemPrompt = "";
-    let contextTemplate: string | undefined;
+    // Parse sections line-by-line to avoid ReDoS-prone [\s\S]*? regex patterns
+    const lines = body.split("\n");
+    const sectionContents: Map<string, string[]> = new Map();
+    let currentSection: string | null = null;
+    const preambleLines: string[] = [];
 
-    const systemPromptMatch = /##\s*System\s*Prompt\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i.exec(body);
-    if (systemPromptMatch?.[1]) {
-      systemPrompt = systemPromptMatch[1].trim();
-    }
-
-    const contextMatch = /##\s*Kontext\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i.exec(body);
-    if (!contextMatch) {
-      const contextMatchEn = /##\s*Context\s*\n([\s\S]*?)(?=\n##\s|\n---|$)/i.exec(body);
-      if (contextMatchEn?.[1]) {
-        contextTemplate = contextMatchEn[1].trim();
-      }
-    } else if (contextMatch?.[1]) {
-      contextTemplate = contextMatch[1].trim();
-    }
-
-    if (!systemPrompt) {
-      const noSectionContent = body.replaceAll(/##\s*\w+[\s\S]*?(?=\n##\s|$)/gi, "").trim();
-      if (noSectionContent && !noSectionContent.startsWith("##")) {
-        systemPrompt = noSectionContent;
+    for (const line of lines) {
+      const headerMatch = /^##\s+(\S[^\n]*)/.exec(line);
+      if (headerMatch?.[1]) {
+        currentSection = headerMatch[1].trim().toLowerCase().replaceAll(/\s+/g, " ");
+        sectionContents.set(currentSection, []);
+      } else if (currentSection !== null) {
+        sectionContents.get(currentSection)?.push(line);
+      } else {
+        preambleLines.push(line);
       }
     }
 
-    return { systemPrompt, contextTemplate };
+    const systemPromptLines = sectionContents.get("system prompt");
+    const systemPrompt = systemPromptLines?.join("\n").trim() ?? "";
+
+    const contextLines = sectionContents.get("kontext") ?? sectionContents.get("context");
+    const contextTemplate = contextLines?.join("\n").trim() || undefined;
+
+    if (systemPrompt) {
+      return { systemPrompt, contextTemplate };
+    }
+
+    // Fallback: use preamble content (text before any ## section)
+    const preamble = preambleLines.join("\n").trim();
+    if (preamble && !preamble.startsWith("##")) {
+      return { systemPrompt: preamble, contextTemplate };
+    }
+
+    return { systemPrompt: "", contextTemplate };
   }
 
   static toAgentDefinition(parsed: ParsedAgentFile): AgentDefinition {

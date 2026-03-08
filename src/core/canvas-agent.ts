@@ -42,7 +42,7 @@ export class CanvasAgent {
    */
   getActiveFile(): TFile | null {
     const file = this.app.workspace.getActiveFile();
-    if (!file || file.extension !== "md") return null;
+    if (file?.extension !== "md") return null;
     return file;
   }
 
@@ -132,12 +132,12 @@ export class CanvasAgent {
     const { paragraphIndex, cleanedText } = this.parseInlinePlacement(responseText);
     const callout = this.formatAgentCallout(agentName, cleanedText);
 
-    if (paragraphIndex !== null) {
+    if (paragraphIndex === null) {
+      await this.appendToFile(file, callout);
+    } else {
       const current = await this.app.vault.read(file);
       const updated = this.insertCalloutAfterParagraph(current, callout, paragraphIndex);
       await this.app.vault.modify(file, updated);
-    } else {
-      await this.appendToFile(file, callout);
     }
 
     return callout;
@@ -240,7 +240,7 @@ export class CanvasAgent {
       activeEditor?: { editor?: { getSelection(): string } | null } | null;
     };
     const selection = workspace.activeEditor?.editor?.getSelection();
-    return selection && selection.trim() ? selection.trim() : null;
+    return selection?.trim() || null;
   }
 
   /**
@@ -286,10 +286,10 @@ export class CanvasAgent {
    */
   parseInlinePlacement(responseText: string): { paragraphIndex: number | null; cleanedText: string } {
     const match = /^@after-paragraph-(\d+):\s*/i.exec(responseText);
-    if (!match || !match[1]) {
+    if (!match?.[1]) {
       return { paragraphIndex: null, cleanedText: responseText };
     }
-    const paragraphIndex = parseInt(match[1], 10);
+    const paragraphIndex = Number.parseInt(match[1], 10);
     if (!Number.isFinite(paragraphIndex) || paragraphIndex < 1) {
       return { paragraphIndex: null, cleanedText: responseText };
     }

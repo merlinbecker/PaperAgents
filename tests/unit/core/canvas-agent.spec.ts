@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("obsidian", () => ({
-  App: class {},
-  TFile: class {},
+  App: vi.fn(),
+  TFile: vi.fn(),
 }));
 
 import { CanvasAgent, CANVAS_MARKER, CANVAS_FRONTMATTER_KEY } from "../../../src/core/canvas-agent";
@@ -16,15 +16,15 @@ function makeApp(overrides: Partial<{
   selection: string | null;
 }> = {}): unknown {
   const content = overrides.readContent ?? "";
-  const frontmatter = overrides.frontmatter !== undefined ? overrides.frontmatter : null;
-  const selection = overrides.selection !== undefined ? overrides.selection : null;
+  const frontmatter = overrides.frontmatter === undefined ? null : overrides.frontmatter;
+  const selection = overrides.selection === undefined ? null : overrides.selection;
 
   return {
     workspace: {
       getActiveFile: vi.fn(() => overrides.activeFile ?? null),
-      activeEditor: selection !== null
-        ? { editor: { getSelection: vi.fn(() => selection) } }
-        : null,
+      activeEditor: selection === null
+        ? null
+        : { editor: { getSelection: vi.fn(() => selection) } },
     },
     vault: {
       read: vi.fn(async () => content),
@@ -299,7 +299,7 @@ describe("CanvasAgent", () => {
       const canvasAgent = new CanvasAgent(app);
 
       const fakeFile = { extension: "md" } as never;
-      const result = await canvasAgent.removeCallout(fakeFile as never, callout);
+      const result = await canvasAgent.removeCallout(fakeFile, callout);
 
       expect(result).toBe(true);
       const vault = (app as { vault: { modify: ReturnType<typeof vi.fn> } }).vault;
@@ -317,7 +317,7 @@ describe("CanvasAgent", () => {
       const canvasAgent = new CanvasAgent(app);
 
       const fakeFile = { extension: "md" } as never;
-      const result = await canvasAgent.removeCallout(fakeFile as never, "nonexistent callout text");
+      const result = await canvasAgent.removeCallout(fakeFile, "nonexistent callout text");
 
       expect(result).toBe(false);
       const vault = (app as { vault: { modify: ReturnType<typeof vi.fn> } }).vault;

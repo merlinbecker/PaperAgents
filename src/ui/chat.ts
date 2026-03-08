@@ -482,11 +482,11 @@ export class PaperAgentsChatView extends ItemView {
   private async saveLoopReport(taskMessage: string, content: string, agentId: string): Promise<void> {
     const MAX_SLUG_LENGTH = 40;
     try {
-      const date = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const date = new Date().toISOString().replaceAll(/[:.]/g, "-").slice(0, 19);
       const slug = taskMessage
         .slice(0, MAX_SLUG_LENGTH)
-        .replace(/[^a-zA-Z0-9äöüÄÖÜß]+/g, "-")
-        .replace(/^-|-$/g, "");
+        .replaceAll(/[^a-zA-Z0-9äöüÄÖÜß]+/g, "-")
+        .replaceAll(/^-|-$/g, "");
       const fileName = `${date}_${slug}.md`;
       const reportsPath = `${this.getConversationsPath()}/reports`;
       const filePath = `${reportsPath}/${fileName}`;
@@ -506,7 +506,7 @@ export class PaperAgentsChatView extends ItemView {
   }
 
   private buildReportContent(agentId: string, taskMessage: string, content: string): string {
-    const escapedTask = taskMessage.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const escapedTask = taskMessage.replaceAll("\\", String.raw`\\`).replaceAll('"', String.raw`\"`);
     return [
       "---",
       "report: true",
