@@ -72,6 +72,8 @@ Diese Dokumentation beschreibt die Architektur von **Paper Agents**, einem Obsid
    - ADR-6: Zweischichtige Conversation-Persistenz (JSON + Markdown)
    - **ADR-7: Terminierungsstrategien im Agentic Loop** (neu)
    - **ADR-8: OpenRouter transforms für Context-Window-Management** (neu)
+   - **ADR-9: Agent Canvas – Callout-Injektion und Konversationsführung** (neu)
+   - **ADR-10: Wikilink-Auflösung zum Ladezeitpunkt** (neu)
 
 10. **[Qualitätsanforderungen](10-qualitaetsanforderungen.md)**
     - Qualitätsbaum
@@ -105,17 +107,20 @@ src/
     openrouter.ts              # OpenRouter API-Client
     history.ts                 # Execution-History
     persistence.ts             # Vault-Persistenz-Helpers
+    canvas-agent.ts            # Agent Canvas – Callout-Injektion, Dokument-Lesen/Schreiben
   parser/                      # Parsing und Validierung
     agent-parser.ts            # Agent-Definition Parsing
     placeholder.ts             # Placeholder-Auflösung
     tool-loader.ts             # Custom Tool Discovery
     validator.ts               # Parameter-Validierung
     yaml-parser.ts             # YAML Frontmatter Parsing
+    wikilink-resolver.ts       # Wikilink-Auflösung in Agenten-/Tool-Definitionen
   tools/
     predefined.ts              # 4 vordefinierte Tools
   ui/                          # Benutzeroberfläche
     chat.ts                    # PaperAgentsChatView (vollständig, mit LLM)
     chat-view.ts               # ChatView (Fallback-Viewer, Rückwärtskompatibilität)
+    canvas-modal.ts            # Agent Canvas Modal (Dokument-Annotation)
     hitl-modal.ts              # Human-in-the-Loop Dialog
     sidebar.ts                 # Sidebar View
     forms.ts                   # Dynamische Formulare

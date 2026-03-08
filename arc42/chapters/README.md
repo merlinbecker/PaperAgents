@@ -14,7 +14,7 @@ Diese Verzeichnis enthält die vollständige arc42-Architekturdokumentation für
 | 6 | [Laufzeitsicht](06-laufzeitsicht.md) | Sequenzdiagramme, Interaktionsmuster |
 | 7 | [Verteilungssicht](07-verteilungssicht.md) | C4 Deployment Diagram, Release-Prozess |
 | 8 | [Querschnittliche Konzepte](08-querschnittliche-konzepte.md) | Security, Patterns, Formate, Lifecycle |
-| 9 | [Architekturentscheidungen](09-architekturentscheidungen.md) | 5 ADRs mit Kontext und Begründung |
+| 9 | [Architekturentscheidungen](09-architekturentscheidungen.md) | **10 ADRs** mit Kontext und Begründung |
 | 10 | [Qualitätsanforderungen](10-qualitaetsanforderungen.md) | Qualitätsbaum, Szenarien |
 | 11 | [Risiken und Schulden](11-risiken-schulden.md) | Identified Risks, Technical Debt |
 | 12 | [Glossar](12-glossar.md) | Fachbegriff-Definitionen |
@@ -47,6 +47,17 @@ Diese Verzeichnis enthält die vollständige arc42-Architekturdokumentation für
 ### Tools und Agenten
 - [Querschnittliche Konzepte → Tool-Definitions-Format](08-querschnittliche-konzepte.md#82-tool-definitions-format)
 - [Querschnittliche Konzepte → Agenten-Definitions-Format](08-querschnittliche-konzepte.md#83-agenten-definitions-format)
+
+### Agent Canvas
+- [Bausteinsicht → CanvasAgent und CanvasModal](05-bausteinsicht.md#55-ebene-2--agent-canvas-ui-layer)
+- [Laufzeitsicht → Canvas-Workflow](06-laufzeitsicht.md#69-agent-canvas)
+- [Querschnittliche Konzepte → Agent Canvas Callout-Format](08-querschnittliche-konzepte.md#810-agent-canvas--callout-format)
+- [ADR-9: Callout-Injektion und Konversationsführung](09-architekturentscheidungen.md#adr-9-agent-canvas--callout-injektion-und-konversationsführung)
+
+### Wikilink-Auflösung
+- [Bausteinsicht → WikilinkResolver](05-bausteinsicht.md#wikilinkresolvertswikilink-resolverts)
+- [Querschnittliche Konzepte → Wikilink-Auflösung](08-querschnittliche-konzepte.md#811-wikilink-auflösung)
+- [ADR-10: Wikilink-Auflösung zum Ladezeitpunkt](09-architekturentscheidungen.md#adr-10-wikilink-auflösung-zum-ladezeitpunkt)
 
 ### Deployment und Release
 - [Verteilungssicht](07-verteilungssicht.md)

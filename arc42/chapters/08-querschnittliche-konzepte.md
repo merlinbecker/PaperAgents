@@ -333,6 +333,94 @@ Nach **jeder Iteration** wird die Conversation-Datei gespeichert:
 - Der Callback in `chat.ts` ruft `saveConversation()` async auf.
 - Bei Obsidian-Absturz während des Loops gehen maximal die Schritte der laufenden Iteration verloren.
 
+## 8.10 Agent Canvas – Callout-Format
+
+Der Agent Canvas-Modus annotiert Dokumente mit AI-Antworten als Obsidian-Callout-Blöcke.
+
+### Callout-Format
+
+**Agent-Callout:**
+
+```markdown
+<!-- paper-agents-canvas -->
+> [!note] 🤖 Agent: Research Assistant *(2026-01-01T10:05:00Z)*
+>
+> Antworttext des Agenten...
+```
+
+**User-Callout:**
+
+```markdown
+<!-- paper-agents-canvas -->
+> [!question] 👤 User *(2026-01-01T10:07:00Z)*
+>
+> Follow-up-Nachricht des Nutzers...
+```
+
+Der HTML-Kommentar `<!-- paper-agents-canvas -->` ist in Obsidian unsichtbar und dient als eindeutiger Marker, damit `CanvasAgent.stripCanvasCallouts()` AI-Callouts vom Originaldokument trennen kann.
+
+### Frontmatter-Konfiguration
+
+Dokumente können den Canvas-Agenten vorbelegen:
+
+```markdown
+---
+paper-agent: research_assistant
+---
+```
+
+Ist das Feld gesetzt, überspringt `CanvasModal` die Agent-Auswahl. Andernfalls zeigt das Modal ein Dropdown.
+
+### Inline-Platzierungs-Hints
+
+Der Agent kann seine Antwort mit `@after-paragraph-N:` (case-insensitive) beginnen, um den Callout nach Absatz N einzufügen:
+
+```
+@after-paragraph-3: Hier folgt die Anmerkung zu Absatz 3.
+```
+
+`CanvasAgent.parseInlinePlacement()` entfernt den Hint und gibt `{ paragraphIndex, cleanedText }` zurück. Bei ungültigem oder fehlendem Index wird ans Dokumentende angehängt.
+
+### Multi-Agenten-Canvas
+
+Wenn ≥ 2 Agenten geladen sind, erscheint im Modal ein **Multi-Agenten-Toggle**. Aktiviert sieht der Nutzer eine Checkbox-Liste aller Agenten. `startMultiAgentSession()` iteriert sequenziell über die ausgewählten Agenten; jeder erhält eine eigene Konversation und denselben Dokument-Kontext (ohne bestehende Canvas-Callouts).
+
+## 8.11 Wikilink-Auflösung
+
+Obsidian-Wikilinks (`[[Dateiname]]`) in Agenten- und Tool-Definitionen werden beim **Laden** (nicht bei LLM-Anfragen) aufgelöst und der Inhalt der referenzierten Datei wird eingebettet.
+
+### Unterstützte Wikilink-Formate
+
+| Format | Verhalten |
+|--------|-----------|
+| `[[Dateiname]]` | Inhalt der Datei einbetten |
+| `[[Dateiname\|Alias]]` | Alias wird ignoriert, Inhalt wird eingebettet |
+| `[[Dateiname#Abschnitt]]` | Abschnitt wird ignoriert, gesamter Inhalt eingebettet |
+| `[[Pfad/zur/Datei]]` | Pfad-Referenz |
+
+Frontmatter-Wikilinks in YAML-Werten werden nicht verarbeitet. Nur `.md`-Dateien werden eingebettet; andere Dateitypen werden übersprungen.
+
+### Einbettungsformat
+
+```
+<!-- wikilink:pfad/zur/datei.md -->
+[Inhalt der verlinkten Datei]
+<!-- /wikilink:pfad/zur/datei.md -->
+```
+
+Kommentar-Wrapper sind für das LLM unsichtbar und dienen dem Debugging.
+
+### Pfadauflösung (Prioritätsreihenfolge)
+
+1. `app.metadataCache.getFirstLinkpathDest()` – Obsidians nativer Resolver (Fuzzy-Matching, relative Pfade)
+2. `app.vault.getAbstractFileByPath(linkPath + ".md")` – direkter Pfad mit `.md`-Extension
+3. `app.vault.getAbstractFileByPath(linkPath)` – direkter Pfad ohne Extension
+
+### Rekursion und Zyklenschutz
+
+- `maxDepth` (Standard: 3) begrenzt die Rekursionstiefe
+- `visited: Set<string>` verhindert Endlosrekursion bei zirkulären Links (A → B → A)
+
 ---
 
 **Zurück:** [Verteilungssicht ←](07-verteilungssicht.md) | **Weiter:** [Architekturentscheidungen →](09-architekturentscheidungen.md)

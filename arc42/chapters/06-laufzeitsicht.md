@@ -181,6 +181,32 @@ Nutzer               Chat-UI               Orchestrator          OpenRouter API 
 
 **Persistenz während des Loops:** Nach jeder Iteration wird die Conversation-Datei gespeichert (async `onIterationEnd` → `saveConversation()`). Bei einem Absturz gehen maximal die Schritte der laufenden Iteration verloren.
 
+## 6.9 Agent Canvas
+
+```
+Nutzer               Sidebar / Command    CanvasModal         CanvasAgent         Orchestrator       Vault
+  │                        │                   │                   │                   │               │
+  ├─▶ Canvas-Button / Cmd──▶│                   │                   │                   │               │
+  │                        ├─ openCanvasModal──▶│                   │                   │               │
+  │                        │                   ├─ getActiveEditorSelection()            │               │
+  │                        │                   ├─ readFrontmatter()                     │               │
+  │                        │                   ├─ buildInitialPrompt / buildSelectionPrompt              │
+  │                        │                   │                   ├─ read(file)────────────────────────▶│
+  │                        │                   │                   │◀─ Dokumentinhalt───────────────────┤
+  │                        │                   │                   ├─ stripCanvasCallouts()              │
+  │                        │                   ├─ continueConversation───────────────────▶│              │
+  │                        │                   │◀─ onToken (stream)─────────────────────┤│              │
+  │◀─ Streaming im Modal───┤◀─ Tokens──────────┤                   │                   ││              │
+  │                        │                   │◀─ onComplete──────────────────────────┤│              │
+  │                        │                   ├─ appendAgentCallout()                  │               │
+  │                        │                   │                   ├─ modify(file)──────────────────────▶│
+  │◀─ Callout im Dokument──┤◀─────────────────┤◀──────────────────┤◀─ OK───────────────────────────────┤
+```
+
+**Follow-up-Nachrichten:** Der Nutzer tippt im Modal; `appendUserCallout()` schreibt den User-Callout ins Dokument, danach wird die nächste `continueConversation()`-Runde gestartet.
+
+**Multi-Agenten-Canvas:** Bei mehreren ausgewählten Agenten wiederholt `startMultiAgentSession()` den obigen Ablauf für jeden Agenten sequenziell mit eigener Konversation.
+
 ---
 
 **Zurück:** [Bausteinsicht ←](05-bausteinsicht.md) | **Weiter:** [Verteilungssicht →](07-verteilungssicht.md)

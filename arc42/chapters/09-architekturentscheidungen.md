@@ -133,4 +133,40 @@
 
 ---
 
+## ADR-9: Agent Canvas – Callout-Injektion und Konversationsführung
+
+**Kontext**: Dokumentzentrierte AI-Kollaboration erfordert, dass Agent-Antworten direkt ins Obsidian-Dokument geschrieben werden, ohne die bestehende Konversationsinfrastruktur zu duplizieren.
+
+**Entscheidung**: Obsidian-Callout-Blöcke als Annotationsformat; Konversationsführung über den bestehenden `Orchestrator`/`ConversationManager`; `vault.read()` + `vault.modify()` statt `vault.process()`.
+
+**Begründung**:
+- Callout-Blöcke rendern schön im Reading View und sind im Source View normal editierbar
+- `<!-- paper-agents-canvas -->`-Marker sind in Obsidian unsichtbar und kollisionssicher
+- `vault.read()` + `vault.modify()` ist breiter kompatibel als `vault.process()` (nicht in allen Obsidian-Versionen verfügbar)
+- Kein Doppelcode: bestehende Streaming-, Tool-Calling- und History-Infrastruktur wird genutzt
+- Callout-Text-Rückgabe von `appendAgentCallout`/`appendUserCallout` ermöglicht exaktes Entfernen via `removeCallout` ohne zweiten Timestamp-Aufruf
+
+**Status**: Implementiert (canvas-agent.ts, canvas-modal.ts, commands/index.ts, sidebar.ts).
+
+---
+
+## ADR-10: Wikilink-Auflösung zum Ladezeitpunkt
+
+**Kontext**: Agenten und Tools referenzieren Obsidian-Wikilinks in ihren Definitionen. Die Auflösung kann zur Ladezeit oder zur LLM-Anfrage-Zeit erfolgen.
+
+**Entscheidung**: Ladezeit-Auflösung (beim Parsen der Agent-/Tool-Datei) via `WikilinkResolver`, `maxDepth: 3`, `visited`-Zyklenschutz, primär Obsidian `MetadataCache`.
+
+**Begründung**:
+- Keine asynchronen Operationen während des LLM-Aufrufs nötig; Fehler werden früh erkannt
+- Obsidians `MetadataCache.getFirstLinkpathDest()` garantiert konsistente Pfadauflösung
+- Kommentar-Wrapper machen eingebetteten Inhalt für Debugging transparent
+- `maxDepth: 3` schützt vor tiefen Rekursionsbäumen ohne zu restriktiv zu sein
+- Frontmatter wird nicht verarbeitet, da Wikilinks in YAML unerwünschte Expansion auslösen könnten
+
+**Konsequenz**: Änderungen an verlinkten Dateien werden erst beim nächsten Laden (Hot-Reload) wirksam.
+
+**Status**: Implementiert (wikilink-resolver.ts; Integration in main.ts Agent-Loader und tool-loader.ts).
+
+---
+
 **Zurück:** [Querschnittliche Konzepte ←](08-querschnittliche-konzepte.md) | **Weiter:** [Qualitätsanforderungen →](10-qualitaetsanforderungen.md)
