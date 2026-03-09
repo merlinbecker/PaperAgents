@@ -30,6 +30,21 @@ describe("Advanced Chain Features", () => {
   });
 
   describe("conditional steps", () => {
+    const conditionalAgent: Agent = {
+      id: "cond",
+      name: "Cond",
+      type: "chain",
+      parameters: [],
+      steps: [
+        { name: "step1", parameters: {} },
+        {
+          name: "step2",
+          parameters: {},
+          condition: { field: "step1.value", equals: "yes" },
+        },
+      ],
+    };
+
     it("skips step when condition evaluates to false", async () => {
       const tools = [
         makeTool("step1", { result: { value: "no" } }),
@@ -37,22 +52,7 @@ describe("Advanced Chain Features", () => {
       ];
       const registry = makeRegistry(tools);
 
-      const agent: Agent = {
-        id: "cond",
-        name: "Cond",
-        type: "chain",
-        parameters: [],
-        steps: [
-          { name: "step1", parameters: {} },
-          {
-            name: "step2",
-            parameters: {},
-            condition: { field: "step1.value", equals: "yes" },
-          },
-        ],
-      };
-
-      const res = await toolExecutor.executeAgent(agent, registry, {});
+      const res = await toolExecutor.executeAgent(conditionalAgent, registry, {});
       expect(res.success).toBe(true);
     });
 
@@ -63,22 +63,7 @@ describe("Advanced Chain Features", () => {
       ];
       const registry = makeRegistry(tools);
 
-      const agent: Agent = {
-        id: "cond",
-        name: "Cond",
-        type: "chain",
-        parameters: [],
-        steps: [
-          { name: "step1", parameters: {} },
-          {
-            name: "step2",
-            parameters: {},
-            condition: { field: "step1.value", equals: "yes" },
-          },
-        ],
-      };
-
-      const res = await toolExecutor.executeAgent(agent, registry, {});
+      const res = await toolExecutor.executeAgent(conditionalAgent, registry, {});
       expect(res.success).toBe(true);
       const outputs = (res.data as Record<string, Record<string, unknown>>).outputs;
       expect(outputs.step2).toBeDefined();

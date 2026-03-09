@@ -11,6 +11,22 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
   let mockRegistry: any;
   let executedTools: string[];
 
+  /** Factory: creates a minimal single-type agent with an echo_tool definition. */
+  function makeAgent(overrides: Partial<Agent> & { paramName?: string } = {}): Agent {
+    const { paramName = "text", ...rest } = overrides;
+    return {
+      id: "test_agent",
+      name: "Test Agent",
+      type: "single",
+      parameters: [{ name: paramName, type: paramName === "count" || paramName === "value" ? "number" : "string", required: true }],
+      toolDefinition: {
+        toolId: "echo_tool",
+        parameters: { text: `{{${paramName}}}` },
+      },
+      ...rest,
+    };
+  }
+
   beforeEach(() => {
     executor = new ToolExecutor();
     executedTools = [];
@@ -45,24 +61,12 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
 
   describe("Single Tool with Pre-Processing only", () => {
     it("transforms input before tool execution", async () => {
-      const agent: Agent = {
-        id: "test_agent",
-        name: "Test Agent",
-        type: "single",
-        parameters: [
-          { name: "text", type: "string", required: true },
-        ],
+      const agent = makeAgent({
         preprocess: `
           input.text = input.text.trim().toUpperCase();
           return input;
         `,
-        toolDefinition: {
-          toolId: "echo_tool",
-          parameters: {
-            text: "{{text}}",
-          },
-        },
-      };
+      });
 
       const result = await executor.executeAgent(agent, mockRegistry, {
         text: "  hello world  ",
@@ -76,13 +80,8 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
     });
 
     it("adds new fields during preprocessing", async () => {
-      const agent: Agent = {
-        id: "test_agent",
-        name: "Test Agent",
-        type: "single",
-        parameters: [
-          { name: "name", type: "string", required: true },
-        ],
+      const agent = makeAgent({
+        paramName: "name",
         preprocess: `
           input.filePath = input.name + ".md";
           input.timestamp = "2026-01-12";
@@ -90,11 +89,9 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
         `,
         toolDefinition: {
           toolId: "echo_tool",
-          parameters: {
-            text: "{{filePath}}",
-          },
+          parameters: { text: "{{filePath}}" },
         },
-      };
+      });
 
       const result = await executor.executeAgent(agent, mockRegistry, {
         name: "test-file",
@@ -109,19 +106,7 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
 
   describe("Single Tool with Post-Processing only", () => {
     it("transforms output after tool execution", async () => {
-      const agent: Agent = {
-        id: "test_agent",
-        name: "Test Agent",
-        type: "single",
-        parameters: [
-          { name: "text", type: "string", required: true },
-        ],
-        toolDefinition: {
-          toolId: "echo_tool",
-          parameters: {
-            text: "{{text}}",
-          },
-        },
+      const agent = makeAgent({
         postprocess: `
           return {
             result: output.echoed.toUpperCase(),
@@ -129,7 +114,7 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
             log: []
           };
         `,
-      };
+      });
 
       const result = await executor.executeAgent(agent, mockRegistry, {
         text: "hello",
@@ -145,30 +130,18 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
 
   describe("Single Tool with Pre AND Post-Processing", () => {
     it("executes full 3-phase pipeline correctly", async () => {
-      const agent: Agent = {
-        id: "test_agent",
-        name: "Test Agent",
-        type: "single",
-        parameters: [
-          { name: "text", type: "string", required: true },
-        ],
+      const agent = makeAgent({
         preprocess: `
           input.text = input.text.trim();
           return input;
         `,
-        toolDefinition: {
-          toolId: "echo_tool",
-          parameters: {
-            text: "{{text}}",
-          },
-        },
         postprocess: `
           return {
             final: output.echoed.toUpperCase(),
             log: []
           };
         `,
-      };
+      });
 
       const result = await executor.executeAgent(agent, mockRegistry, {
         text: "  hello  ",
@@ -182,30 +155,19 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
     });
 
     it("propagates data through all phases", async () => {
-      const agent: Agent = {
-        id: "test_agent",
-        name: "Test Agent",
-        type: "single",
-        parameters: [
-          { name: "count", type: "number", required: true },
-        ],
+      const agent = makeAgent({
+        paramName: "count",
         preprocess: `
           input.count = input.count * 2;
           return input;
         `,
-        toolDefinition: {
-          toolId: "echo_tool",
-          parameters: {
-            text: "{{count}}",
-          },
-        },
         postprocess: `
           return {
             doubled: parseInt(output.echoed) * 2,
             log: []
           };
         `,
-      };
+      });
 
       const result = await executor.executeAgent(agent, mockRegistry, {
         count: 5,
@@ -221,24 +183,12 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
 
   describe("Error Handling in Pre-Processing", () => {
     it("fails execution when preprocess has invalid code", async () => {
-      const agent: Agent = {
-        id: "test_agent",
-        name: "Test Agent",
-        type: "single",
-        parameters: [
-          { name: "text", type: "string", required: true },
-        ],
+      const agent = makeAgent({
         preprocess: `
           // No return statement - invalid
           input.text = input.text.trim();
         `,
-        toolDefinition: {
-          toolId: "echo_tool",
-          parameters: {
-            text: "{{text}}",
-          },
-        },
-      };
+      });
 
       const result = await executor.executeAgent(agent, mockRegistry, {
         text: "hello",
@@ -249,24 +199,12 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
     });
 
     it("fails execution when preprocess throws error", async () => {
-      const agent: Agent = {
-        id: "test_agent",
-        name: "Test Agent",
-        type: "single",
-        parameters: [
-          { name: "text", type: "string", required: true },
-        ],
+      const agent = makeAgent({
         preprocess: `
           input.value = input.missing.property; // Will throw
           return input;
         `,
-        toolDefinition: {
-          toolId: "echo_tool",
-          parameters: {
-            text: "{{text}}",
-          },
-        },
-      };
+      });
 
       const result = await executor.executeAgent(agent, mockRegistry, {
         text: "hello",
@@ -277,24 +215,12 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
     });
 
     it("does not execute tool when preprocess fails", async () => {
-      const agent: Agent = {
-        id: "test_agent",
-        name: "Test Agent",
-        type: "single",
-        parameters: [
-          { name: "text", type: "string", required: true },
-        ],
+      const agent = makeAgent({
         preprocess: `
           throw new Error("Preprocess error");
           return input;
         `,
-        toolDefinition: {
-          toolId: "echo_tool",
-          parameters: {
-            text: "{{text}}",
-          },
-        },
-      };
+      });
 
       await executor.executeAgent(agent, mockRegistry, { text: "hello" });
 
@@ -305,23 +231,11 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
 
   describe("Error Handling in Post-Processing", () => {
     it("fails execution when postprocess has no executable return", async () => {
-      const agent: Agent = {
-        id: "test_agent",
-        name: "Test Agent",
-        type: "single",
-        parameters: [
-          { name: "text", type: "string", required: true },
-        ],
-        toolDefinition: {
-          toolId: "echo_tool",
-          parameters: {
-            text: "{{text}}",
-          },
-        },
+      const agent = makeAgent({
         postprocess: `
           const x = output.echoed;
         `,
-      };
+      });
 
       const result = await executor.executeAgent(agent, mockRegistry, {
         text: "hello",
@@ -332,23 +246,11 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
     });
 
     it("fails execution when postprocess throws error", async () => {
-      const agent: Agent = {
-        id: "test_agent",
-        name: "Test Agent",
-        type: "single",
-        parameters: [
-          { name: "text", type: "string", required: true },
-        ],
-        toolDefinition: {
-          toolId: "echo_tool",
-          parameters: {
-            text: "{{text}}",
-          },
-        },
+      const agent = makeAgent({
         postprocess: `
           return output.missing.deeply.nested.property;
         `,
-      };
+      });
 
       const result = await executor.executeAgent(agent, mockRegistry, {
         text: "hello",
@@ -361,19 +263,13 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
 
   describe("Single Tool without Tool Execution", () => {
     it("can run pre-processing without tool execution", async () => {
-      const agent: Agent = {
-        id: "test_agent",
-        name: "Test Agent",
-        type: "single",
-        parameters: [
-          { name: "text", type: "string", required: true },
-        ],
+      const agent = makeAgent({
         preprocess: `
           input.processed = input.text.toUpperCase();
           return input;
         `,
-        // No toolDefinition
-      };
+        toolDefinition: undefined,
+      });
 
       const result = await executor.executeAgent(agent, mockRegistry, {
         text: "hello",
@@ -387,13 +283,8 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
     });
 
     it("can run post-processing on preprocessed data", async () => {
-      const agent: Agent = {
-        id: "test_agent",
-        name: "Test Agent",
-        type: "single",
-        parameters: [
-          { name: "value", type: "number", required: true },
-        ],
+      const agent = makeAgent({
+        paramName: "value",
         preprocess: `
           input.doubled = input.value * 2;
           return input;
@@ -404,8 +295,8 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
             log: []
           };
         `,
-        // No toolDefinition
-      };
+        toolDefinition: undefined,
+      });
 
       const result = await executor.executeAgent(agent, mockRegistry, {
         value: 5,
@@ -421,30 +312,18 @@ describe("ToolExecutor - 3-Phase Execution (Pre/Post-Processing)", () => {
 
   describe("Phase Logging", () => {
     it("logs all three phases", async () => {
-      const agent: Agent = {
-        id: "test_agent",
-        name: "Test Agent",
-        type: "single",
-        parameters: [
-          { name: "text", type: "string", required: true },
-        ],
+      const agent = makeAgent({
         preprocess: `
           input.text = input.text.trim();
           return input;
         `,
-        toolDefinition: {
-          toolId: "echo_tool",
-          parameters: {
-            text: "{{text}}",
-          },
-        },
         postprocess: `
           return {
             result: output.echoed.toUpperCase(),
             log: []
           };
         `,
-      };
+      });
 
       const result = await executor.executeAgent(agent, mockRegistry, {
         text: "  hello  ",

@@ -12,6 +12,101 @@ export interface SidebarExample {
   content: string;
 }
 
+// ── Content builder helpers ──────────────────────────────────────────────────
+
+/**
+ * Generates the YAML frontmatter block for a tool definition file.
+ * @param id - Unique tool identifier
+ * @param name - Human-readable tool name
+ * @param type - Tool type: "single" or "chain"
+ * @param parameters - Pre-formatted YAML string for the parameters list (indented with 2 spaces)
+ * @param description - Short description of the tool
+ * @param extra - Optional extra frontmatter lines appended before the closing `---`
+ */
+function buildToolFrontmatter(
+  id: string,
+  name: string,
+  type: "single" | "chain",
+  parameters: string,
+  description: string,
+  extra?: string
+): string {
+  return `---
+tool: true
+id: ${id}
+name: "${name}"
+type: ${type}
+parameters:
+${parameters}description: "${description}"${extra ? `\n${extra}` : ""}
+---`;
+}
+
+/**
+ * Generates the YAML frontmatter block for an agent definition file.
+ * @param id - Unique agent identifier
+ * @param name - Human-readable agent name
+ * @param description - Short description of the agent
+ * @param model - OpenRouter model identifier (e.g. "openai/gpt-4o-mini")
+ * @param tools - List of tool IDs available to the agent
+ * @param maxMessages - Maximum conversation history length
+ * @param temperature - LLM sampling temperature (0–1)
+ */
+function buildAgentFrontmatter(
+  id: string,
+  name: string,
+  description: string,
+  model: string,
+  tools: string[],
+  maxMessages: number,
+  temperature: number
+): string {
+  const toolLines = tools.map((t) => `  - ${t}`).join("\n");
+  return `---
+agent: true
+id: ${id}
+name: "${name}"
+description: "${description}"
+model: ${model}
+tools:
+${toolLines}
+memory:
+  type: conversation
+  maxMessages: ${maxMessages}
+temperature: ${temperature}
+---`;
+}
+
+/**
+ * Generates the `#### **Tool-Ausführung**` YAML execution block for a tool file.
+ * @param toolId - The built-in or custom tool to invoke
+ * @param parametersYaml - Pre-formatted YAML string for the parameter mappings (indented with 2 spaces)
+ */
+function buildToolExecutionBlock(toolId: string, parametersYaml: string): string {
+  return `#### **Tool-Ausführung**
+\`\`\`yaml
+tool: "${toolId}"
+parameters:
+${parametersYaml}\`\`\``;
+}
+
+/** Generates the `#### **Pre-Processing**` JavaScript block for a tool file. */
+function buildPreprocessBlock(code: string): string {
+  return `#### **Pre-Processing**
+\`\`\`javascript
+// @preprocess
+${code}\`\`\``;
+}
+
+/** Generates the `#### **Post-Processing**` JavaScript block for a tool file. */
+function buildPostprocessBlock(code: string): string {
+  return `#### **Post-Processing**
+\`\`\`javascript
+// @postprocess
+${code}\`\`\``;
+}
+
+// ── Examples ─────────────────────────────────────────────────────────────────
+
 export const SIDEBAR_EXAMPLES: SidebarExample[] = [
   {
     id: "search-vault",
@@ -26,13 +121,11 @@ export const SIDEBAR_EXAMPLES: SidebarExample[] = [
     tags: ["beginner", "no setup"],
     fileType: "tool",
     fileName: "example-search.md",
-    content: `---
-tool: true
-id: search_vault_example
-name: "Search Vault"
-type: single
-parameters:
-  - name: query
+    content: `${buildToolFrontmatter(
+      "search_vault_example",
+      "Search Vault",
+      "single",
+      `  - name: query
     type: string
     description: "What to search for"
     required: true
@@ -41,18 +134,15 @@ parameters:
     description: "Folder to search in (default: entire vault)"
     required: false
     default: "/"
-description: "Search for files in your vault by name or content"
----
+`,
+      "Search for files in your vault by name or content"
+    )}
 
 This tool uses the built-in \`search_files\` tool.
 
-#### **Tool-Ausführung**
-\`\`\`yaml
-tool: "search_files"
-parameters:
-  query: "{{query}}"
+${buildToolExecutionBlock("search_files", `  query: "{{query}}"
   path: "{{path}}"
-\`\`\``,
+`)}`,
   },
   {
     id: "daily-note",
@@ -67,13 +157,11 @@ parameters:
     tags: ["javascript", "write_file", "template"],
     fileType: "tool",
     fileName: "daily-note-creator.md",
-    content: `---
-tool: true
-id: create_daily_note
-name: "Create Daily Note"
-type: single
-parameters:
-  - name: tags
+    content: `${buildToolFrontmatter(
+      "create_daily_note",
+      "Create Daily Note",
+      "single",
+      `  - name: tags
     type: string
     description: "Comma-separated tags for the note"
     required: false
@@ -83,13 +171,11 @@ parameters:
     description: "Today's mood"
     required: false
     default: "neutral"
-description: "Creates a daily note with a structured template"
----
+`,
+      "Creates a daily note with a structured template"
+    )}
 
-#### **Pre-Processing**
-\`\`\`javascript
-// @preprocess
-const today = new Date().toISOString().split('T')[0];
+${buildPreprocessBlock(`const today = new Date().toISOString().split('T')[0];
 input.filePath = \`daily-notes/\${today}.md\`;
 
 const tagList = input.tags
@@ -114,26 +200,19 @@ input.content = \`# Daily Note - \${today}
 
 \`;
 return input;
-\`\`\`
+`)}
 
-#### **Tool-Ausführung**
-\`\`\`yaml
-tool: "write_file"
-parameters:
-  filePath: "{{filePath}}"
+${buildToolExecutionBlock("write_file", `  filePath: "{{filePath}}"
   content: "{{content}}"
   overwrite: false
-\`\`\`
+`)}
 
-#### **Post-Processing**
-\`\`\`javascript
-// @postprocess
-return {
+${buildPostprocessBlock(`return {
   message: "Daily note created successfully",
   path: output.filePath || "unknown",
   log: []
 };
-\`\`\``,
+`)}`,
   },
   {
     id: "search-and-count",
@@ -148,13 +227,11 @@ return {
     tags: ["chain", "multi-step", "post-processing"],
     fileType: "tool",
     fileName: "search-and-count.md",
-    content: `---
-tool: true
-id: search_and_count
-name: "Search & Count Results"
-type: chain
-parameters:
-  - name: query
+    content: `${buildToolFrontmatter(
+      "search_and_count",
+      "Search & Count Results",
+      "chain",
+      `  - name: query
     type: string
     description: "Search query"
     required: true
@@ -163,8 +240,9 @@ parameters:
     description: "Folder to search in"
     required: false
     default: "/"
-description: "Searches for files and provides statistics"
----
+`,
+      "Searches for files and provides statistics"
+    )}
 
 #### **Steps**
 \`\`\`yaml
@@ -176,10 +254,7 @@ steps:
       path: "{{folder}}"
 \`\`\`
 
-#### **Post-Processing**
-\`\`\`javascript
-// @postprocess
-const results = output.results || [];
+${buildPostprocessBlock(`const results = output.results || [];
 const fileTypes = {};
 
 results.forEach(file => {
@@ -198,7 +273,7 @@ return {
   })),
   log: []
 };
-\`\`\``,
+`)}`,
   },
   {
     id: "conditional-chain",
@@ -213,19 +288,18 @@ return {
     tags: ["conditional", "chain", "advanced"],
     fileType: "tool",
     fileName: "conditional-chain.md",
-    content: `---
-tool: true
-id: conditional_read
-name: "Conditional Search & Read"
-type: chain
-parameters:
-  - name: query
+    content: `${buildToolFrontmatter(
+      "conditional_read",
+      "Conditional Search & Read",
+      "chain",
+      `  - name: query
     type: string
     description: "What to search for"
     required: true
-description: "Searches for files, reads the first result if found"
-continueOnError: true
----
+`,
+      "Searches for files, reads the first result if found",
+      "continueOnError: true"
+    )}
 
 #### **Steps**
 \`\`\`yaml
@@ -246,10 +320,7 @@ steps:
       filePath: "{{search.results.0.path}}"
 \`\`\`
 
-#### **Post-Processing**
-\`\`\`javascript
-// @postprocess
-const searchResults = output.search?.results || [];
+${buildPostprocessBlock(`const searchResults = output.search?.results || [];
 const fileContent = output.read_first?.content;
 
 return {
@@ -260,7 +331,7 @@ return {
     : "No file read",
   log: []
 };
-\`\`\``,
+`)}`,
   },
   {
     id: "research-agent",
@@ -275,20 +346,15 @@ return {
     tags: ["agent", "LLM", "requires API key"],
     fileType: "agent",
     fileName: "research-assistant.md",
-    content: `---
-agent: true
-id: research_assistant
-name: "Research Assistant"
-description: "Searches and summarizes information from your vault"
-model: openai/gpt-4o-mini
-tools:
-  - search_files
-  - read_file
-memory:
-  type: conversation
-  maxMessages: 30
-temperature: 0.7
----
+    content: `${buildAgentFrontmatter(
+      "research_assistant",
+      "Research Assistant",
+      "Searches and summarizes information from your vault",
+      "openai/gpt-4o-mini",
+      ["search_files", "read_file"],
+      30,
+      0.7
+    )}
 
 # Research Assistant
 
@@ -324,20 +390,15 @@ You are a helpful research assistant for Obsidian. Your job is to help the user 
     tags: ["agent", "LLM", "writing", "requires API key"],
     fileType: "agent",
     fileName: "writing-helper.md",
-    content: `---
-agent: true
-id: writing_helper
-name: "Writing Helper"
-description: "Helps improve, edit, and structure your texts"
-model: openai/gpt-4o
-tools:
-  - read_file
-  - write_file
-memory:
-  type: conversation
-  maxMessages: 20
-temperature: 0.8
----
+    content: `${buildAgentFrontmatter(
+      "writing_helper",
+      "Writing Helper",
+      "Helps improve, edit, and structure your texts",
+      "openai/gpt-4o",
+      ["read_file", "write_file"],
+      20,
+      0.8
+    )}
 
 # Writing Helper
 
@@ -380,20 +441,15 @@ You are an experienced writing assistant and editor. You help the user write bet
     tags: ["agent", "LLM", "API", "HTTP", "requires API key"],
     fileType: "agent",
     fileName: "api-helper.md",
-    content: `---
-agent: true
-id: api_helper
-name: "API Helper"
-description: "Makes HTTP requests and processes API responses"
-model: openai/gpt-4o-mini
-tools:
-  - rest_request
-  - write_file
-memory:
-  type: conversation
-  maxMessages: 25
-temperature: 0.5
----
+    content: `${buildAgentFrontmatter(
+      "api_helper",
+      "API Helper",
+      "Makes HTTP requests and processes API responses",
+      "openai/gpt-4o-mini",
+      ["rest_request", "write_file"],
+      25,
+      0.5
+    )}
 
 # API Helper
 

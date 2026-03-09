@@ -162,22 +162,25 @@ parameters:
   // === isToolFile (via onToolFileChanged) ===
 
   describe("isToolFile", () => {
-    it("identifies .md files inside paper-agents-tools as tool files", () => {
-      // Access isToolFile indirectly - it's private. We test via onToolFileChanged.
-      // We just verify the method exists and is callable by testing the event registration.
-      // Instead, test the behavior - register callback and simulate events.
+    function setupVaultEvents(app: App, loaderInstance: CustomToolLoader) {
       const calls: Array<{ id: string; action: string }> = [];
       const vaultEvents: Record<string, Array<(file: any) => void>> = {};
 
-      // Override vault.on to capture event registrations
-      (mockApp.vault as any).on = (event: string, cb: (file: any) => void) => {
+      (app.vault as any).on = (event: string, cb: (file: any) => void) => {
         vaultEvents[event] ??= [];
         vaultEvents[event].push(cb);
       };
 
-      loader.onToolFileChanged((toolId, action) => {
+      loaderInstance.onToolFileChanged((toolId, action) => {
         calls.push({ id: toolId, action });
       });
+
+      return { calls, vaultEvents };
+    }
+
+    it("identifies .md files inside paper-agents-tools as tool files", () => {
+      // Access isToolFile indirectly - it's private. We test via onToolFileChanged.
+      const { calls, vaultEvents } = setupVaultEvents(mockApp, loader);
 
       // Simulate create event with a tool file
       const toolFile = new TFile("paper-agents-tools/new-tool.md");
@@ -188,17 +191,7 @@ parameters:
     });
 
     it("ignores non-md files", () => {
-      const calls: Array<{ id: string; action: string }> = [];
-      const vaultEvents: Record<string, Array<(file: any) => void>> = {};
-
-      (mockApp.vault as any).on = (event: string, cb: (file: any) => void) => {
-        vaultEvents[event] ??= [];
-        vaultEvents[event].push(cb);
-      };
-
-      loader.onToolFileChanged((toolId, action) => {
-        calls.push({ id: toolId, action });
-      });
+      const { calls, vaultEvents } = setupVaultEvents(mockApp, loader);
 
       const txtFile = new TFile("paper-agents-tools/notes.txt");
       for (const cb of vaultEvents["modify"] || []) cb(txtFile);
@@ -206,17 +199,7 @@ parameters:
     });
 
     it("ignores files outside paper-agents-tools", () => {
-      const calls: Array<{ id: string; action: string }> = [];
-      const vaultEvents: Record<string, Array<(file: any) => void>> = {};
-
-      (mockApp.vault as any).on = (event: string, cb: (file: any) => void) => {
-        vaultEvents[event] ??= [];
-        vaultEvents[event].push(cb);
-      };
-
-      loader.onToolFileChanged((toolId, action) => {
-        calls.push({ id: toolId, action });
-      });
+      const { calls, vaultEvents } = setupVaultEvents(mockApp, loader);
 
       const unrelatedFile = new TFile("notes/daily.md");
       for (const cb of vaultEvents["delete"] || []) cb(unrelatedFile);
@@ -224,17 +207,7 @@ parameters:
     });
 
     it("ignores non-TFile objects", () => {
-      const calls: Array<{ id: string; action: string }> = [];
-      const vaultEvents: Record<string, Array<(file: any) => void>> = {};
-
-      (mockApp.vault as any).on = (event: string, cb: (file: any) => void) => {
-        vaultEvents[event] ??= [];
-        vaultEvents[event].push(cb);
-      };
-
-      loader.onToolFileChanged((toolId, action) => {
-        calls.push({ id: toolId, action });
-      });
+      const { calls, vaultEvents } = setupVaultEvents(mockApp, loader);
 
       // Pass a TFolder instead of TFile
       const folder = new TFolder("paper-agents-tools");
@@ -243,17 +216,7 @@ parameters:
     });
 
     it("fires modify and delete events correctly", () => {
-      const calls: Array<{ id: string; action: string }> = [];
-      const vaultEvents: Record<string, Array<(file: any) => void>> = {};
-
-      (mockApp.vault as any).on = (event: string, cb: (file: any) => void) => {
-        vaultEvents[event] ??= [];
-        vaultEvents[event].push(cb);
-      };
-
-      loader.onToolFileChanged((toolId, action) => {
-        calls.push({ id: toolId, action });
-      });
+      const { calls, vaultEvents } = setupVaultEvents(mockApp, loader);
 
       const toolFile = new TFile("paper-agents-tools/edit-tool.md");
       for (const cb of vaultEvents["modify"] || []) cb(toolFile);
