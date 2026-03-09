@@ -106,12 +106,23 @@ export class CanvasAgent {
    * Builds the initial prompt sent to the agent when starting a canvas session.
    */
   buildInitialPrompt(documentContent: string): string {
-    return (
+    const defaultSystemPrompt =
       "You are reviewing the following document. Provide annotations, feedback, or analysis. " +
       "When referencing a specific part of the document, quote it briefly. " +
       "To place your annotation after a specific paragraph, start your response with " +
       "`@after-paragraph-N:` (e.g., `@after-paragraph-3:`) on the first line. " +
-      "Otherwise your annotation will be appended at the end of the document.\n\n" +
+      "Otherwise your annotation will be appended at the end of the document.";
+    return this.buildInitialPromptWithSystem(documentContent, defaultSystemPrompt);
+  }
+
+  /**
+   * Builds the initial prompt with a custom system prompt string.
+   * The system prompt replaces the built-in default instructions.
+   */
+  buildInitialPromptWithSystem(documentContent: string, systemPrompt: string): string {
+    return (
+      systemPrompt +
+      "\n\n" +
       "=== DOCUMENT ===\n" +
       documentContent +
       "\n=== END ==="

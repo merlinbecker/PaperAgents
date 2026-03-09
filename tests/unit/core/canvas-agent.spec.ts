@@ -150,6 +150,36 @@ describe("CanvasAgent", () => {
     });
   });
 
+  describe("buildInitialPromptWithSystem", () => {
+    let canvasAgent: CanvasAgent;
+    beforeEach(() => {
+      canvasAgent = new CanvasAgent(makeApp() as never);
+    });
+
+    it("uses the provided system prompt instead of the built-in default", () => {
+      const doc = "# My Doc\n\nSome content.";
+      const systemPrompt = "You are a strict grammar checker.";
+      const prompt = canvasAgent.buildInitialPromptWithSystem(doc, systemPrompt);
+
+      expect(prompt).toContain(systemPrompt);
+      expect(prompt).toContain("=== DOCUMENT ===");
+      expect(prompt).toContain("=== END ===");
+      expect(prompt).toContain(doc);
+      // Built-in default instructions should NOT appear
+      expect(prompt).not.toContain("You are reviewing the following document");
+    });
+
+    it("places the system prompt before the document block", () => {
+      const doc = "Hello world.";
+      const systemPrompt = "Custom instructions.";
+      const prompt = canvasAgent.buildInitialPromptWithSystem(doc, systemPrompt);
+
+      const systemIdx = prompt.indexOf(systemPrompt);
+      const docIdx = prompt.indexOf("=== DOCUMENT ===");
+      expect(systemIdx).toBeLessThan(docIdx);
+    });
+  });
+
   describe("formatAgentCallout", () => {
     let canvasAgent: CanvasAgent;
     beforeEach(() => {

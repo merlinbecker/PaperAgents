@@ -4,22 +4,30 @@
  * Allows the user to:
  * 1. Select an agent (or auto-selects from document frontmatter)
  * 2. Start a canvas session with the active document as context
+ *    OR load a document from the configured canvas Markdown folder
  * 3. See streaming agent responses
  * 4. Send follow-up messages that appear as callouts in the document
+ * 5. Re-run the document analysis for a follow-up pass
  */
 
-import { App, Modal, Notice, TFile } from "obsidian";
+import { App, Modal, Notice, TFile, TFolder } from "obsidian";
 import type { AgentDefinition } from "../types";
 import { ConversationManager } from "../core/conversation";
 import { CanvasAgent } from "../core/canvas-agent";
 import { Orchestrator } from "../core/orchestrator";
 import { globalLogger } from "../utils/logger";
 
+export interface CanvasModalSettings {
+  canvasMarkdownPath?: string;
+  canvasSystemPromptFile?: string;
+}
+
 export class CanvasModal extends Modal {
   private readonly agents: AgentDefinition[];
   private readonly conversationManager: ConversationManager;
   private readonly canvasAgent: CanvasAgent;
   private readonly getOrchestrator: () => Orchestrator | null;
+  private readonly canvasSettings: CanvasModalSettings;
 
   private selectedAgent: AgentDefinition | null = null;
   private selectedAgents: AgentDefinition[] = [];
@@ -29,10 +37,12 @@ export class CanvasModal extends Modal {
   private conversationId: string | null = null;
   private isStreaming = false;
   private originalDocumentContent: string | null = null;
+  private sessionStarted = false;
 
   // UI elements
   private agentSelectEl: HTMLSelectElement | null = null;
   private startBtn: HTMLButtonElement | null = null;
+  private rerunBtn: HTMLButtonElement | null = null;
   private inputEl: HTMLTextAreaElement | null = null;
   private sendBtn: HTMLButtonElement | null = null;
   private responseContainer: HTMLElement | null = null;
@@ -44,13 +54,15 @@ export class CanvasModal extends Modal {
     app: App,
     agents: AgentDefinition[],
     conversationManager: ConversationManager,
-    getOrchestrator: () => Orchestrator | null
+    getOrchestrator: () => Orchestrator | null,
+    canvasSettings: CanvasModalSettings = {}
   ) {
     super(app);
     this.agents = agents;
     this.conversationManager = conversationManager;
     this.canvasAgent = new CanvasAgent(app);
     this.getOrchestrator = getOrchestrator;
+    this.canvasSettings = canvasSettings;
   }
 
   onOpen(): void {
@@ -96,6 +108,72 @@ export class CanvasModal extends Modal {
         cls: "pa-canvas-selection-hint",
         text: `✂️ Using selected text as context (${charCount} chars)`,
       });
+    }
+
+    // Canvas Markdown folder picker
+    this.renderCanvasFilePicker(header);
+  }
+
+  /**
+   * Renders a file picker showing Markdown files from the configured canvas folder.
+   * When the user selects a file and clicks "Load", it becomes the active file.
+   */
+  private renderCanvasFilePicker(container: HTMLElement): void {
+    const folderPath = this.canvasSettings.canvasMarkdownPath;
+    if (!folderPath) return;
+
+    const folder = this.app.vault.getAbstractFileByPath(folderPath);
+    if (!(folder instanceof TFolder)) return;
+
+    const mdFiles: TFile[] = [];
+    this.collectMdFiles(folder, mdFiles);
+    if (mdFiles.length === 0) return;
+
+    const pickerRow = container.createDiv({ cls: "pa-canvas-file-picker" });
+    pickerRow.createEl("label", {
+      text: `📂 Load from canvas folder (${folderPath}):`,
+      cls: "pa-canvas-file-picker-label",
+    });
+
+    const select = pickerRow.createEl("select", { cls: "pa-canvas-file-picker-select" });
+    select.createEl("option", { text: "— select a file —", value: "" });
+    for (const f of mdFiles) {
+      select.createEl("option", { text: f.basename, value: f.path });
+    }
+
+    const loadBtn = pickerRow.createEl("button", {
+      cls: "pa-canvas-file-picker-btn",
+      text: "Load",
+    });
+    loadBtn.addEventListener("click", () => {
+      const selectedPath = select.value;
+      if (!selectedPath) return;
+      const file = this.app.vault.getAbstractFileByPath(selectedPath);
+      if (file instanceof TFile) {
+        this.activeFile = file;
+        // Update header hint
+        const hint = container.querySelector(".pa-canvas-file-hint, .pa-canvas-no-file");
+        if (hint) {
+          hint.textContent = `Document: ${file.basename}`;
+          hint.className = "pa-canvas-file-hint";
+        }
+        new Notice(`Loaded: ${file.basename}`);
+        // Re-render agent selection (it was skipped when no active file)
+        const existingSelection = this.contentEl.querySelector(".pa-canvas-agent-selection");
+        if (!existingSelection) {
+          this.renderAgentSelection();
+        }
+      }
+    });
+  }
+
+  private collectMdFiles(folder: TFolder, results: TFile[]): void {
+    for (const child of folder.children) {
+      if (child instanceof TFile && child.extension === "md") {
+        results.push(child);
+      } else if (child instanceof TFolder) {
+        this.collectMdFiles(child, results);
+      }
     }
   }
 
@@ -247,6 +325,16 @@ export class CanvasModal extends Modal {
     });
     this.sendBtn.addEventListener("click", () => { void this.sendFollowUp(); });
 
+    // Re-run button (hidden until first session completes)
+    const rerunRow = this.conversationPanel.createDiv({ cls: "pa-canvas-rerun-row" });
+    this.rerunBtn = rerunRow.createEl("button", {
+      cls: "pa-canvas-rerun-btn",
+      text: "🔄 Re-run document analysis (follow-up)",
+      attr: { title: "Re-read the current document and run the agent again as a follow-up pass" },
+    });
+    this.rerunBtn.style.display = "none";
+    this.rerunBtn.addEventListener("click", () => { void this.rerunForFollowUp(); });
+
     // Diff section (hidden until session started)
     this.diffSection = this.contentEl.createDiv({ cls: "pa-canvas-diff-section" });
     this.diffSection.style.display = "none";
@@ -288,7 +376,10 @@ export class CanvasModal extends Modal {
         const content = await this.canvasAgent.readFile(this.activeFile);
         this.originalDocumentContent = content;
         const docContext = this.canvasAgent.buildDocumentContext(content);
-        initialPrompt = this.canvasAgent.buildInitialPrompt(docContext);
+        const systemPrompt = await this.loadSystemPrompt();
+        initialPrompt = systemPrompt
+          ? this.canvasAgent.buildInitialPromptWithSystem(docContext, systemPrompt)
+          : this.canvasAgent.buildInitialPrompt(docContext);
       }
 
       // Create conversation
@@ -302,6 +393,8 @@ export class CanvasModal extends Modal {
       this.renderDiffButton();
 
       await this.sendToAgent(orchestrator, initialPrompt);
+      this.sessionStarted = true;
+      if (this.rerunBtn) this.rerunBtn.style.display = "block";
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       new Notice(`Canvas session failed: ${msg}`);
@@ -402,6 +495,78 @@ export class CanvasModal extends Modal {
     this.addMessageToDisplay("user", message, userCalloutText);
 
     await this.sendToAgent(orchestrator, message);
+  }
+
+  /**
+   * Re-reads the active document, strips existing canvas callouts, and sends
+   * the cleaned content to the agent again as a follow-up pass. This allows
+   * the user to iterate on the document after applying earlier annotations.
+   */
+  private async rerunForFollowUp(): Promise<void> {
+    if (this.isStreaming) return;
+
+    const orchestrator = this.getOrchestrator();
+    if (!orchestrator || !this.selectedAgent || !this.activeFile) {
+      new Notice("Cannot re-run: no active session or document.");
+      return;
+    }
+
+    if (this.rerunBtn) {
+      this.rerunBtn.disabled = true;
+      this.rerunBtn.textContent = "🔄 Re-running…";
+    }
+
+    try {
+      const content = await this.canvasAgent.readFile(this.activeFile);
+      const docContext = this.canvasAgent.buildDocumentContext(content);
+      const systemPrompt = await this.loadSystemPrompt();
+      const followUpPrompt = systemPrompt
+        ? this.canvasAgent.buildInitialPromptWithSystem(docContext, systemPrompt)
+        : this.canvasAgent.buildInitialPrompt(docContext);
+
+      // Create a new conversation for the follow-up pass
+      const conversation = this.conversationManager.createConversation(this.selectedAgent.id);
+      this.conversationId = conversation.id;
+
+      if (this.responseContainer) {
+        this.responseContainer.createEl("p", {
+          cls: "pa-canvas-agent-separator",
+          text: `── Follow-up pass: ${this.selectedAgent.name} ──`,
+        });
+      }
+
+      await this.sendToAgent(orchestrator, followUpPrompt);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      new Notice(`Re-run failed: ${msg}`);
+      globalLogger.error("Canvas re-run error", { error: msg });
+    } finally {
+      if (this.rerunBtn) {
+        this.rerunBtn.disabled = false;
+        this.rerunBtn.textContent = "🔄 Re-run document analysis (follow-up)";
+      }
+    }
+  }
+
+  /**
+   * Loads the custom system prompt from the file specified in settings.
+   * Returns null if no file is configured or the file cannot be read.
+   */
+  private async loadSystemPrompt(): Promise<string | null> {
+    const filePath = this.canvasSettings.canvasSystemPromptFile;
+    if (!filePath) return null;
+
+    try {
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      if (!(file instanceof TFile)) return null;
+      const content = await this.app.vault.read(file);
+      // Strip YAML frontmatter if present
+      const stripped = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
+      return stripped || null;
+    } catch (error) {
+      globalLogger.warn("Failed to load canvas system prompt", { filePath, error });
+      return null;
+    }
   }
 
   private async sendToAgent(orchestrator: Orchestrator, message: string): Promise<void> {
