@@ -198,17 +198,27 @@ export class Orchestrator {
       // getMessagesForContext, causing the message to be silently dropped from context
       // and the file data to never reach the LLM.  The full result (including base64)
       // is kept in toolCallInfo.result and is correctly picked up by buildLLMMessages.
-      // For SPLIT_AND_READ_PDF the same principle applies: each chunk's base64 is kept
-      // only in toolCallInfo.result; message content contains only metadata.
+      // For SPLIT_AND_READ_PDF the same principle applies: a single chunk's base64 is
+      // kept only in toolCallInfo.result; message content contains only metadata.
       let messageContent: string;
       if (toolName === PREDEFINED_TOOL_IDS.READ_BINARY_FILE && result.data) {
         const { base64: _omit, ...metadata } = result.data as { base64?: string } & Record<string, unknown>;
         messageContent = JSON.stringify(metadata);
-      } else if (toolName === PREDEFINED_TOOL_IDS.SPLIT_AND_READ_PDF && Array.isArray(result.data)) {
-        const metaChunks = (result.data as Array<{ base64?: string } & Record<string, unknown>>).map(
-          ({ base64: _omit, ...meta }) => meta
-        );
-        messageContent = JSON.stringify(metaChunks);
+      } else if (toolName === PREDEFINED_TOOL_IDS.SPLIT_AND_READ_PDF) {
+        if (Array.isArray(result.data)) {
+          // Legacy: array of chunks (backward compat) – strip base64 from each
+          const metaChunks = (result.data as Array<{ base64?: string } & Record<string, unknown>>).map(
+            ({ base64: _omit, ...meta }) => meta
+          );
+          messageContent = JSON.stringify(metaChunks);
+        } else if (result.data && typeof result.data === "object" && "base64" in (result.data as object)) {
+          // Single-chunk response: strip base64 from message content
+          const { base64: _omit, ...metadata } = result.data as { base64?: string } & Record<string, unknown>;
+          messageContent = JSON.stringify(metadata);
+        } else {
+          // Metadata-only response (no chunkIndex supplied): plain JSON, no base64 present
+          messageContent = JSON.stringify(result.data || result.error || "No output");
+        }
       } else {
         messageContent = JSON.stringify(result.data || result.error || "No output");
       }
@@ -280,9 +290,10 @@ export class Orchestrator {
           });
         }
       } else if (msg.role === "tool" && msg.toolCall?.toolId === PREDEFINED_TOOL_IDS.SPLIT_AND_READ_PDF) {
-        // Format each PDF chunk as a separate multimodal file message
-        const chunks = msg.toolCall.result as Array<{ base64?: string; mimeType?: string; filePath?: string; chunkIndex?: number; totalChunks?: number; startPage?: number; endPage?: number }> | null | undefined;
-        if (Array.isArray(chunks) && chunks.length > 0) {
+        const result = msg.toolCall.result;
+        if (Array.isArray(result) && result.length > 0) {
+          // Legacy: array of chunks – format each as a separate multimodal file message
+          const chunks = result as Array<{ base64?: string; mimeType?: string; filePath?: string; chunkIndex?: number; totalChunks?: number; startPage?: number; endPage?: number }>;
           const totalChunks = chunks[0]?.totalChunks ?? chunks.length;
           for (const chunk of chunks) {
             if (chunk.base64 && chunk.mimeType && chunk.filePath) {
@@ -297,7 +308,33 @@ export class Orchestrator {
               formatted.push({ role: "user", content });
             }
           }
+          if (!chunks.some((c) => c.base64)) {
+            formatted.push({
+              role: "assistant",
+              content: this.formatToolResultAsText(msg.toolCall.toolId, msg.toolCall.result, msg.toolCall.error),
+            });
+          }
+        } else if (result && typeof result === "object" && "base64" in (result as object)) {
+          // Single chunk: format as a multimodal file message (identical to READ_BINARY_FILE)
+          const chunk = result as { base64?: string; mimeType?: string; filePath?: string; chunkIndex?: number; totalChunks?: number; startPage?: number; endPage?: number };
+          if (chunk.base64 && chunk.mimeType && chunk.filePath) {
+            const filename = chunk.filePath.split("/").pop() || chunk.filePath;
+            const dataUrl = `data:${chunk.mimeType};base64,${chunk.base64}`;
+            const contextNote = `PDF chunk ${(chunk.chunkIndex ?? 0) + 1} of ${chunk.totalChunks ?? "?"} (pages ${chunk.startPage}–${chunk.endPage}).`;
+            const textPart: ContentTextPart = { type: "text", text: contextNote };
+            const content: ContentPart[] = [
+              textPart,
+              { type: "file", file: { filename, data: dataUrl } },
+            ];
+            formatted.push({ role: "user", content });
+          } else {
+            formatted.push({
+              role: "assistant",
+              content: this.formatToolResultAsText(msg.toolCall.toolId, msg.toolCall.result, msg.toolCall.error),
+            });
+          }
         } else {
+          // Metadata-only response: format as text so the LLM can read totalChunks etc.
           formatted.push({
             role: "assistant",
             content: this.formatToolResultAsText(msg.toolCall.toolId, msg.toolCall.result, msg.toolCall.error),

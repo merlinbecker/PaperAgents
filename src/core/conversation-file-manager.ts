@@ -115,7 +115,13 @@ export class ConversationFileManager {
           });
         }
       } else if (msg.toolCall.toolId === PREDEFINED_TOOL_IDS.SPLIT_AND_READ_PDF) {
-        await this.restorePdfChunks(msg);
+        if (Array.isArray(msg.toolCall.result)) {
+          // Legacy: array of persisted chunks
+          await this.restorePdfChunks(msg);
+        } else {
+          // Single-chunk response persisted with _binaryRef
+          await this.restoreSinglePdfChunk(msg);
+        }
       }
     }
   }
@@ -165,6 +171,47 @@ export class ConversationFileManager {
       msg.toolCall!.result = restoredChunks;
     } catch (err) {
       globalLogger.warn(`Failed to restore PDF chunks for ${binaryPath}`, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /**
+   * Restore base64 payload for a single split_and_read_pdf chunk persisted with _binaryRef.
+   * Re-generates only the one chunk's pages from the original PDF.
+   */
+  private async restoreSinglePdfChunk(msg: Message): Promise<void> {
+    type PersistedSingleChunk = Omit<PdfChunkResult, "base64"> & { _binaryRef?: string };
+    const chunk = msg.toolCall?.result as PersistedSingleChunk | null | undefined;
+    if (!chunk?._binaryRef) return;
+
+    const binaryPath = chunk._binaryRef as string;
+    const binaryFile = this.app.vault.getAbstractFileByPath(binaryPath);
+    if (!(binaryFile instanceof TFile)) {
+      globalLogger.warn(`PDF not found when restoring single split chunk: ${binaryPath}`);
+      return;
+    }
+
+    try {
+      const { PDFDocument } = await import("pdf-lib");
+      const buffer = await this.app.vault.readBinary(binaryFile);
+      const pdfDoc = await PDFDocument.load(buffer);
+
+      const startPage = (chunk.startPage ?? 1) - 1; // convert to 0-based
+      const endPage = (chunk.endPage ?? 1) - 1;
+      const chunkDoc = await PDFDocument.create();
+      const pageIndices = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+      const copiedPages = await chunkDoc.copyPages(pdfDoc, pageIndices);
+      for (const page of copiedPages) {
+        chunkDoc.addPage(page);
+      }
+      const chunkBuffer = await chunkDoc.save();
+      const base64 = this.arrayBufferToBase64(chunkBuffer.buffer as ArrayBuffer);
+
+      const { _binaryRef: _omit, ...rest } = chunk;
+      msg.toolCall!.result = { ...rest, base64 } satisfies PdfChunkResult;
+    } catch (err) {
+      globalLogger.warn(`Failed to restore single PDF chunk for ${binaryPath}`, {
         error: err instanceof Error ? err.message : String(err),
       });
     }

@@ -351,6 +351,57 @@ Result: ${JSON.stringify({ filePath: "nonexistent/file.pdf", mimeType: "applicat
       expect(savedContent).toContain("_binaryRef");
     });
 
+    it("should strip base64 from a single split_and_read_pdf chunk when saving", async () => {
+      manager.createConversation("ocr_agent", "conv_single_chunk_save");
+      manager.addMessage("conv_single_chunk_save", "user", "Get chunk 0");
+      manager.addMessage("conv_single_chunk_save", "tool", "", {
+        toolId: "split_and_read_pdf",
+        parameters: { filePath: "pdfs/big.pdf", chunkIndex: 0 },
+        result: { chunkIndex: 0, totalChunks: 2, startPage: 1, endPage: 60, base64: "SINGLE_CHUNK_B64", mimeType: "application/pdf", filePath: "pdfs/big.pdf", size: 500 },
+      });
+
+      const filePath = await fileManager.createConversationFile("conv_single_chunk_save", "split-convs", "SplitAgent");
+
+      const file = app.vault.getAbstractFileByPath(filePath);
+      const savedContent = await app.vault.read(file as any);
+
+      expect(savedContent).not.toContain("SINGLE_CHUNK_B64");
+      expect(savedContent).toContain("[[pdfs/big.pdf]]");
+      expect(savedContent).toContain("_binaryRef");
+    });
+
+    it("should gracefully handle a missing PDF when restoring a single split_and_read_pdf chunk", async () => {
+      const singleChunk = { chunkIndex: 0, totalChunks: 2, startPage: 1, endPage: 60, mimeType: "application/pdf", filePath: "pdfs/gone.pdf", size: 500, _binaryRef: "pdfs/gone.pdf" };
+      const fileContent = `---
+conversation: true
+id: conv_missing_single_chunk
+agentId: ocr_agent
+createdAt: 2026-01-01T10:00:00.000Z
+updatedAt: 2026-01-01T10:05:00.000Z
+---
+
+### User (2026-01-01T10:00:00.000Z)
+Get chunk 0
+
+### Tool (2026-01-01T10:01:00.000Z)
+<!-- tool:split_and_read_pdf -->
+<!-- params:{"filePath":"pdfs/gone.pdf","chunkIndex":0} -->
+[[pdfs/gone.pdf]]
+Result: ${JSON.stringify(singleChunk)}
+`;
+      await app.vault.create("split-convs/missing-single-chunk.md", fileContent);
+
+      // Should load without throwing; chunk has no base64
+      const loaded = await fileManager.loadConversation("split-convs/missing-single-chunk.md");
+      expect(loaded).not.toBeNull();
+      expect(loaded?.messages).toHaveLength(2);
+      const toolMsg = loaded?.messages[1];
+      const result = toolMsg?.toolCall?.result as Record<string, unknown>;
+      expect(Array.isArray(result)).toBe(false);
+      expect(result["base64"]).toBeUndefined();
+      expect(result["chunkIndex"]).toBe(0);
+    });
+
     it("should gracefully handle a missing PDF when restoring split_and_read_pdf chunks", async () => {
       const chunks = [
         { chunkIndex: 0, totalChunks: 2, startPage: 1, endPage: 60, mimeType: "application/pdf", filePath: "pdfs/gone.pdf", size: 500, _binaryRef: "pdfs/gone.pdf" },
