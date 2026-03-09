@@ -325,5 +325,67 @@ Result: ${JSON.stringify({ filePath: "nonexistent/file.pdf", mimeType: "applicat
       // _binaryRef stays since restore failed, base64 absent
       expect(result["base64"]).toBeUndefined();
     });
+
+    it("should strip base64 from split_and_read_pdf chunks when saving", async () => {
+      manager.createConversation("ocr_agent", "conv_split_save");
+      manager.addMessage("conv_split_save", "user", "Split this PDF");
+      manager.addMessage("conv_split_save", "tool", "", {
+        toolId: "split_and_read_pdf",
+        parameters: { filePath: "pdfs/big.pdf" },
+        result: [
+          { chunkIndex: 0, totalChunks: 2, startPage: 1, endPage: 60, base64: "AAAA_chunk0", mimeType: "application/pdf", filePath: "pdfs/big.pdf", size: 500 },
+          { chunkIndex: 1, totalChunks: 2, startPage: 61, endPage: 120, base64: "BBBB_chunk1", mimeType: "application/pdf", filePath: "pdfs/big.pdf", size: 400 },
+        ],
+      });
+
+      const filePath = await fileManager.createConversationFile("conv_split_save", "split-convs", "SplitAgent");
+
+      const file = app.vault.getAbstractFileByPath(filePath);
+      const savedContent = await app.vault.read(file as any);
+
+      // base64 payloads must NOT appear in the saved markdown
+      expect(savedContent).not.toContain("AAAA_chunk0");
+      expect(savedContent).not.toContain("BBBB_chunk1");
+      // wikilink and _binaryRef must be present
+      expect(savedContent).toContain("[[pdfs/big.pdf]]");
+      expect(savedContent).toContain("_binaryRef");
+    });
+
+    it("should gracefully handle a missing PDF when restoring split_and_read_pdf chunks", async () => {
+      const chunks = [
+        { chunkIndex: 0, totalChunks: 2, startPage: 1, endPage: 60, mimeType: "application/pdf", filePath: "pdfs/gone.pdf", size: 500, _binaryRef: "pdfs/gone.pdf" },
+        { chunkIndex: 1, totalChunks: 2, startPage: 61, endPage: 120, mimeType: "application/pdf", filePath: "pdfs/gone.pdf", size: 400, _binaryRef: "pdfs/gone.pdf" },
+      ];
+      const fileContent = `---
+conversation: true
+id: conv_missing_pdf_chunks
+agentId: ocr_agent
+createdAt: 2026-01-01T10:00:00.000Z
+updatedAt: 2026-01-01T10:05:00.000Z
+---
+
+### User (2026-01-01T10:00:00.000Z)
+Split please
+
+### Tool (2026-01-01T10:01:00.000Z)
+<!-- tool:split_and_read_pdf -->
+<!-- params:{"filePath":"pdfs/gone.pdf"} -->
+[[pdfs/gone.pdf]]
+Result: ${JSON.stringify(chunks)}
+`;
+      await app.vault.create("split-convs/missing-pdf.md", fileContent);
+
+      // Should load without throwing; chunks have no base64
+      const loaded = await fileManager.loadConversation("split-convs/missing-pdf.md");
+      expect(loaded).not.toBeNull();
+      expect(loaded?.messages).toHaveLength(2);
+      const toolMsg = loaded?.messages[1];
+      const result = toolMsg?.toolCall?.result as Array<Record<string, unknown>>;
+      expect(Array.isArray(result)).toBe(true);
+      // Since the PDF file doesn't exist, base64 should remain absent
+      for (const chunk of result) {
+        expect(chunk["base64"]).toBeUndefined();
+      }
+    });
   });
 });

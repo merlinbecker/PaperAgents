@@ -274,6 +274,19 @@ export class ConversationManager {
               } else {
                 lines.push(`Result: ${JSON.stringify(metadata)}`);
               }
+            } else if (msg.toolCall.toolId === PREDEFINED_TOOL_IDS.SPLIT_AND_READ_PDF && Array.isArray(msg.toolCall.result)) {
+              // Strip base64 from every chunk; store _binaryRef + chunkIndex for restoration
+              const chunks = msg.toolCall.result as Array<{ base64?: string; filePath?: string; chunkIndex?: number } & Record<string, unknown>>;
+              if (chunks.length > 0 && chunks[0]?.filePath) {
+                lines.push(`[[${chunks[0].filePath}]]`);
+              }
+              const strippedChunks = chunks.map(({ base64: _omit, filePath, chunkIndex, ...rest }) => ({
+                ...rest,
+                filePath,
+                chunkIndex,
+                _binaryRef: filePath,
+              }));
+              lines.push(`Result: ${JSON.stringify(strippedChunks)}`);
             } else {
               lines.push(`Result: ${JSON.stringify(msg.toolCall.result)}`);
             }

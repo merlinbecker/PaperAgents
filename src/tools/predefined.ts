@@ -4,7 +4,7 @@
  */
 
 import { App, TFile, requestUrl, Platform } from "obsidian";
-import type { IExecutableTool, IToolFactory, Parameter, ExecutionContext, ExecutionResult, ToolExecution } from "../types";
+import type { IExecutableTool, IToolFactory, Parameter, ExecutionContext, ExecutionResult, ToolExecution, PdfChunkResult } from "../types";
 import { PREDEFINED_TOOL_IDS } from "../utils/constants";
 import { globalLogger } from "../utils/logger";
 
@@ -612,6 +612,143 @@ export const OcrFileParserFactory: IToolFactory = {
 };
 
 // ============================================================================
+// SPLIT_AND_READ_PDF TOOL (splits large PDFs on mobile for base64 encoding)
+// ============================================================================
+
+const SPLIT_AND_READ_PDF_PARAMS: Parameter[] = [
+  {
+    name: "filePath",
+    type: "string",
+    description: "Path to PDF file in vault (e.g., '/pdfs/large.pdf')",
+    required: true,
+  },
+  {
+    name: "pagesPerChunk",
+    type: "number",
+    description: "Optional: pages per chunk (default: auto-calculated for ~15 MB chunks)",
+    required: false,
+  },
+];
+
+// Target chunk size before base64 encoding (15 MB → ~20 MB after base64)
+const TARGET_CHUNK_SIZE = 15 * 1024 * 1024;
+
+class SplitAndReadPdfTool implements IExecutableTool {
+  name = PREDEFINED_TOOL_IDS.SPLIT_AND_READ_PDF;
+  parameters = SPLIT_AND_READ_PDF_PARAMS;
+
+  constructor(private readonly app: App) {}
+
+  async execute(ctx: ExecutionContext): Promise<ExecutionResult> {
+    try {
+      const filePath = ctx.parameters.filePath as string;
+
+      const file = this.app.vault.getAbstractFileByPath(normPath(filePath)) ||
+        this.app.vault.getAbstractFileByPath(filePath);
+      const tfile = file instanceof TFile ? file : null;
+      if (!tfile) {
+        throw new Error(`File not found: ${filePath}`);
+      }
+
+      // Only split when: mobile + PDF + > 20 MB
+      const isPdf = filePath.toLowerCase().endsWith(".pdf");
+      const isOverMobileLimit = tfile.stat.size > MAX_BINARY_FILE_BYTES_MOBILE;
+
+      if (!Platform.isMobile || !isPdf || !isOverMobileLimit) {
+        // Delegate to ReadBinaryFileTool
+        const delegate = new ReadBinaryFileTool(this.app);
+        return delegate.execute(ctx);
+      }
+
+      // Dynamic import of pdf-lib (avoids bundling cost when not needed)
+      const { PDFDocument } = await import("pdf-lib");
+
+      const buffer = await this.app.vault.readBinary(tfile);
+      const pdfDoc = await PDFDocument.load(buffer);
+      const totalPages = pdfDoc.getPageCount();
+
+      if (totalPages === 1) {
+        throw new Error(
+          `PDF too large for mobile: file is ${(tfile.stat.size / 1024 / 1024).toFixed(1)} MB but contains only 1 page and` +
+          ` cannot be split further. Please reduce the file size or use a desktop device.`
+        );
+      }
+
+      // Calculate pages per chunk to target ~15 MB per chunk
+      const pagesPerChunk = (ctx.parameters.pagesPerChunk as number | undefined) ??
+        Math.ceil(totalPages / Math.ceil(tfile.stat.size / TARGET_CHUNK_SIZE));
+
+      const chunks: PdfChunkResult[] = [];
+      for (let startPage = 0; startPage < totalPages; startPage += pagesPerChunk) {
+        const endPage = Math.min(startPage + pagesPerChunk - 1, totalPages - 1);
+        const chunkDoc = await PDFDocument.create();
+        const pageIndices = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+        const copiedPages = await chunkDoc.copyPages(pdfDoc, pageIndices);
+        for (const page of copiedPages) {
+          chunkDoc.addPage(page);
+        }
+        const chunkBuffer = await chunkDoc.save();
+        const base64 = this.arrayBufferToBase64(chunkBuffer.buffer as ArrayBuffer);
+
+        chunks.push({
+          chunkIndex: chunks.length,
+          totalChunks: 0, // will be filled below
+          startPage: startPage + 1, // 1-based for display
+          endPage: endPage + 1,
+          base64,
+          mimeType: "application/pdf",
+          filePath,
+          size: chunkBuffer.byteLength,
+        });
+      }
+
+      // Patch totalChunks now that we know the final count
+      for (const chunk of chunks) {
+        chunk.totalChunks = chunks.length;
+      }
+
+      return {
+        success: true,
+        data: chunks,
+        log: [buildLogEntry(this.name, ctx.parameters, {
+          filePath,
+          totalPages,
+          totalChunks: chunks.length,
+          pagesPerChunk,
+        })],
+      };
+    } catch (error) {
+      globalLogger.error("split_and_read_pdf tool error", { error });
+      return buildErrorResult(this.name, ctx.parameters, error);
+    }
+  }
+
+  private arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    const chunksList: string[] = [];
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      chunksList.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)));
+    }
+    return btoa(chunksList.join(""));
+  }
+
+  shouldRequireHITL(): boolean {
+    return false;
+  }
+}
+
+export const SplitAndReadPdfFactory: IToolFactory = {
+  name: PREDEFINED_TOOL_IDS.SPLIT_AND_READ_PDF,
+  description:
+    "Read a PDF from the vault as Base64. On mobile devices with PDFs larger than 20 MB, " +
+    "the PDF is automatically split into smaller chunks and returned as an array of chunk objects. " +
+    "On desktop or for smaller files the behaviour is identical to read_binary_file.",
+  parameters: SPLIT_AND_READ_PDF_PARAMS,
+  create: (app?: App) => new SplitAndReadPdfTool(requireApp(app, "SplitAndReadPdfTool")),
+};
+
+// ============================================================================
 // EXPORT ALL FACTORIES
 // ============================================================================
 
@@ -622,6 +759,7 @@ export const PredefinedToolsFactory = {
   restRequest: RestRequestFactory,
   webSearch: WebSearchFactory,
   readBinaryFile: ReadBinaryFileFactory,
+  splitAndReadPdf: SplitAndReadPdfFactory,
   ocrFileParser: OcrFileParserFactory,
   finishTask: FinishTaskFactory,
   askUser: AskUserFactory,

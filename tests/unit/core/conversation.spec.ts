@@ -758,5 +758,42 @@ Test message
       expect(result["_binaryRef"]).toBe("pdfs/report.pdf");
       expect(result["base64"]).toBeUndefined();
     });
+
+    it("should persist split_and_read_pdf chunks with _binaryRef and no base64 via toConversationFile", () => {
+      manager.createConversation("ocr_agent", "conv_split");
+      manager.addMessage("conv_split", "user", "Split this large PDF");
+      manager.addMessage("conv_split", "tool", "", {
+        toolId: "split_and_read_pdf",
+        parameters: { filePath: "pdfs/large.pdf" },
+        result: [
+          { chunkIndex: 0, totalChunks: 2, startPage: 1, endPage: 60, base64: "chunk0base64data", mimeType: "application/pdf", filePath: "pdfs/large.pdf", size: 1000 },
+          { chunkIndex: 1, totalChunks: 2, startPage: 61, endPage: 120, base64: "chunk1base64data", mimeType: "application/pdf", filePath: "pdfs/large.pdf", size: 900 },
+        ],
+      });
+
+      const file = manager.toConversationFile("conv_split")!;
+
+      // base64 must not appear in the persisted file
+      expect(file).not.toContain("chunk0base64data");
+      expect(file).not.toContain("chunk1base64data");
+      // wikilink and _binaryRef must be present
+      expect(file).toContain("[[pdfs/large.pdf]]");
+      expect(file).toContain("_binaryRef");
+
+      // When loaded back, _binaryRef is present in each chunk, base64 absent
+      const manager2 = new ConversationManager();
+      const loaded = manager2.loadFromConversationFile(file);
+
+      expect(loaded?.messages).toHaveLength(2);
+      const toolMsg = loaded?.messages[1];
+      expect(toolMsg?.toolCall?.toolId).toBe("split_and_read_pdf");
+      const chunks = toolMsg?.toolCall?.result as Array<Record<string, unknown>>;
+      expect(Array.isArray(chunks)).toBe(true);
+      expect(chunks).toHaveLength(2);
+      for (const chunk of chunks) {
+        expect(chunk["_binaryRef"]).toBe("pdfs/large.pdf");
+        expect(chunk["base64"]).toBeUndefined();
+      }
+    });
   });
 });

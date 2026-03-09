@@ -21,7 +21,7 @@
  */
 
 import { App, TFile, TFolder } from "obsidian";
-import type { Conversation } from "../types";
+import type { Conversation, Message, PdfChunkResult } from "../types";
 import { ConversationManager } from "./conversation";
 import { globalLogger } from "../utils/logger";
 import { PREDEFINED_TOOL_IDS } from "../utils/constants";
@@ -86,32 +86,87 @@ export class ConversationFileManager {
    * For each read_binary_file tool message whose result contains a _binaryRef,
    * re-read the binary file from the vault and inject the base64 payload back
    * into the in-memory result so the LLM can receive it in subsequent turns.
+   * For split_and_read_pdf tool messages, each chunk is re-generated from the
+   * original PDF using pdf-lib.
    */
   private async restoreBinaryResults(conversation: Conversation): Promise<void> {
     for (const msg of conversation.messages) {
       if (msg.role !== "tool" || !msg.toolCall) continue;
-      if (msg.toolCall.toolId !== PREDEFINED_TOOL_IDS.READ_BINARY_FILE) continue;
 
-      const result = msg.toolCall.result as ({ _binaryRef?: string } & Record<string, unknown>) | undefined | null;
-      if (!result?._binaryRef) continue;
+      if (msg.toolCall.toolId === PREDEFINED_TOOL_IDS.READ_BINARY_FILE) {
+        const result = msg.toolCall.result as ({ _binaryRef?: string } & Record<string, unknown>) | undefined | null;
+        if (!result?._binaryRef) continue;
 
-      const binaryPath = result._binaryRef as string;
-      const binaryFile = this.app.vault.getAbstractFileByPath(binaryPath);
-      if (!(binaryFile instanceof TFile)) {
-        globalLogger.warn(`Binary file not found when restoring conversation: ${binaryPath}`);
-        continue;
+        const binaryPath = result._binaryRef as string;
+        const binaryFile = this.app.vault.getAbstractFileByPath(binaryPath);
+        if (!(binaryFile instanceof TFile)) {
+          globalLogger.warn(`Binary file not found when restoring conversation: ${binaryPath}`);
+          continue;
+        }
+
+        try {
+          const buffer = await this.app.vault.readBinary(binaryFile);
+          const base64 = this.arrayBufferToBase64(buffer);
+          const { _binaryRef: _omit, ...cleanResult } = result;
+          msg.toolCall.result = { ...cleanResult, base64 };
+        } catch (err) {
+          globalLogger.warn(`Failed to restore binary ${binaryPath}`, {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      } else if (msg.toolCall.toolId === PREDEFINED_TOOL_IDS.SPLIT_AND_READ_PDF) {
+        await this.restorePdfChunks(msg);
       }
+    }
+  }
 
-      try {
-        const buffer = await this.app.vault.readBinary(binaryFile);
-        const base64 = this.arrayBufferToBase64(buffer);
-        const { _binaryRef: _omit, ...cleanResult } = result;
-        msg.toolCall.result = { ...cleanResult, base64 };
-      } catch (err) {
-        globalLogger.warn(`Failed to restore binary ${binaryPath}`, {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
+  /**
+   * Restore base64 payloads for split_and_read_pdf chunks.
+   * Re-generates each chunk from the original PDF using pdf-lib.
+   */
+  private async restorePdfChunks(msg: Message): Promise<void> {
+    // Chunks on disk have _binaryRef instead of base64; use Partial<PdfChunkResult> & { _binaryRef?: string }
+    type PersistedChunk = Omit<PdfChunkResult, "base64"> & { _binaryRef?: string };
+    const chunks = msg.toolCall?.result as Array<PersistedChunk> | null | undefined;
+    if (!Array.isArray(chunks) || chunks.length === 0) return;
+
+    const firstChunk = chunks[0];
+    const binaryPath = firstChunk?._binaryRef;
+    if (!binaryPath) return;
+
+    const binaryFile = this.app.vault.getAbstractFileByPath(binaryPath);
+    if (!(binaryFile instanceof TFile)) {
+      globalLogger.warn(`PDF not found when restoring split chunks: ${binaryPath}`);
+      return;
+    }
+
+    try {
+      const { PDFDocument } = await import("pdf-lib");
+      const buffer = await this.app.vault.readBinary(binaryFile);
+      const pdfDoc = await PDFDocument.load(buffer);
+
+      const restoredChunks = await Promise.all(
+        chunks.map(async (chunk) => {
+          const startPage = (chunk.startPage ?? 1) - 1; // convert to 0-based
+          const endPage = (chunk.endPage ?? 1) - 1;
+          const chunkDoc = await PDFDocument.create();
+          const pageIndices = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+          const copiedPages = await chunkDoc.copyPages(pdfDoc, pageIndices);
+          for (const page of copiedPages) {
+            chunkDoc.addPage(page);
+          }
+          const chunkBuffer = await chunkDoc.save();
+          const base64 = this.arrayBufferToBase64(chunkBuffer.buffer as ArrayBuffer);
+          const { _binaryRef: _omit, ...rest } = chunk;
+          return { ...rest, base64 } satisfies PdfChunkResult;
+        })
+      );
+
+      msg.toolCall!.result = restoredChunks;
+    } catch (err) {
+      globalLogger.warn(`Failed to restore PDF chunks for ${binaryPath}`, {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 

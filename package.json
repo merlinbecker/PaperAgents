@@ -53,6 +53,7 @@
 	"dependencies": {
 		"@jitl/quickjs-singlefile-cjs-release-sync": "^0.31.0",
 		"obsidian": "latest",
+		"pdf-lib": "^1.17.1",
 		"quickjs-emscripten-core": "^0.31.0"
 	}
 }
