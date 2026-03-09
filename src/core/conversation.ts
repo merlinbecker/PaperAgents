@@ -18,7 +18,7 @@ import type {
   ConversationContext,
   ToolCallInfo,
 } from "../types";
-import { randomId } from "../utils/constants";
+import { randomId, PREDEFINED_TOOL_IDS } from "../utils/constants";
 
 const CHARS_PER_TOKEN = 4;
 const DEFAULT_MAX_MESSAGES = 50;
@@ -262,7 +262,21 @@ export class ConversationManager {
         if (msg.toolCall) {
           lines.push(`<!-- tool:${msg.toolCall.toolId} -->`, `<!-- params:${JSON.stringify(msg.toolCall.parameters)} -->`);
           if (msg.toolCall.result !== undefined) {
-            lines.push(`Result: ${JSON.stringify(msg.toolCall.result)}`);
+            if (msg.toolCall.toolId === PREDEFINED_TOOL_IDS.READ_BINARY_FILE) {
+              // Strip base64 payload from markdown; store a wikilink + _binaryRef so the
+              // binary can be re-read when the conversation is loaded back from disk.
+              const result = msg.toolCall.result as { base64?: string; filePath?: string } & Record<string, unknown>;
+              const { base64: _omit, ...metadata } = result;
+              const filePath = metadata["filePath"] as string | undefined;
+              if (filePath) {
+                lines.push(`[[${filePath}]]`);
+                lines.push(`Result: ${JSON.stringify({ ...metadata, _binaryRef: filePath })}`);
+              } else {
+                lines.push(`Result: ${JSON.stringify(metadata)}`);
+              }
+            } else {
+              lines.push(`Result: ${JSON.stringify(msg.toolCall.result)}`);
+            }
           }
           if (msg.toolCall.error) {
             lines.push(`Error: ${msg.toolCall.error}`);

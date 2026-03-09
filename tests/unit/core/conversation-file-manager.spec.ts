@@ -256,5 +256,74 @@ id: c1
       expect(loaded?.messages[0]?.content).toBe("Hello from round trip!");
       expect(loaded?.messages[1]?.content).toBe("Reply from round trip!");
     });
+
+    it("should restore base64 for read_binary_file tool results when loading", async () => {
+      // Simulate a binary file in the vault
+      await app.vault.create("pdfs/sample.pdf", "fake-pdf-content");
+
+      // Add a conversation with a read_binary_file result (base64 in memory)
+      manager.createConversation("ocr_agent", "conv_binary");
+      manager.addMessage("conv_binary", "user", "OCR this PDF");
+      manager.addMessage("conv_binary", "tool", "", {
+        toolId: "read_binary_file",
+        parameters: { filePath: "pdfs/sample.pdf" },
+        result: { filePath: "pdfs/sample.pdf", base64: "originalbase64", mimeType: "application/pdf", size: 100 },
+      });
+
+      const filePath = await fileManager.createConversationFile("conv_binary", "rt-convs", "OcrAgent");
+
+      // Verify base64 was NOT written to the markdown
+      const file = app.vault.getAbstractFileByPath(filePath);
+      const savedContent = await app.vault.read(file as any);
+      expect(savedContent).not.toContain("originalbase64");
+      expect(savedContent).toContain("[[pdfs/sample.pdf]]");
+      expect(savedContent).toContain("_binaryRef");
+
+      // Load into a fresh manager — binary should be restored from vault
+      const manager2 = new ConversationManager();
+      const fileManager2 = new ConversationFileManager(app as any, manager2);
+      const loaded = await fileManager2.loadConversation(filePath);
+
+      expect(loaded?.messages).toHaveLength(2);
+      const toolMsg = loaded?.messages[1];
+      expect(toolMsg?.role).toBe("tool");
+      const result = toolMsg?.toolCall?.result as Record<string, unknown>;
+      // base64 should be restored (re-read from vault mock which encodes text as UTF-8)
+      expect(result["base64"]).toBeDefined();
+      expect(typeof result["base64"]).toBe("string");
+      // _binaryRef should be cleaned up from the in-memory result
+      expect(result["_binaryRef"]).toBeUndefined();
+    });
+
+    it("should gracefully handle a missing binary file during restore", async () => {
+      // Conversation references a file that doesn't exist in the vault
+      const fileContent = `---
+conversation: true
+id: conv_missing_binary
+agentId: ocr_agent
+createdAt: 2026-01-01T10:00:00.000Z
+updatedAt: 2026-01-01T10:05:00.000Z
+---
+
+### User (2026-01-01T10:00:00.000Z)
+OCR please
+
+### Tool (2026-01-01T10:01:00.000Z)
+<!-- tool:read_binary_file -->
+<!-- params:{"filePath":"nonexistent/file.pdf"} -->
+[[nonexistent/file.pdf]]
+Result: ${JSON.stringify({ filePath: "nonexistent/file.pdf", mimeType: "application/pdf", size: 100, _binaryRef: "nonexistent/file.pdf" })}
+`;
+      await app.vault.create("rt-convs/missing.md", fileContent);
+
+      // Loading should not throw; the message is loaded without base64
+      const loaded = await fileManager.loadConversation("rt-convs/missing.md");
+      expect(loaded).not.toBeNull();
+      expect(loaded?.messages).toHaveLength(2);
+      const toolMsg = loaded?.messages[1];
+      const result = toolMsg?.toolCall?.result as Record<string, unknown>;
+      // _binaryRef stays since restore failed, base64 absent
+      expect(result["base64"]).toBeUndefined();
+    });
   });
 });
