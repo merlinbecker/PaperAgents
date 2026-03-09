@@ -9,6 +9,7 @@ import { AgentDefinition } from "../../../src/types";
 import { requestUrl } from "obsidian";
 import { FinishTaskFactory, AskUserFactory } from "../../../src/tools/predefined";
 import { PREDEFINED_TOOL_IDS } from "../../../src/utils/constants";
+import type { ContentFilePart } from "../../../src/core/openrouter";
 
 const mockRequestUrl = vi.mocked(requestUrl);
 
@@ -57,6 +58,12 @@ function makeToolCallStreamResponse(toolName: string, args: Record<string, unkno
 /** Extract the parsed JSON body from the first requestUrl call. */
 function getRequestBody(): Record<string, unknown> {
   const call = mockRequestUrl.mock.calls[0]?.[0] as Record<string, unknown>;
+  return JSON.parse(call.body as string) as Record<string, unknown>;
+}
+
+/** Extract the parsed JSON body from the Nth (0-indexed) requestUrl call. */
+function getRequestBodyAt(index: number): Record<string, unknown> {
+  const call = mockRequestUrl.mock.calls[index]?.[0] as Record<string, unknown>;
   return JSON.parse(call.body as string) as Record<string, unknown>;
 }
 
@@ -481,6 +488,74 @@ describe("Orchestrator", () => {
       expect(order[1]).toBe("saved:1:false");
       expect(order[2]).toBe("start:2");
       expect(order[3]).toBe("saved:2:true");
+    });
+  });
+
+  // ── read_binary_file multimodal messages ─────────────────────────────────────
+
+  describe("read_binary_file multimodal handling", () => {
+    const PDF_PATH = "docs/report.pdf";
+
+    /** Register a read_binary_file stub in the tool registry. */
+    function registerReadBinaryFileTool(
+      registry: ToolRegistry,
+      executeResult: { success: boolean; data: unknown; error?: string }
+    ): void {
+      registry.registerPredefined({
+        name: PREDEFINED_TOOL_IDS.READ_BINARY_FILE,
+        description: "Read binary file",
+        parameters: [{ name: "filePath", type: "string", required: true }],
+        create: () => ({
+          name: PREDEFINED_TOOL_IDS.READ_BINARY_FILE,
+          parameters: [],
+          execute: async () => ({ ...executeResult, log: [] }),
+          shouldRequireHITL: () => false,
+        }),
+      });
+    }
+
+    /** Return the messages array from the Nth requestUrl call body. */
+    function getMessagesAt(index: number): Array<{ role: string; content: unknown }> {
+      return (getRequestBodyAt(index).messages as Array<{ role: string; content: unknown }>);
+    }
+
+    it("injects a user message with file content part after read_binary_file tool result", async () => {
+      mockRequestUrl
+        .mockResolvedValueOnce(makeToolCallStreamResponse("read_binary_file", { filePath: PDF_PATH }) as never)
+        .mockResolvedValueOnce(makeStreamResponse("PDF processed.") as never);
+
+      const agent: AgentDefinition = { ...makeAgent(), tools: [PREDEFINED_TOOL_IDS.READ_BINARY_FILE] };
+      const convId = "conv-binary-multimodal";
+      conversationManager.createConversation(agent.id, convId);
+      registerReadBinaryFileTool(toolRegistry, {
+        success: true,
+        data: { filePath: PDF_PATH, base64: "JVBERi0xLjQK", mimeType: "application/pdf", size: 9 },
+      });
+
+      await orchestrator.sendMessage(agent, convId, "Process the PDF");
+
+      const fileMessage = getMessagesAt(1).find((m) => m.role === "user" && Array.isArray(m.content));
+      expect(fileMessage).toBeDefined();
+      const filePart = (fileMessage!.content as ContentFilePart[]).find((p) => p.type === "file");
+      expect(filePart).toBeDefined();
+      expect((filePart as ContentFilePart).file.filename).toBe("report.pdf");
+      expect((filePart as ContentFilePart).file.data).toBe("data:application/pdf;base64,JVBERi0xLjQK");
+    });
+
+    it("falls back to text when read_binary_file result has no base64", async () => {
+      mockRequestUrl
+        .mockResolvedValueOnce(makeToolCallStreamResponse("read_binary_file", { filePath: PDF_PATH }) as never)
+        .mockResolvedValueOnce(makeStreamResponse("Fallback response.") as never);
+
+      const agent: AgentDefinition = { ...makeAgent(), tools: [PREDEFINED_TOOL_IDS.READ_BINARY_FILE] };
+      const convId = "conv-binary-fallback";
+      conversationManager.createConversation(agent.id, convId);
+      registerReadBinaryFileTool(toolRegistry, { success: false, data: null, error: "File not found" });
+
+      await orchestrator.sendMessage(agent, convId, "Process the PDF");
+
+      const fileMessage = getMessagesAt(1).find((m) => m.role === "user" && Array.isArray(m.content));
+      expect(fileMessage).toBeUndefined();
     });
   });
 });

@@ -12,9 +12,25 @@ export interface OpenRouterConfig {
   title?: string;
 }
 
+export interface ContentTextPart {
+  type: "text";
+  text: string;
+}
+
+export interface ContentFilePart {
+  type: "file";
+  file: {
+    filename: string;
+    /** data URI: "data:<mimeType>;base64,<base64data>" */
+    data: string;
+  };
+}
+
+export type ContentPart = ContentTextPart | ContentFilePart;
+
 export interface LLMMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string | null;
+  content: string | null | ContentPart[];
   tool_calls?: LLMToolCall[];
   tool_call_id?: string;
   name?: string;
