@@ -557,5 +557,36 @@ describe("Orchestrator", () => {
       const fileMessage = getMessagesAt(1).find((m) => m.role === "user" && Array.isArray(m.content));
       expect(fileMessage).toBeUndefined();
     });
+
+    it("sends file data even when base64 payload exceeds the default token budget", async () => {
+      // Use a long repeated character to simulate a large base64 payload that exceeds
+      // DEFAULT_MAX_TOKENS=4000 (4 chars/token → 16 001 chars > 4 000 tokens).
+      // The content of the base64 data is irrelevant here; we only test that the
+      // token-budget check does not drop the message from context.  Correct base64
+      // round-tripping is already covered by the "injects a user message" test above.
+      const largeBase64 = "A".repeat(16_001);
+
+      mockRequestUrl
+        .mockResolvedValueOnce(makeToolCallStreamResponse("read_binary_file", { filePath: PDF_PATH }) as never)
+        .mockResolvedValueOnce(makeStreamResponse("PDF processed.") as never);
+
+      const agent: AgentDefinition = { ...makeAgent(), tools: [PREDEFINED_TOOL_IDS.READ_BINARY_FILE] };
+      const convId = "conv-binary-large";
+      conversationManager.createConversation(agent.id, convId);
+      registerReadBinaryFileTool(toolRegistry, {
+        success: true,
+        data: { filePath: PDF_PATH, base64: largeBase64, mimeType: "application/pdf", size: 12000 },
+      });
+
+      await orchestrator.sendMessage(agent, convId, "Process the large PDF");
+
+      // The file content part must still be present in the second request despite
+      // the enormous base64 payload.
+      const fileMessage = getMessagesAt(1).find((m) => m.role === "user" && Array.isArray(m.content));
+      expect(fileMessage).toBeDefined();
+      const filePart = (fileMessage!.content as ContentFilePart[]).find((p) => p.type === "file");
+      expect(filePart).toBeDefined();
+      expect((filePart as ContentFilePart).file.data).toBe(`data:application/pdf;base64,${largeBase64}`);
+    });
   });
 });

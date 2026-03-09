@@ -193,10 +193,23 @@ export class Orchestrator {
         error: result.error,
       };
 
+      // For READ_BINARY_FILE, store only metadata in the message content (omit base64).
+      // The base64 payload can be several MB and would exceed the token budget used by
+      // getMessagesForContext, causing the message to be silently dropped from context
+      // and the file data to never reach the LLM.  The full result (including base64)
+      // is kept in toolCallInfo.result and is correctly picked up by buildLLMMessages.
+      let messageContent: string;
+      if (toolName === PREDEFINED_TOOL_IDS.READ_BINARY_FILE && result.data) {
+        const { base64: _omit, ...metadata } = result.data as { base64?: string } & Record<string, unknown>;
+        messageContent = JSON.stringify(metadata);
+      } else {
+        messageContent = JSON.stringify(result.data || result.error || "No output");
+      }
+
       this.conversationManager.addMessage(
         conversationId,
         "tool",
-        JSON.stringify(result.data || result.error || "No output"),
+        messageContent,
         toolCallInfo
       );
 
