@@ -64,6 +64,7 @@ export default class PaperAgents extends Plugin {
         const sidebar = new PaperAgentsSidebar(leaf, this.toolRegistry, (toolId) =>
           this.handleToolClick(toolId)
         );
+        this.sidebar = sidebar;
         sidebar.setAgents(this.loadedAgents);
         sidebar.setOnAgentClick(() => { void this.activateChat(); });
         sidebar.setOnOpenChat(() => { void this.activateChat(); });
@@ -159,6 +160,7 @@ export default class PaperAgents extends Plugin {
       const result = await loader.loadCustomTools(customToolsPath);
 
       this.toolRegistry.registerCustomBatch(result.successful);
+      this.sidebar?.refreshTools();
 
       globalLogger.info("Custom tools loaded", {
         loaded: result.successful.length,
@@ -251,6 +253,7 @@ export default class PaperAgents extends Plugin {
       const leaf = existing[0];
       if (!leaf) return;
       await this.app.workspace.revealLeaf(leaf);
+      this.sidebar = leaf.view as PaperAgentsSidebar;
     } else {
       const leaf = this.app.workspace.getRightLeaf(false);
       if (!leaf) {
