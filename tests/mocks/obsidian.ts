@@ -146,3 +146,14 @@ export class App {
 }
 
 export const app = new App();
+
+/** Mock for Obsidian's Platform object. Defaults to desktop (isMobile = false). */
+export const Platform = {
+  isDesktop: true,
+  isMobile: false,
+  isDesktopApp: true,
+  isMobileApp: false,
+  isIosApp: false,
+  isAndroidApp: false,
+  isPhone: false,
+};

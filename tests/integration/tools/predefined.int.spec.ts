@@ -1,12 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as Obsidian from "obsidian";
-import { app, TFile, Vault } from "obsidian";
-import { SearchFilesFactory, ReadFileFactory, WriteFileFactory, RestRequestFactory, FinishTaskFactory, AskUserFactory } from "../../../src/tools/predefined";
+import { app, TFile, Vault, Platform } from "obsidian";
+import { SearchFilesFactory, ReadFileFactory, WriteFileFactory, RestRequestFactory, FinishTaskFactory, AskUserFactory, ReadBinaryFileFactory } from "../../../src/tools/predefined";
 import type { ExecutionContext } from "../../../src/types";
 
 /** Wrap plain parameters into a minimal ExecutionContext for tool.execute(). */
 const makeCtx = (params: Record<string, unknown>): ExecutionContext =>
   ({ parameters: params } as unknown as ExecutionContext);
+
+/** Toggle the Platform mock between mobile and desktop. */
+function setPlatformMobile(isMobile: boolean): void {
+  (Platform as any).isMobile = isMobile;
+}
 
 describe("Predefined tools integration (mocked vault)", () => {
   beforeEach(async () => {
@@ -138,6 +143,89 @@ describe("Predefined tools integration (mocked vault)", () => {
       const res = await tool.execute(makeCtx({ question: "Continue?" }));
       expect(res.log).toHaveLength(1);
       expect(res.log[0]?.toolName).toBe("ask_user");
+    });
+  });
+
+  describe("read_binary_file", () => {
+    let tool: ReturnType<typeof ReadBinaryFileFactory.create>;
+    beforeEach(() => {
+      tool = ReadBinaryFileFactory.create(app);
+      // Reset platform to desktop before each test
+      setPlatformMobile(false);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("returns base64, mimeType and size for a small binary file", async () => {
+      await (app.vault as any).create("/pdfs/small.pdf", "PDF content");
+      const res = await tool.execute(makeCtx({ filePath: "/pdfs/small.pdf" }));
+      expect(res.success).toBe(true);
+      const data = res.data as any;
+      expect(data.base64).toBeDefined();
+      expect(typeof data.base64).toBe("string");
+      expect(data.mimeType).toBe("application/pdf");
+      expect(data.size).toBeGreaterThan(0);
+    });
+
+    it("returns error when file does not exist", async () => {
+      const res = await tool.execute(makeCtx({ filePath: "/pdfs/nonexistent.pdf" }));
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/not found/i);
+    });
+
+    it("returns error on desktop when file exceeds 50 MB size limit", async () => {
+      // Simulate a file whose stat.size exceeds the desktop limit (50 MB).
+      const { TFile: MockTFile } = await import("../../mocks/obsidian");
+      const largeTFile = new MockTFile("/pdfs/huge.pdf", 51 * 1024 * 1024);
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(largeTFile as any);
+
+      const res = await tool.execute(makeCtx({ filePath: "/pdfs/huge.pdf" }));
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/too large/i);
+      expect(res.error).toMatch(/50 MB/);
+    });
+
+    it("returns error on mobile when file exceeds 20 MB size limit", async () => {
+      // Simulate mobile platform
+      setPlatformMobile(true);
+
+      const { TFile: MockTFile } = await import("../../mocks/obsidian");
+      // 25 MB — over the mobile limit (20 MB) but under the desktop limit (50 MB)
+      const mobileLargeTFile = new MockTFile("/pdfs/medium.pdf", 25 * 1024 * 1024);
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(mobileLargeTFile as any);
+
+      const res = await tool.execute(makeCtx({ filePath: "/pdfs/medium.pdf" }));
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/too large/i);
+      expect(res.error).toMatch(/20 MB/);
+    });
+
+    it("accepts on mobile a file just below the 20 MB limit", async () => {
+      setPlatformMobile(true);
+
+      await (app.vault as any).create("/pdfs/mobile-ok.pdf", "small content");
+      const { TFile: MockTFile } = await import("../../mocks/obsidian");
+      const nearLimitTFile = new MockTFile("/pdfs/mobile-ok.pdf", 20 * 1024 * 1024 - 1);
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(nearLimitTFile as any);
+
+      const res = await tool.execute(makeCtx({ filePath: "/pdfs/mobile-ok.pdf" }));
+      expect(res.success).toBe(true);
+    });
+
+    it("accepts a file just below the 50 MB desktop size limit", async () => {
+      await (app.vault as any).create("/pdfs/near-limit.pdf", "small content");
+      const { TFile: MockTFile } = await import("../../mocks/obsidian");
+      const nearLimitTFile = new MockTFile("/pdfs/near-limit.pdf", 50 * 1024 * 1024 - 1);
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(nearLimitTFile as any);
+
+      const res = await tool.execute(makeCtx({ filePath: "/pdfs/near-limit.pdf" }));
+      expect(res.success).toBe(true);
+    });
+
+    it("does not require HITL", () => {
+      expect(tool.shouldRequireHITL({})).toBe(false);
     });
   });
 });

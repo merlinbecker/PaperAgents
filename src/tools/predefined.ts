@@ -3,7 +3,7 @@
  * search_files, read_file, write_file, rest_request
  */
 
-import { App, TFile, requestUrl } from "obsidian";
+import { App, TFile, requestUrl, Platform } from "obsidian";
 import type { IExecutableTool, IToolFactory, Parameter, ExecutionContext, ExecutionResult, ToolExecution } from "../types";
 import { PREDEFINED_TOOL_IDS } from "../utils/constants";
 import { globalLogger } from "../utils/logger";
@@ -493,6 +493,15 @@ const READ_BINARY_FILE_PARAMS: Parameter[] = [
   },
 ];
 
+// Maximum file size accepted for base64 encoding.
+// Converting a binary file to base64 requires multiple in-memory copies
+// (ArrayBuffer + binary string + base64 string + JSON request body), which
+// can exhaust available memory and crash the app.  Mobile devices (Capacitor/
+// iOS, Capacitor/Android) have tighter memory budgets than the desktop app
+// (Electron), so we enforce a stricter limit there.
+const MAX_BINARY_FILE_BYTES_DESKTOP = 50 * 1024 * 1024; //  50 MB
+const MAX_BINARY_FILE_BYTES_MOBILE  = 20 * 1024 * 1024; //  20 MB
+
 class ReadBinaryFileTool implements IExecutableTool {
   name = PREDEFINED_TOOL_IDS.READ_BINARY_FILE;
   parameters = READ_BINARY_FILE_PARAMS;
@@ -506,6 +515,15 @@ class ReadBinaryFileTool implements IExecutableTool {
       const file = this.app.vault.getAbstractFileByPath(filePath);
       if (!file || !(file instanceof TFile)) {
         throw new Error(`File not found: ${filePath}`);
+      }
+
+      const maxBytes = Platform.isMobile ? MAX_BINARY_FILE_BYTES_MOBILE : MAX_BINARY_FILE_BYTES_DESKTOP;
+      if (file.stat.size > maxBytes) {
+        const limitMb = maxBytes / 1024 / 1024;
+        throw new Error(
+          `File too large: ${filePath} (${(file.stat.size / 1024 / 1024).toFixed(1)} MB). ` +
+          `Maximum supported size on this platform is ${limitMb} MB.`
+        );
       }
 
       const buffer = await this.app.vault.readBinary(file);
