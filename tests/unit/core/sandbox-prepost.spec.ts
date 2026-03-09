@@ -307,52 +307,34 @@ describe("QuickJSSandbox - Pre/Post-Processing Execution", () => {
   });
 
   describe("Code Validation", () => {
-    it("blocks require statements", () => {
-      const code = `const fs = require('fs'); return input;`;
+    function expectBlocked(code: string, pattern: string) {
       const validation = sandbox.validateCode(code);
-
       expect(validation.valid).toBe(false);
-      expect(validation.errors.some((e) => e.includes("require"))).toBe(true);
+      expect(validation.errors.some((e) => e.includes(pattern))).toBe(true);
+    }
+
+    it("blocks require statements", () => {
+      expectBlocked(`const fs = require('fs'); return input;`, "require");
     });
 
     it("blocks eval statements", () => {
-      const code = `eval("malicious code"); return input;`;
-      const validation = sandbox.validateCode(code);
-
-      expect(validation.valid).toBe(false);
-      expect(validation.errors.some((e) => e.includes("eval"))).toBe(true);
+      expectBlocked(`eval("malicious code"); return input;`, "eval");
     });
 
     it("blocks process access", () => {
-      const code = `console.log(process.env); return input;`;
-      const validation = sandbox.validateCode(code);
-
-      expect(validation.valid).toBe(false);
-      expect(validation.errors.some((e) => e.includes("process"))).toBe(true);
+      expectBlocked(`console.log(process.env); return input;`, "process");
     });
 
     it("blocks global access", () => {
-      const code = `global.x = 1; return input;`;
-      const validation = sandbox.validateCode(code);
-
-      expect(validation.valid).toBe(false);
-      expect(validation.errors.some((e) => e.includes("global"))).toBe(true);
+      expectBlocked(`global.x = 1; return input;`, "global");
     });
 
     it("blocks Function constructor", () => {
-      const code = `new Function("return 1")(); return input;`;
-      const validation = sandbox.validateCode(code);
-
-      expect(validation.valid).toBe(false);
-      expect(validation.errors.some((e) => e.includes("Function"))).toBe(true);
+      expectBlocked(`new Function("return 1")(); return input;`, "Function");
     });
 
     it("requires return statement", () => {
-      const code = `input.x = 1;`;
-      const validation = sandbox.validateCode(code);
-
-      expect(validation.valid).toBe(false);
-      expect(validation.errors.some((e) => e.includes("return"))).toBe(true);
+      expectBlocked(`input.x = 1;`, "return");
     });
 
     it("accepts valid code", () => {
