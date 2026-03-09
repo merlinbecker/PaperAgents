@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as Obsidian from "obsidian";
 import { app, TFile, Vault } from "obsidian";
-import { SearchFilesFactory, ReadFileFactory, WriteFileFactory, RestRequestFactory, FinishTaskFactory, AskUserFactory } from "../../../src/tools/predefined";
+import { SearchFilesFactory, ReadFileFactory, WriteFileFactory, RestRequestFactory, FinishTaskFactory, AskUserFactory, ReadBinaryFileFactory } from "../../../src/tools/predefined";
 import type { ExecutionContext } from "../../../src/types";
 
 /** Wrap plain parameters into a minimal ExecutionContext for tool.execute(). */
@@ -138,6 +138,58 @@ describe("Predefined tools integration (mocked vault)", () => {
       const res = await tool.execute(makeCtx({ question: "Continue?" }));
       expect(res.log).toHaveLength(1);
       expect(res.log[0]?.toolName).toBe("ask_user");
+    });
+  });
+
+  describe("read_binary_file", () => {
+    let tool: ReturnType<typeof ReadBinaryFileFactory.create>;
+    beforeEach(() => { tool = ReadBinaryFileFactory.create(app); });
+
+    it("returns base64, mimeType and size for a small binary file", async () => {
+      await (app.vault as any).create("/pdfs/small.pdf", "PDF content");
+      const res = await tool.execute(makeCtx({ filePath: "/pdfs/small.pdf" }));
+      expect(res.success).toBe(true);
+      const data = res.data as any;
+      expect(data.base64).toBeDefined();
+      expect(typeof data.base64).toBe("string");
+      expect(data.mimeType).toBe("application/pdf");
+      expect(data.size).toBeGreaterThan(0);
+    });
+
+    it("returns error when file does not exist", async () => {
+      const res = await tool.execute(makeCtx({ filePath: "/pdfs/nonexistent.pdf" }));
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/not found/i);
+    });
+
+    it("returns error when file exceeds 50 MB size limit", async () => {
+      // Simulate a file whose stat.size exceeds MAX_BINARY_FILE_BYTES.
+      // The mock vault TFile.stat.size is set from the stored content length,
+      // so we stub getAbstractFileByPath to return a large-sized TFile.
+      const { TFile: MockTFile } = await import("../../mocks/obsidian");
+      const largeTFile = new MockTFile("/pdfs/huge.pdf", 51 * 1024 * 1024);
+      // Register the path so the vault returns our oversized mock
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(largeTFile as any);
+
+      const res = await tool.execute(makeCtx({ filePath: "/pdfs/huge.pdf" }));
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/too large/i);
+      expect(res.error).toMatch(/50 MB/);
+    });
+
+    it("accepts a file just below the 50 MB size limit", async () => {
+      // Create a small actual file; override stat.size to 50 MB - 1 byte (just under limit)
+      await (app.vault as any).create("/pdfs/near-limit.pdf", "small content");
+      const { TFile: MockTFile } = await import("../../mocks/obsidian");
+      const nearLimitTFile = new MockTFile("/pdfs/near-limit.pdf", 50 * 1024 * 1024 - 1);
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(nearLimitTFile as any);
+
+      const res = await tool.execute(makeCtx({ filePath: "/pdfs/near-limit.pdf" }));
+      expect(res.success).toBe(true);
+    });
+
+    it("does not require HITL", () => {
+      expect(tool.shouldRequireHITL({})).toBe(false);
     });
   });
 });

@@ -493,6 +493,11 @@ const READ_BINARY_FILE_PARAMS: Parameter[] = [
   },
 ];
 
+// Maximum file size accepted for base64 encoding (50 MB).
+// Larger files would require hundreds of MB of RAM for the base64 conversion
+// and request body, which can crash the renderer process.
+const MAX_BINARY_FILE_BYTES = 50 * 1024 * 1024;
+
 class ReadBinaryFileTool implements IExecutableTool {
   name = PREDEFINED_TOOL_IDS.READ_BINARY_FILE;
   parameters = READ_BINARY_FILE_PARAMS;
@@ -506,6 +511,13 @@ class ReadBinaryFileTool implements IExecutableTool {
       const file = this.app.vault.getAbstractFileByPath(filePath);
       if (!file || !(file instanceof TFile)) {
         throw new Error(`File not found: ${filePath}`);
+      }
+
+      if (file.stat.size > MAX_BINARY_FILE_BYTES) {
+        throw new Error(
+          `File too large: ${filePath} (${(file.stat.size / 1024 / 1024).toFixed(1)} MB). ` +
+          `Maximum supported size is ${MAX_BINARY_FILE_BYTES / 1024 / 1024} MB.`
+        );
       }
 
       const buffer = await this.app.vault.readBinary(file);
