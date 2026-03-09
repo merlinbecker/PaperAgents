@@ -480,6 +480,56 @@ You are an expert in web APIs and HTTP requests. You help the user communicate w
 - Warn about sensitive operations (POST/PUT/DELETE)`,
   },
   {
+    id: "ocr-agent",
+    title: "PDF OCR Agent",
+    description: "AI agent that converts PDFs to Markdown using Mistral OCR",
+    longDescription:
+      "An AI agent that uses OpenRouter's file-parser plugin powered by Mistral OCR to convert PDF files into Markdown. The agent reads a PDF from your vault, sends it to the Mistral OCR model via the file-parser plugin, and saves the extracted Markdown to a file. Requires an OpenRouter API key and a model that supports the file-parser plugin (e.g. mistralai/mistral-ocr-latest).",
+    usageHint:
+      'Install this agent, reload agents (Command Palette > "Paper Agents: Reload Agents"), then open the Chat. Select "PDF OCR Agent" and type the path to a PDF, e.g., "Please convert /pdfs/paper.pdf to Markdown and save it as /notes/paper.md".',
+    icon: "📄",
+    group: "AI Agents",
+    tags: ["agent", "LLM", "OCR", "PDF", "Mistral", "requires API key"],
+    fileType: "agent",
+    fileName: "ocr-agent.md",
+    content: `${buildAgentFrontmatter(
+      "ocr_agent",
+      "PDF OCR Agent",
+      "Converts PDFs to Markdown using Mistral OCR via OpenRouter",
+      "mistralai/mistral-ocr-latest",
+      ["read_binary_file", "write_file", "file_parser"],
+      20,
+      0.1
+    )}
+
+# PDF OCR Agent
+
+## System Prompt
+You are a specialized OCR agent. Your task is to convert PDF files into Markdown and save the results.
+
+**Workflow:**
+1. Read the specified PDF file using \`read_binary_file\` — you will receive the Base64-encoded content and MIME type
+2. Send the Base64 content via the \`file_parser\` plugin for OCR processing: include the file as \`data:<mimeType>;base64,<base64>\` in your message
+3. The result is the extracted Markdown text of the PDF
+4. Save the Markdown text using \`write_file\` at the specified output path
+5. End the task with \`finish_task\` and provide the path of the saved file
+
+**Rules:**
+- Preserve the structure of the PDF as much as possible in Markdown (headings, lists, tables)
+- If no output path is specified, use the same path as the input file with the extension \`.md\`
+- Only overwrite existing files if the user explicitly confirms
+- Use \`ask_user\` if the path is unclear or a file already exists
+
+**OCR request format:**
+After calling \`read_binary_file\` and obtaining the Base64 data, send the following message:
+
+\`\`\`
+Please convert this PDF file to Markdown:
+
+data:<mimeType>;base64,<base64Data>
+\`\`\``,
+  },
+  {
     id: "canvas-system-prompt",
     title: "Canvas System Prompt",
     description: "Custom system prompt for Agent Canvas sessions",

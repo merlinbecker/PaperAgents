@@ -256,8 +256,9 @@ export class Orchestrator {
     const definitions: LLMToolDefinition[] = [];
 
     for (const toolId of agent.tools) {
-      // websearch is a server-side plugin, not a function tool
+      // websearch and file_parser are server-side plugins, not function tools
       if (toolId === PREDEFINED_TOOL_IDS.WEBSEARCH) continue;
+      if (toolId === PREDEFINED_TOOL_IDS.FILE_PARSER) continue;
 
       const toolMeta = this.toolRegistry.listTools().find((t) => t.id === toolId);
       if (!toolMeta) continue;
@@ -283,6 +284,13 @@ export class Orchestrator {
       const plugin: { id: string } & Record<string, unknown> = { id: "web" };
       if (agent.websearchConfig?.maxResults !== undefined) {
         plugin["max_results"] = agent.websearchConfig.maxResults;
+      }
+      plugins.push(plugin);
+    }
+    if (agent.tools.includes(PREDEFINED_TOOL_IDS.FILE_PARSER)) {
+      const plugin: { id: string } & Record<string, unknown> = { id: "file-parser" };
+      if (agent.ocrConfig?.model) {
+        plugin["model"] = agent.ocrConfig.model;
       }
       plugins.push(plugin);
     }
