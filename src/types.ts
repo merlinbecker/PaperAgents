@@ -373,6 +373,21 @@ export interface AgenticLoopConfig {
 }
 
 // ============================================================================
+// PDF SPLIT CHUNK RESULT
+// ============================================================================
+
+export interface PdfChunkResult {
+  chunkIndex: number;
+  totalChunks: number;
+  startPage: number;
+  endPage: number;
+  base64: string;
+  mimeType: "application/pdf";
+  filePath: string;
+  size: number;
+}
+
+// ============================================================================
 // WEBSEARCH ANNOTATIONS (OpenRouter web-search plugin response)
 // ============================================================================
 
