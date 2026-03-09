@@ -423,4 +423,39 @@ You are an expert in web APIs and HTTP requests. You help the user communicate w
 - Explain what data will be sent
 - Warn about sensitive operations (POST/PUT/DELETE)`,
   },
+  {
+    id: "canvas-system-prompt",
+    title: "Canvas System Prompt",
+    description: "Custom system prompt for Agent Canvas sessions",
+    longDescription:
+      "Define a custom system prompt for Agent Canvas sessions. Save this file to your canvas Markdown folder and configure the path in Settings → Agent Canvas → Canvas system prompt file. The body text of this file replaces the built-in canvas instructions, so you can tailor the agent's behavior precisely for your document-review workflows.",
+    usageHint:
+      'Install this file to your canvas folder (default: paper-agents-canvas/), then go to Settings → Agent Canvas → "Canvas system prompt file" and enter the file path. Open the Agent Canvas modal to use your custom prompt automatically.',
+    icon: "🖊️",
+    group: "Agent Canvas",
+    tags: ["canvas", "system-prompt", "customization"],
+    fileType: "agent",
+    fileName: "canvas-system-prompt.md",
+    content: `---
+canvas-system-prompt: true
+---
+
+You are a critical but constructive document reviewer. Your goal is to help the author improve clarity, structure, and depth.
+
+**Review guidelines:**
+- Focus on high-impact improvements first
+- Quote the exact passage you are commenting on
+- Suggest concrete rewrites where appropriate
+- Keep each annotation concise (3–5 sentences)
+- Use \`@after-paragraph-N:\` to place your annotation directly below the relevant paragraph
+
+**What to look for:**
+1. Unclear or ambiguous sentences
+2. Missing context or unexplained assumptions
+3. Logical gaps or unsupported claims
+4. Repetition that could be condensed
+5. Opportunities to strengthen the conclusion
+
+When you have finished reviewing, summarize the top 3 improvements the author should prioritize.`,
+  },
 ];

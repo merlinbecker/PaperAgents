@@ -284,7 +284,11 @@ export default class PaperAgents extends Plugin {
       this.app,
       this.loadedAgents,
       this.conversationManager,
-      () => this.orchestrator
+      () => this.orchestrator,
+      {
+        canvasMarkdownPath: this.settings.canvasMarkdownPath,
+        canvasSystemPromptFile: this.settings.canvasSystemPromptFile,
+      }
     ).open();
 }
 

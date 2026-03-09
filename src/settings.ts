@@ -11,6 +11,8 @@ export interface PaperAgentsSettings {
   temperature: number;
   maxTokens: number;
   agentsPath: string;
+  canvasMarkdownPath: string;
+  canvasSystemPromptFile: string;
 }
 
 export const DEFAULT_SETTINGS: PaperAgentsSettings = {
@@ -22,6 +24,8 @@ export const DEFAULT_SETTINGS: PaperAgentsSettings = {
   temperature: OPENROUTER_DEFAULTS.TEMPERATURE,
   maxTokens: OPENROUTER_DEFAULTS.MAX_TOKENS,
   agentsPath: DEFAULT_PATHS.AGENTS,
+  canvasMarkdownPath: DEFAULT_PATHS.CANVAS_MARKDOWNS,
+  canvasSystemPromptFile: "",
 };
 
 export class PaperAgentsSettingTab extends PluginSettingTab {
@@ -176,6 +180,38 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
           })
       );
 
+    new Setting(containerEl).setName("Agent Canvas").setHeading();
+
+    new Setting(containerEl)
+      .setName("Canvas Markdowns path")
+      .setDesc(
+        "Folder path for canvas Markdown files. The Agent Canvas modal can load documents directly from this folder."
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder(DEFAULT_PATHS.CANVAS_MARKDOWNS)
+          .setValue(this.plugin.settings.canvasMarkdownPath)
+          .onChange(async (value) => {
+            this.plugin.settings.canvasMarkdownPath = value || DEFAULT_PATHS.CANVAS_MARKDOWNS;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Canvas system prompt file")
+      .setDesc(
+        this.createCanvasSystemPromptDescription()
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("e.g. paper-agents-canvas/canvas-system-prompt.md")
+          .setValue(this.plugin.settings.canvasSystemPromptFile)
+          .onChange(async (value) => {
+            this.plugin.settings.canvasSystemPromptFile = value.trim();
+            await this.plugin.saveSettings();
+          })
+      );
+
     new Setting(containerEl).setName("Debug").setHeading();
 
     // Debug Logging
@@ -198,6 +234,23 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
     containerEl.createEl("p", {
       text: "Predefined tools: search_files, read_file, write_file, REST_request, websearch",
     });
+  }
+
+  private createCanvasSystemPromptDescription(): DocumentFragment {
+    const frag = document.createDocumentFragment();
+    frag.appendText(
+      "Path to a Markdown file whose body text will be used as the system prompt for canvas sessions. " +
+      "Leave empty to use the built-in default prompt. "
+    );
+    frag.appendText("Example file content: ");
+    const code = document.createElement("code");
+    code.textContent = "paper-agents-canvas/canvas-system-prompt.md";
+    frag.appendChild(code);
+    frag.appendText(
+      " — Place your custom instructions there. " +
+      'See the sidebar examples section for a "Canvas System Prompt" template.'
+    );
+    return frag;
   }
 
   private createApiKeyDescription(): DocumentFragment {

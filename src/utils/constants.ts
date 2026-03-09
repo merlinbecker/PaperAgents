@@ -20,6 +20,7 @@ export const DEFAULT_PATHS = {
   AGENTS: "paper-agents-agents",
   CONVERSATIONS: "paper-agents-conversations",
   LOGS: "plugins/paper-agents/logs/",
+  CANVAS_MARKDOWNS: "paper-agents-canvas",
 };
 
 // OpenRouter Defaults

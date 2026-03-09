@@ -135,6 +135,10 @@ function openCanvasModal(plugin: PaperAgents): void {
     plugin.app,
     plugin.loadedAgents,
     plugin.conversationManager,
-    () => plugin.orchestrator
+    () => plugin.orchestrator,
+    {
+      canvasMarkdownPath: plugin.settings.canvasMarkdownPath,
+      canvasSystemPromptFile: plugin.settings.canvasSystemPromptFile,
+    }
   ).open();
 }
