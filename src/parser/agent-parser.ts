@@ -29,6 +29,7 @@ import {
   MemoryConfig,
   MemoryType,
   WebSearchConfig,
+  OcrConfig,
   AgenticLoopConfig,
   TerminationCheckMode,
 } from "../types";
@@ -90,6 +91,8 @@ export class AgentParser {
         "memory:": "memory",
         "websearchConfig:": "websearchConfig",
         "websearch_config:": "websearchConfig",
+        "ocrConfig:": "ocrConfig",
+        "ocr_config:": "ocrConfig",
         "agenticLoop:": "agenticLoop",
         "agentic_loop:": "agenticLoop",
       };
@@ -239,6 +242,7 @@ export class AgentParser {
       temperature: typeof fm.temperature === "number" ? fm.temperature : undefined,
       maxTokens: typeof fm.maxTokens === "number" ? fm.maxTokens : undefined,
       websearchConfig: this.parseWebSearchConfig(fm.websearchConfig),
+      ocrConfig: this.parseOcrConfig(fm.ocrConfig),
       agenticLoop: this.parseAgenticLoopConfig(fm.agenticLoop),
     };
   }
@@ -249,6 +253,16 @@ export class AgentParser {
     const maxResults = cfg.maxResults ?? cfg.max_results;
     if (typeof maxResults === "number" && maxResults > 0 && maxResults <= 100) {
       return { maxResults };
+    }
+    return undefined;
+  }
+
+  private static parseOcrConfig(config: unknown): OcrConfig | undefined {
+    if (!config || typeof config !== "object") return undefined;
+    const cfg = config as Record<string, unknown>;
+    const model = cfg.model ?? cfg.ocr_model;
+    if (typeof model === "string" && model.trim().length > 0) {
+      return { model: model.trim() };
     }
     return undefined;
   }

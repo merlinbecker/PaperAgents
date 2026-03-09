@@ -236,6 +236,15 @@ export interface WebSearchConfig {
 }
 
 // ============================================================================
+// OCR PLUGIN CONFIG
+// ============================================================================
+
+export interface OcrConfig {
+  /** OCR model to use. Defaults to "mistralai/mistral-ocr-latest". */
+  model?: string;
+}
+
+// ============================================================================
 // AGENT DEFINITION (Phase 4 - LLM-basierte Agenten)
 // ============================================================================
 
@@ -260,6 +269,7 @@ export interface AgentDefinition {
   temperature?: number;
   maxTokens?: number;
   websearchConfig?: WebSearchConfig;
+  ocrConfig?: OcrConfig;
   agenticLoop?: AgenticLoopConfig;
   /** OpenRouter message transforms to apply (e.g. ["middle-out"] for context-window compression). Internal use only – not persisted in agent frontmatter. */
   transforms?: string[];
@@ -276,6 +286,7 @@ export interface AgentFrontmatter {
   temperature?: number;
   maxTokens?: number;
   websearchConfig?: WebSearchConfig | Record<string, unknown>;
+  ocrConfig?: OcrConfig | Record<string, unknown>;
   agenticLoop?: AgenticLoopConfig | Record<string, unknown>;
   [key: string]: unknown;
 }

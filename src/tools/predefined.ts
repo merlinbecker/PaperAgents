@@ -481,6 +481,119 @@ export const WebSearchFactory: IToolFactory = {
 };
 
 // ============================================================================
+// READ_BINARY_FILE TOOL (reads binary files, e.g. PDFs, as base64)
+// ============================================================================
+
+const READ_BINARY_FILE_PARAMS: Parameter[] = [
+  {
+    name: "filePath",
+    type: "string",
+    description: "Path to binary file in vault (e.g., '/pdfs/document.pdf')",
+    required: true,
+  },
+];
+
+class ReadBinaryFileTool implements IExecutableTool {
+  name = PREDEFINED_TOOL_IDS.READ_BINARY_FILE;
+  parameters = READ_BINARY_FILE_PARAMS;
+
+  constructor(private readonly app: App) {}
+
+  async execute(ctx: ExecutionContext): Promise<ExecutionResult> {
+    try {
+      const filePath = ctx.parameters.filePath as string;
+
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      if (!file || !(file instanceof TFile)) {
+        throw new Error(`File not found: ${filePath}`);
+      }
+
+      const buffer = await this.app.vault.readBinary(file);
+      const base64 = this.arrayBufferToBase64(buffer);
+
+      return {
+        success: true,
+        data: {
+          filePath,
+          base64,
+          mimeType: this.getMimeType(filePath),
+          size: buffer.byteLength,
+        },
+        log: [buildLogEntry(this.name, ctx.parameters, { filePath, size: buffer.byteLength })],
+      };
+    } catch (error) {
+      globalLogger.error("read_binary_file tool error", { error });
+      return buildErrorResult(this.name, ctx.parameters, error);
+    }
+  }
+
+  private arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    const chunks: string[] = [];
+    const chunkSize = 0x8000; // 32KB chunks to avoid call stack overflow
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      chunks.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)));
+    }
+    return btoa(chunks.join(""));
+  }
+
+  private getMimeType(filePath: string): string {
+    const ext = filePath.split(".").pop()?.toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      pdf: "application/pdf",
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      gif: "image/gif",
+      webp: "image/webp",
+    };
+    return mimeTypes[ext ?? ""] ?? "application/octet-stream";
+  }
+
+  shouldRequireHITL(): boolean {
+    return false;
+  }
+}
+
+export const ReadBinaryFileFactory: IToolFactory = {
+  name: PREDEFINED_TOOL_IDS.READ_BINARY_FILE,
+  description: "Read a binary file (e.g. PDF, image) from the vault and return its Base64-encoded content",
+  parameters: READ_BINARY_FILE_PARAMS,
+  create: (app?: App) => new ReadBinaryFileTool(requireApp(app, "ReadBinaryFileTool")),
+};
+
+// ============================================================================
+// FILE_PARSER TOOL (OpenRouter server-side OCR plugin)
+// ============================================================================
+
+class OcrFileParserTool implements IExecutableTool {
+  name = PREDEFINED_TOOL_IDS.FILE_PARSER;
+  parameters: Parameter[] = [];
+
+  // The file_parser tool is handled server-side by the OpenRouter file-parser plugin.
+  // This execute method is a fallback and should not be called during normal operation.
+  async execute(_ctx: ExecutionContext): Promise<ExecutionResult> {
+    return {
+      success: false,
+      error: "file_parser is a server-side OpenRouter plugin and cannot be executed locally",
+      log: [{ toolName: this.name, parameters: {}, error: "server-side plugin only", timestamp: Date.now() }],
+    };
+  }
+
+  shouldRequireHITL(): boolean {
+    return false;
+  }
+}
+
+export const OcrFileParserFactory: IToolFactory = {
+  name: PREDEFINED_TOOL_IDS.FILE_PARSER,
+  description: "Enable OpenRouter file-parser plugin: the model can process PDF files and convert them to Markdown using Mistral OCR",
+  parameters: [],
+  isPlugin: true,
+  create: () => new OcrFileParserTool(),
+};
+
+// ============================================================================
 // EXPORT ALL FACTORIES
 // ============================================================================
 
@@ -490,6 +603,8 @@ export const PredefinedToolsFactory = {
   writeFile: WriteFileFactory,
   restRequest: RestRequestFactory,
   webSearch: WebSearchFactory,
+  readBinaryFile: ReadBinaryFileFactory,
+  ocrFileParser: OcrFileParserFactory,
   finishTask: FinishTaskFactory,
   askUser: AskUserFactory,
 };

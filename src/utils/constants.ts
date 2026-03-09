@@ -10,6 +10,8 @@ export const PREDEFINED_TOOL_IDS = {
   WRITE_FILE: "write_file",
   REST_REQUEST: "rest_request",
   WEBSEARCH: "websearch",
+  FILE_PARSER: "file_parser",
+  READ_BINARY_FILE: "read_binary_file",
   FINISH_TASK: "finish_task",
   ASK_USER: "ask_user",
 };
