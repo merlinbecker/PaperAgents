@@ -28,6 +28,17 @@ export interface ContentFilePart {
 
 export type ContentPart = ContentTextPart | ContentFilePart;
 
+/** Converts an LLM content value to a plain string, extracting text from ContentPart arrays. */
+export function extractTextContent(content: string | null | ContentPart[] | undefined): string | null {
+  if (content == null) return null;
+  if (typeof content === "string") return content;
+  const text = content
+    .filter((part): part is ContentTextPart => part.type === "text")
+    .map((part) => part.text)
+    .join("");
+  return text || null;
+}
+
 export interface LLMMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string | null | ContentPart[];
@@ -435,8 +446,11 @@ export class OpenRouterClient {
     if (choice.finish_reason) state.finishReason = choice.finish_reason;
 
     if (choice.delta.content) {
-      state.fullContent.push(choice.delta.content);
-      callbacks.onToken?.(choice.delta.content);
+      const contentStr = extractTextContent(choice.delta.content);
+      if (contentStr) {
+        state.fullContent.push(contentStr);
+        callbacks.onToken?.(contentStr);
+      }
     }
 
     if (choice.delta.annotations) {

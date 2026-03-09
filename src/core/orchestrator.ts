@@ -1,6 +1,6 @@
 import { AgentDefinition, Parameter, ToolCallInfo, WebSearchAnnotation, AgenticLoopConfig } from "../types";
 import { ConversationManager } from "./conversation";
-import { OpenRouterClient, LLMMessage, LLMToolDefinition, LLMToolCall, StreamCallbacks, OpenRouterConfig, ContentPart } from "./openrouter";
+import { OpenRouterClient, LLMMessage, LLMToolDefinition, LLMToolCall, StreamCallbacks, OpenRouterConfig, ContentPart, extractTextContent } from "./openrouter";
 import ToolRegistry from "./tool-registry";
 import { globalLogger } from "../utils/logger";
 import { globalMetrics } from "../utils/metrics";
@@ -130,17 +130,17 @@ export class Orchestrator {
     if (!choice) return { content: null, done: true };
 
     const assistantMessage = choice.message;
-    const content = assistantMessage.content ?? null;
+    const content = extractTextContent(assistantMessage.content);
 
     if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-      this.conversationManager.addMessage(conversationId, "assistant", assistantMessage.content || "");
+      this.conversationManager.addMessage(conversationId, "assistant", content || "");
       for (const toolCall of assistantMessage.tool_calls) {
         await this.executeToolCall(conversationId, toolCall, callbacks, traceId, spanId);
       }
       return { content, done: false };
     }
 
-    this.conversationManager.addMessage(conversationId, "assistant", assistantMessage.content || "");
+    this.conversationManager.addMessage(conversationId, "assistant", content || "");
     return { content, done: true };
   }
 
