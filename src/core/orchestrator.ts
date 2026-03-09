@@ -1,6 +1,6 @@
 import { AgentDefinition, Parameter, ToolCallInfo, WebSearchAnnotation, AgenticLoopConfig } from "../types";
 import { ConversationManager } from "./conversation";
-import { OpenRouterClient, LLMMessage, LLMToolDefinition, LLMToolCall, StreamCallbacks, OpenRouterConfig } from "./openrouter";
+import { OpenRouterClient, LLMMessage, LLMToolDefinition, LLMToolCall, StreamCallbacks, OpenRouterConfig, ContentPart } from "./openrouter";
 import ToolRegistry from "./tool-registry";
 import { globalLogger } from "../utils/logger";
 import { globalMetrics } from "../utils/metrics";
@@ -225,6 +225,11 @@ export class Orchestrator {
     }
   }
 
+  /** Formats a tool call result as a plain-text assistant message (fallback). */
+  private formatToolResultAsText(toolId: string, result: unknown, error: string | undefined): string {
+    return `[Tool Call: ${toolId}]\nResult: ${JSON.stringify(result || error)}`;
+  }
+
   private buildLLMMessages(agent: AgentDefinition, conversationId: string): LLMMessage[] {
     const contextMessages = this.conversationManager.getMessagesForContext(
       conversationId,
@@ -232,14 +237,43 @@ export class Orchestrator {
       agent.systemPrompt
     );
 
-    return this.conversationManager
-      .formatMessagesForLLM(contextMessages, agent.systemPrompt)
-      .map((msg) => ({
-        role: msg.role as LLMMessage["role"],
-        content: msg.content,
-      }));
-  }
+    const formatted: LLMMessage[] = [
+      { role: "system", content: agent.systemPrompt },
+    ];
 
+    for (const msg of contextMessages) {
+      if (msg.role === "tool" && msg.toolCall?.toolId === PREDEFINED_TOOL_IDS.READ_BINARY_FILE) {
+        // Format binary file result as OpenRouter multimodal file content
+        const result = msg.toolCall.result as { base64?: string; mimeType?: string; filePath?: string } | undefined | null;
+        if (result?.base64 && result?.mimeType && result?.filePath) {
+          const filename = result.filePath.split("/").pop() || result.filePath;
+          const dataUrl = `data:${result.mimeType};base64,${result.base64}`;
+          const content: ContentPart[] = [
+            { type: "file", file: { filename, data: dataUrl } },
+          ];
+          formatted.push({ role: "user", content });
+        } else {
+          // Fallback to text if result data is incomplete
+          formatted.push({
+            role: "assistant",
+            content: this.formatToolResultAsText(msg.toolCall.toolId, msg.toolCall.result, msg.toolCall.error),
+          });
+        }
+      } else if (msg.role === "tool" && msg.toolCall) {
+        formatted.push({
+          role: "assistant",
+          content: this.formatToolResultAsText(msg.toolCall.toolId, msg.toolCall.result, msg.toolCall.error),
+        });
+      } else {
+        formatted.push({
+          role: msg.role === "tool" ? "assistant" : msg.role as LLMMessage["role"],
+          content: msg.content,
+        });
+      }
+    }
+
+    return formatted;
+  }
   private buildToolParameterSchema(
     params: Parameter[]
   ): { properties: Record<string, { type: string; description?: string }>; required: string[] | undefined } {
