@@ -456,6 +456,37 @@ describe("ConversationManager", () => {
       expect(markdown).toContain("file content");
     });
 
+    it("should NOT include base64 payload for read_binary_file tool results", () => {
+      manager.createConversation("agent_1", "conv_1");
+      manager.addMessage("conv_1", "tool", "", {
+        toolId: "read_binary_file",
+        parameters: { filePath: "pdfs/doc.pdf" },
+        result: { filePath: "pdfs/doc.pdf", base64: "AAAA1234longbase64payload", mimeType: "application/pdf", size: 1000 },
+      });
+
+      const markdown = manager.toMarkdown("conv_1");
+
+      expect(markdown).not.toContain("AAAA1234longbase64payload");
+      expect(markdown).toContain("[[pdfs/doc.pdf]]");
+      expect(markdown).toContain("_binaryRef");
+      expect(markdown).toContain("pdfs/doc.pdf");
+      expect(markdown).toContain("application/pdf");
+    });
+
+    it("should include a wikilink for read_binary_file and store _binaryRef in Result", () => {
+      manager.createConversation("agent_1", "conv_1");
+      manager.addMessage("conv_1", "tool", "", {
+        toolId: "read_binary_file",
+        parameters: { filePath: "images/photo.png" },
+        result: { filePath: "images/photo.png", base64: "base64data", mimeType: "image/png", size: 500 },
+      });
+
+      const markdown = manager.toMarkdown("conv_1");
+
+      expect(markdown).toContain("[[images/photo.png]]");
+      expect(markdown).toMatch(/Result:.*_binaryRef.*images\/photo\.png/s);
+    });
+
     it("should use ISO 8601 timestamps", () => {
       manager.createConversation("agent_1", "conv_1");
       manager.addMessage("conv_1", "user", "Hello!");
@@ -696,6 +727,36 @@ Test message
       expect(loaded?.messages).toHaveLength(2);
       expect(loaded?.messages[0]?.content).toBe("First message");
       expect(loaded?.messages[1]?.content).toBe("Second message");
+    });
+
+    it("should persist read_binary_file result with _binaryRef and no base64 via toConversationFile", () => {
+      manager.createConversation("ocr_agent", "conv_ocr");
+      manager.addMessage("conv_ocr", "user", "Please OCR this PDF");
+      manager.addMessage("conv_ocr", "tool", "", {
+        toolId: "read_binary_file",
+        parameters: { filePath: "pdfs/report.pdf" },
+        result: { filePath: "pdfs/report.pdf", base64: "heavypayload", mimeType: "application/pdf", size: 2048 },
+      });
+
+      const file = manager.toConversationFile("conv_ocr")!;
+
+      // base64 must not be in the persisted file
+      expect(file).not.toContain("heavypayload");
+      // wikilink and _binaryRef must be present
+      expect(file).toContain("[[pdfs/report.pdf]]");
+      expect(file).toContain("_binaryRef");
+
+      // When loaded back, _binaryRef is present in the result (binary not yet re-read)
+      const manager2 = new ConversationManager();
+      const loaded = manager2.loadFromConversationFile(file);
+
+      expect(loaded?.messages).toHaveLength(2);
+      const toolMsg = loaded?.messages[1];
+      expect(toolMsg?.role).toBe("tool");
+      expect(toolMsg?.toolCall?.toolId).toBe("read_binary_file");
+      const result = toolMsg?.toolCall?.result as Record<string, unknown>;
+      expect(result["_binaryRef"]).toBe("pdfs/report.pdf");
+      expect(result["base64"]).toBeUndefined();
     });
   });
 });

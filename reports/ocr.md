@@ -1,7 +1,7 @@
 # OCR Agent – Arbeitsstand und Fix
 
 **Datum:** 2026-03-09  
-**Branch:** `copilot/fix-ocr-agent-base64-sending`
+**Branch:** `copilot/update-ocr-agent-workflow`
 
 ---
 
@@ -19,7 +19,7 @@ Der OCR-Agent hat die Binärdatei (PDF) zwar korrekt eingelesen, jedoch wurde de
 
 ## Ursache
 
-### Ablauf des Fehlers
+### Phase 1: Base64 landet in `msg.content` → Nachricht fällt aus Kontextfenster (vorheriger Fix)
 
 1. Das LLM rief `read_binary_file("DA_2026_11.pdf")` auf.
 2. Das Tool lief erfolgreich und gab zurück:
@@ -30,64 +30,82 @@ Der OCR-Agent hat die Binärdatei (PDF) zwar korrekt eingelesen, jedoch wurde de
    ```typescript
    content: JSON.stringify(result.data)  // enthält das gesamte Base64-Payload!
    ```
-4. **`getMessagesForContext` in `conversation.ts`** schätzt die Token-Anzahl einer Nachricht anhand von `msg.content`. Das Token-Budget beträgt standardmäßig `DEFAULT_MAX_TOKENS = 4000` (≈ 16 000 Zeichen). Ein realistisches PDF erzeugt jedoch ein Base64-Payload von typischerweise mehreren Hundert KB bis hin zu einigen MB – also hundertfach mehr als das Budget erlaubt.
-5. Da `msgTokens > availableTokens`, trat der `break` im Iterationsschritt von `getMessagesForContext` ein. Die `read_binary_file`-Ergebnisnachricht **wurde aus dem Kontextfenster verworfen**.
-6. In der nächsten Runde fehlte die Nachricht in `buildLLMMessages`. Der Code, der das Base64-Ergebnis als multimodales `file`-ContentPart formatiert, wurde **nie ausgeführt**.
-7. Das LLM erhielt keine Dateidaten und produzierte eine fehlerhafte Ausgabe.
+4. **`getMessagesForContext` in `conversation.ts`** schätzt die Token-Anzahl anhand von `msg.content`. Das Token-Budget beträgt standardmäßig `DEFAULT_MAX_TOKENS = 4000` (≈ 16 000 Zeichen). Ein realistisches PDF erzeugt ein Base64-Payload von mehreren Hundert KB – die Nachricht wurde **aus dem Kontextfenster verworfen**.
+5. Das LLM erhielt keine Dateidaten und produzierte eine fehlerhafte Ausgabe.
 
-### Kernproblem
+### Phase 2: Base64 landet in Markdown-Persistenz (dieser Fix)
 
-Das Base64-Payload gehört **nicht** in `msg.content` – der Konversationsspeicher ist nicht für mehrere MB Rohdaten ausgelegt. Das Payload wird ausschließlich von `buildLLMMessages` benötigt, das direkt auf `msg.toolCall.result` zugreift.
+Selbst nach dem Phase-1-Fix – der Base64 aus `msg.content` herausgehalten hat – verblieb das vollständige `toolCallInfo.result` (inklusive Base64) in der Konversation. Beim Speichern als Markdown-Datei über `formatMessageLines` wurde dieses Ergebnis vollständig serialisiert:
+
+```typescript
+lines.push(`Result: ${JSON.stringify(msg.toolCall.result)}`);
+// → Result: {"filePath":"...", "base64":"<mehrere MB>", "mimeType":..., "size":...}
+```
+
+Das bedeutete: Die Markdown-Datei enthielt mehrere Megabytes Base64-Rohdaten, die für eine lesbare Konversationsdatei völlig ungeeignet sind.
 
 ---
 
 ## Lösung
 
-### Änderung: `src/core/orchestrator.ts` – `executeToolCall`
+### Fix 1 (bereits vorhanden): `src/core/orchestrator.ts` – `executeToolCall`
 
-Beim Speichern des Ergebnisses eines `READ_BINARY_FILE`-Tool-Aufrufs wird der `base64`-Schlüssel aus `msg.content` herausgehalten. Das vollständige Ergebnis (inklusive Base64) verbleibt in `toolCallInfo.result` und wird von `buildLLMMessages` wie gehabt korrekt als multimodales `file`-ContentPart an das LLM übermittelt.
+`msg.content` enthält nur noch Metadaten `{ filePath, mimeType, size }`, niemals Base64. Das vollständige Ergebnis bleibt in `toolCallInfo.result` für `buildLLMMessages`.
+
+### Fix 2 (dieser PR): `src/core/conversation.ts` – `formatMessageLines`
+
+Beim Serialisieren eines `read_binary_file`-Tool-Ergebnisses als Markdown wird der `base64`-Schlüssel aus dem `Result:` herausgehalten. Stattdessen wird:
+- Ein **Wikilink** `[[filePath]]` eingefügt (lesbar in Obsidian)
+- Ein `_binaryRef`-Feld im `Result:` gespeichert, das den Pfad der Binary referenziert
 
 **Vorher:**
 ```typescript
-this.conversationManager.addMessage(
-  conversationId,
-  "tool",
-  JSON.stringify(result.data || result.error || "No output"),
-  toolCallInfo
-);
+lines.push(`Result: ${JSON.stringify(msg.toolCall.result)}`);
+// → mehrere MB Base64 in der Markdown-Datei
 ```
 
 **Nachher:**
 ```typescript
-let messageContent: string;
-if (toolName === PREDEFINED_TOOL_IDS.READ_BINARY_FILE && result.data) {
-  const { base64: _omit, ...metadata } = result.data as { base64?: string } & Record<string, unknown>;
-  messageContent = JSON.stringify(metadata);
-} else {
-  messageContent = JSON.stringify(result.data || result.error || "No output");
-}
-
-this.conversationManager.addMessage(
-  conversationId,
-  "tool",
-  messageContent,
-  toolCallInfo
-);
+const { base64: _omit, ...metadata } = result;
+const filePath = metadata["filePath"] as string;
+lines.push(`[[${filePath}]]`);
+lines.push(`Result: ${JSON.stringify({ ...metadata, _binaryRef: filePath })}`);
+// → nur Metadaten + Wikilink, keine Base64
 ```
 
-`msg.content` enthält nun nur noch `{ filePath, mimeType, size }` (wenige Hundert Bytes) statt mehrerer MB Base64-Daten. Damit bleibt die Token-Schätzung weit unterhalb des Limits, die Nachricht verbleibt im Kontextfenster, und das Base64-Payload wird in der nächsten Runde korrekt als `data:<mimeType>;base64,<base64>` an das LLM übermittelt.
+Das gespeicherte Markdown sieht nun so aus:
+```markdown
+### Tool (2026-03-09T10:00:00.000Z)
+<!-- tool:read_binary_file -->
+<!-- params:{"filePath":"pdfs/report.pdf"} -->
+[[pdfs/report.pdf]]
+Result: {"filePath":"pdfs/report.pdf","mimeType":"application/pdf","size":2048,"_binaryRef":"pdfs/report.pdf"}
+```
+
+### Fix 3 (dieser PR): `src/core/conversation-file-manager.ts` – `loadConversation`
+
+Beim Laden einer Konversation aus einer Markdown-Datei wird `restoreBinaryResults` aufgerufen. Diese Methode:
+1. Durchsucht alle Nachrichten nach `read_binary_file`-Tool-Ergebnissen mit `_binaryRef`
+2. Liest die referenzierte Binärdatei erneut aus dem Vault
+3. Konvertiert sie in Base64 und injiziert das Payload zurück in `toolCallInfo.result`
+4. Entfernt das `_binaryRef`-Feld aus dem In-Memory-Ergebnis
+
+So hat der Agent nach dem Laden einer Konversation wieder vollen Zugriff auf die Binärdaten, ohne dass diese je auf Disk geschrieben wurden.
 
 ---
 
-## Neuer Test
+## Neue Tests
 
-In `tests/unit/core/orchestrator.spec.ts` wurde ein dritter Test zur `read_binary_file`-Testgruppe hinzugefügt:
+### `tests/unit/core/conversation.spec.ts`
 
-> **„sends file data even when base64 payload exceeds the default token budget"**
->
-> Simuliert ein großes Base64-Payload (> 16 000 Zeichen, entspricht > 4 000 geschätzten Tokens) und prüft, dass das `file`-ContentPart trotzdem korrekt in den zweiten LLM-Request injiziert wird.
+- **„should NOT include base64 payload for read_binary_file tool results"** – prüft, dass base64 nicht in `toMarkdown` landet
+- **„should include a wikilink for read_binary_file and store _binaryRef in Result"** – prüft Wikilink und `_binaryRef`
+- **„should persist read_binary_file result with _binaryRef and no base64 via toConversationFile"** – prüft den vollständigen Serialisierungsweg inkl. `loadFromConversationFile`
 
-Dieser Test würde **ohne den Fix fehlschlagen** und belegt die korrekte Funktion nach der Änderung.
+### `tests/unit/core/conversation-file-manager.spec.ts`
+
+- **„should restore base64 for read_binary_file tool results when loading"** – prüft den vollständigen Round-Trip: Speichern → kein Base64 auf Disk → Laden → Base64 wiederhergestellt
+- **„should gracefully handle a missing binary file during restore"** – prüft, dass fehlende Binärdateien keine Exception auslösen
 
 ---
 
@@ -95,12 +113,14 @@ Dieser Test würde **ohne den Fix fehlschlagen** und belegt die korrekte Funktio
 
 | Datei | Änderung |
 |---|---|
-| `src/core/orchestrator.ts` | `executeToolCall`: Base64 wird nicht in `msg.content` gespeichert |
-| `tests/unit/core/orchestrator.spec.ts` | Neuer Test für große Base64-Payloads |
+| `src/core/conversation.ts` | `formatMessageLines`: Base64 wird nicht serialisiert; Wikilink + `_binaryRef` werden gespeichert |
+| `src/core/conversation-file-manager.ts` | `loadConversation`: `restoreBinaryResults` stellt Base64 beim Laden wieder her |
+| `tests/unit/core/conversation.spec.ts` | 3 neue Tests für Serialisierung/Deserialisierung |
+| `tests/unit/core/conversation-file-manager.spec.ts` | 2 neue Tests für Round-Trip und Fehlerbehandlung |
 
 ---
 
-## Technischer Kontext: OCR-Datenfluss nach dem Fix
+## Technischer Kontext: OCR-Datenfluss nach allen Fixes
 
 ```
 User: "Bitte konvertiere DA_2026_11.pdf in Markdown"
@@ -110,8 +130,8 @@ User: "Bitte konvertiere DA_2026_11.pdf in Markdown"
   ├─ Tool: liest PDF als ArrayBuffer → Base64
   │        Ergebnis: { filePath, base64, mimeType, size }
   │
-  ├─ executeToolCall speichert in Konversation:
-  │   msg.content     = { filePath, mimeType, size }   ← klein, kein Base64!
+  ├─ executeToolCall (orchestrator.ts) speichert in Konversation:
+  │   msg.content     = { filePath, mimeType, size }   ← klein, kein Base64 (Fix 1)
   │   toolCallInfo.result = { filePath, base64, mimeType, size }  ← vollständig
   │
   ├─ getMessagesForContext: msg bleibt im Kontextfenster (Token-Budget ok)
@@ -124,5 +144,15 @@ User: "Bitte konvertiere DA_2026_11.pdf in Markdown"
   │
   ├─ LLM: gibt Markdown-Text zurück
   │
-  └─ Agent: write_file → finish_task
+  ├─ Agent: write_file → finish_task
+  │
+  ├─ Konversation wird als Markdown gespeichert:
+  │   → [[DA_2026_11.pdf]] Wikilink, kein Base64 (Fix 2)
+  │   → Result: { filePath, mimeType, size, _binaryRef: "DA_2026_11.pdf" }
+  │
+  └─ Beim Laden der Konversation:
+      → Binary wird automatisch aus Vault re-gelesen (Fix 3)
+      → base64 wird in-memory wiederhergestellt
+      → _binaryRef wird entfernt
 ```
+

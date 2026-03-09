@@ -24,6 +24,7 @@ import { App, TFile, TFolder } from "obsidian";
 import type { Conversation } from "../types";
 import { ConversationManager } from "./conversation";
 import { globalLogger } from "../utils/logger";
+import { PREDEFINED_TOOL_IDS } from "../utils/constants";
 
 export class ConversationFileManager {
   private readonly app: App;
@@ -57,6 +58,8 @@ export class ConversationFileManager {
   /**
    * Load a conversation from a Markdown file in the vault.
    * Returns the loaded Conversation or null if the file is not a conversation file.
+   * For any read_binary_file tool results, the binary is re-read from the vault
+   * to restore the base64 payload in memory.
    */
   async loadConversation(filePath: string): Promise<Conversation | null> {
     const file = this.app.vault.getAbstractFileByPath(filePath);
@@ -72,8 +75,54 @@ export class ConversationFileManager {
       return null;
     }
 
+    // Restore base64 payloads that were stripped during serialization
+    await this.restoreBinaryResults(conversation);
+
     globalLogger.debug(`Conversation loaded from ${filePath}: ${conversation.id}`);
     return conversation;
+  }
+
+  /**
+   * For each read_binary_file tool message whose result contains a _binaryRef,
+   * re-read the binary file from the vault and inject the base64 payload back
+   * into the in-memory result so the LLM can receive it in subsequent turns.
+   */
+  private async restoreBinaryResults(conversation: Conversation): Promise<void> {
+    for (const msg of conversation.messages) {
+      if (msg.role !== "tool" || !msg.toolCall) continue;
+      if (msg.toolCall.toolId !== PREDEFINED_TOOL_IDS.READ_BINARY_FILE) continue;
+
+      const result = msg.toolCall.result as ({ _binaryRef?: string } & Record<string, unknown>) | undefined | null;
+      if (!result?._binaryRef) continue;
+
+      const binaryPath = result._binaryRef as string;
+      const binaryFile = this.app.vault.getAbstractFileByPath(binaryPath);
+      if (!(binaryFile instanceof TFile)) {
+        globalLogger.warn(`Binary file not found when restoring conversation: ${binaryPath}`);
+        continue;
+      }
+
+      try {
+        const buffer = await this.app.vault.readBinary(binaryFile);
+        const base64 = this.arrayBufferToBase64(buffer);
+        const { _binaryRef: _omit, ...cleanResult } = result;
+        msg.toolCall.result = { ...cleanResult, base64 };
+      } catch (err) {
+        globalLogger.warn(`Failed to restore binary ${binaryPath}`, {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+  }
+
+  private arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    const chunks: string[] = [];
+    const chunkSize = 0x8000; // 32 KB chunks to avoid call-stack overflow
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      chunks.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)));
+    }
+    return btoa(chunks.join(""));
   }
 
   /**
