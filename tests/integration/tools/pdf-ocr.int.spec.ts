@@ -120,6 +120,11 @@ describe("pdf_ocr tool", () => {
     expect(callBody.messages[0].content[0].type).toBe("text");
     expect(callBody.messages[0].content[1].type).toBe("file");
 
+    // Verify the PDF is sent as a base64-encoded data URL (not empty, not redacted)
+    const fileItem = callBody.messages[0].content[1] as { type: string; file: { filename: string; file_data: string } };
+    expect(fileItem.file.filename).toBe("article.pdf");
+    expect(fileItem.file.file_data).toMatch(/^data:application\/pdf;base64,[A-Za-z0-9+/]+=*$/);
+
     // Verify markdown was saved
     expect(createSpy).toHaveBeenCalledWith("papers/article.md", "# OCR Result\n\nSome text");
   });
@@ -209,6 +214,22 @@ describe("pdf_ocr tool", () => {
 
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/empty content/i);
+  });
+
+  it("returns error when the PDF binary data is empty (zero-length file)", async () => {
+    vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(
+      new TFile("empty.pdf", 0) as any
+    );
+    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(0) as any);
+    vi.spyOn(Obsidian, "requestUrl"); // should NOT be called
+
+    const res = await tool.execute(makeCtx({ pdfPath: "empty.pdf", model: "google/gemini-2.0-flash-001" }));
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/empty/i);
+    expect(res.error).toMatch(/valid.*non-empty PDF/i);
+    // The API must not be called when there is no data to send
+    expect(Obsidian.requestUrl).not.toHaveBeenCalled();
   });
 
   // ── Mobile large PDF – multi-chunk path ────────────────────────────────────
