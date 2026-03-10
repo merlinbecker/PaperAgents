@@ -44,6 +44,36 @@ function setupMobileLargePdf(filePath: string, sizeBytes: number, readBuf: Array
   vi.spyOn(app.vault, "readBinary").mockResolvedValue(readBuf as any);
 }
 
+/**
+ * Switch to mobile and mock vault spies for saveTo tests.
+ * Unlike `setupMobileLargePdf`, `getAbstractFileByPath` returns null for any path
+ * that is not the original PDF – preventing the fast-path from triggering when the
+ * chunk file does not yet exist.
+ */
+function setupMobileLargePdfForSaveTo(
+  filePath: string,
+  sizeBytes: number,
+  readBuf: ArrayBuffer = new ArrayBuffer(16)
+): TFile {
+  setPlatformMobile(true);
+  const pdfStub = new TFile(filePath, sizeBytes);
+  vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) =>
+    p === filePath || p === filePath.replace(/^\//, "") ? pdfStub as any : null
+  );
+  vi.spyOn(app.vault, "readBinary").mockResolvedValue(readBuf as any);
+  return pdfStub;
+}
+
+/**
+ * Register a pdf-lib mock for the current test and return the mock handles.
+ * Call `vi.doUnmock("pdf-lib")` at the end of the test to clean up.
+ */
+function installPdfLibMock(pageCount = 4) {
+  const { mockLoad, mockCreate } = buildPdfLibMock(pageCount);
+  vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+  return { mockLoad, mockCreate };
+}
+
 describe("Predefined tools integration (mocked vault)", () => {
   beforeEach(async () => {
     (app as any).vault = new Vault();
@@ -337,8 +367,7 @@ describe("Predefined tools integration (mocked vault)", () => {
 
     it("returns a single chunk with base64 when chunkIndex is provided (pdf-lib mocked)", async () => {
       setupMobileLargePdf("/pdfs/large.pdf", 32 * 1024 * 1024);
-      const { mockLoad, mockCreate } = buildPdfLibMock(4);
-      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+      const { mockLoad, mockCreate } = installPdfLibMock(4);
 
       const freshTool = SplitAndReadPdfFactory.create(app);
       const res = await freshTool.execute(makeCtx({ filePath: "/pdfs/large.pdf", pagesPerChunk: 2, chunkIndex: 0 }));
@@ -359,8 +388,7 @@ describe("Predefined tools integration (mocked vault)", () => {
 
     it("returns error when chunkIndex is out of range (pdf-lib mocked)", async () => {
       setupMobileLargePdf("/pdfs/large.pdf", 32 * 1024 * 1024);
-      const { mockLoad, mockCreate } = buildPdfLibMock(4);
-      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+      const { mockLoad, mockCreate } = installPdfLibMock(4);
 
       const freshTool = SplitAndReadPdfFactory.create(app);
       // pagesPerChunk=2 → totalChunks=2 → valid indices are 0,1; index 5 is out of range
@@ -385,15 +413,8 @@ describe("Predefined tools integration (mocked vault)", () => {
 
     it("saves chunk to vault and returns chunkPath (no base64) when saveTo is set", async () => {
       // Set up a mobile large PDF, but return null for chunk paths (not yet saved)
-      setPlatformMobile(true);
-      const pdfStub = new TFile("/pdfs/large.pdf", 32 * 1024 * 1024);
-      vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) =>
-        p === "/pdfs/large.pdf" || p === "pdfs/large.pdf" ? pdfStub as any : null
-      );
-      vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(16) as any);
-
-      const { mockLoad, mockCreate } = buildPdfLibMock(4);
-      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+      setupMobileLargePdfForSaveTo("/pdfs/large.pdf", 32 * 1024 * 1024);
+      const { mockLoad, mockCreate } = installPdfLibMock(4);
 
       const freshTool = SplitAndReadPdfFactory.create(app);
       const res = await freshTool.execute(makeCtx({
@@ -425,15 +446,8 @@ describe("Predefined tools integration (mocked vault)", () => {
 
     it("batch-saves all chunks when saveTo is set (pdf-lib loaded only once)", async () => {
       // Set up mobile large PDF; chunk files do not exist yet
-      setPlatformMobile(true);
-      const pdfStub = new TFile("/pdfs/large.pdf", 32 * 1024 * 1024);
-      vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) =>
-        p === "/pdfs/large.pdf" || p === "pdfs/large.pdf" ? pdfStub as any : null
-      );
-      vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(16) as any);
-
-      const { mockLoad, mockCreate } = buildPdfLibMock(4);
-      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+      setupMobileLargePdfForSaveTo("/pdfs/large.pdf", 32 * 1024 * 1024);
+      const { mockLoad, mockCreate } = installPdfLibMock(4);
 
       const freshTool = SplitAndReadPdfFactory.create(app);
       await freshTool.execute(makeCtx({
@@ -465,9 +479,7 @@ describe("Predefined tools integration (mocked vault)", () => {
         return null;
       });
       vi.spyOn(app.vault, "readBinary").mockResolvedValue(makePdfCountBuffer(4) as any);
-
-      const { mockLoad, mockCreate } = buildPdfLibMock(4);
-      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+      const { mockLoad, mockCreate } = installPdfLibMock(4);
 
       const freshTool = SplitAndReadPdfFactory.create(app);
       const res = await freshTool.execute(makeCtx({
