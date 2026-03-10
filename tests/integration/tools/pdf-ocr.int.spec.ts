@@ -234,6 +234,14 @@ describe("pdf_ocr tool", () => {
 
   // ── Mobile large PDF – multi-chunk path ────────────────────────────────────
 
+  /** Build a minimal valid mock PDF Uint8Array starting with the required %PDF- header. */
+  function mockValidPdfBytes(): Uint8Array {
+    const header = new TextEncoder().encode("%PDF-1.4\n");
+    const buf = new Uint8Array(100); // 100 bytes total; only the header matters for validation
+    buf.set(header);
+    return buf;
+  }
+
   it("splits large PDFs on mobile and produces multiple Markdown part files", async () => {
     setPlatformMobile(true);
 
@@ -247,7 +255,8 @@ describe("pdf_ocr tool", () => {
     vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(8) as any);
 
     // Mock pdf-lib with 4 pages → pagesPerChunk=1 → totalChunks=4
-    const mockSave = vi.fn().mockResolvedValue(new Uint8Array(100));
+    // save() must return a Uint8Array that starts with "%PDF-" so the validity check passes.
+    const mockSave = vi.fn().mockResolvedValue(mockValidPdfBytes());
     const mockAddPage = vi.fn();
     const mockCopyPages = vi.fn().mockResolvedValue([{}]);
     const mockChunkDoc = { copyPages: mockCopyPages, addPage: mockAddPage, save: mockSave };
@@ -283,6 +292,40 @@ describe("pdf_ocr tool", () => {
 
     // Markdown files should have been saved
     expect(createSpy).toHaveBeenCalledTimes(4);
+
+    // Verify that save() was called with useObjectStreams: false for maximum OCR compatibility
+    expect(mockSave).toHaveBeenCalledWith({ useObjectStreams: false });
+
+    vi.doUnmock("pdf-lib");
+  });
+
+  it("returns error when a chunk PDF produced by pdf-lib is missing the PDF header", async () => {
+    setPlatformMobile(true);
+
+    const fakePdfSize = 25 * 1024 * 1024;
+    vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) => {
+      if (p === "big.pdf") return new TFile("big.pdf", fakePdfSize) as any;
+      return null;
+    });
+    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(8) as any);
+
+    // save() returns bytes that do NOT start with "%PDF-" – simulates a corrupt/invalid chunk
+    const mockSave = vi.fn().mockResolvedValue(new Uint8Array(100)); // all zeros, no PDF header
+    const mockCopyPages = vi.fn().mockResolvedValue([{}]);
+    const mockChunkDoc = { copyPages: mockCopyPages, addPage: vi.fn(), save: mockSave };
+    const mockCreate = vi.fn().mockResolvedValue(mockChunkDoc);
+    const mockLoad = vi.fn().mockResolvedValue({
+      getPageCount: vi.fn().mockReturnValue(4),
+      copyPages: mockCopyPages,
+    });
+    vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+
+    const res = await tool.execute(makeCtx({ pdfPath: "big.pdf", model: "google/gemini-2.0-flash-001" }));
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/did not produce a valid PDF/i);
+    // Error message should tell the user which chunk failed
+    expect(res.error).toMatch(/Chunk 1/);
 
     vi.doUnmock("pdf-lib");
   });
