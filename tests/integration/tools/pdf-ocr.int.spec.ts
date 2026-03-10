@@ -60,6 +60,7 @@ describe("pdf_ocr tool", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     setPlatformMobile(false);
+    vi.doUnmock("pdf-lib");
   });
 
   // ── API key validation ──────────────────────────────────────────────────────
@@ -242,37 +243,48 @@ describe("pdf_ocr tool", () => {
     return buf;
   }
 
-  it("splits large PDFs on mobile and produces multiple Markdown part files", async () => {
+  /**
+   * Set up vault and platform mocks for a 25 MB mobile PDF (25 MB > 20 MB threshold).
+   * With 4 pages and TARGET_CHUNK_SIZE = 5 MB this yields 4 chunks of 1 page each.
+   * Also stubs createBinary and delete for the temp-chunk lifecycle.
+   */
+  function setupLargeMobilePdf(): void {
     setPlatformMobile(true);
-
-    // Simulate a 25 MB PDF on mobile (> 20 MB limit)
-    // TARGET_CHUNK_SIZE = 5 MB → ceil(25/5)=5 groups → pagesPerChunk=ceil(4/5)=1 → totalChunks=4
     const fakePdfSize = 25 * 1024 * 1024;
     vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) => {
       if (p === "big.pdf") return new TFile("big.pdf", fakePdfSize) as any;
       return null;
     });
     vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(8) as any);
-
-    // Mock pdf-lib with 4 pages → pagesPerChunk=1 → totalChunks=4
-    // save() must return a Uint8Array that starts with "%PDF-" so the validity check passes.
-    const mockSave = vi.fn().mockResolvedValue(mockValidPdfBytes());
-    const mockAddPage = vi.fn();
-    const mockCopyPages = vi.fn().mockResolvedValue([{}]);
-    const mockChunkDoc = { copyPages: mockCopyPages, addPage: mockAddPage, save: mockSave };
-    const mockCreate = vi.fn().mockResolvedValue(mockChunkDoc);
-    const mockLoad = vi.fn().mockResolvedValue({
-      getPageCount: vi.fn().mockReturnValue(4),
-      copyPages: mockCopyPages,
-    });
-    vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
-
-    // Mock createBinary for saving chunks to temp folder
-    (app.vault as any).createBinary = vi.fn().mockResolvedValue(new TFile("_ocr_tmp/big_chunk_1.pdf", 100) as any);
-
-    // Mock delete for cleanup
+    (app.vault as any).createBinary = vi.fn().mockResolvedValue(
+      new TFile("_ocr_tmp/big_chunk_1.pdf", 100) as any
+    );
     vi.spyOn(app.vault, "delete" as any).mockResolvedValue(undefined);
+  }
 
+  /**
+   * Mock the pdf-lib module so each chunk's save() returns the given `saveResult`.
+   * The mocked document has 4 pages (matches the 25 MB / 5 MB chunk math).
+   * Returns the `mockSave` spy for per-test assertions.
+   */
+  function setupPdfLibMock(saveResult: Uint8Array = mockValidPdfBytes()): ReturnType<typeof vi.fn> {
+    const mockSave = vi.fn().mockResolvedValue(saveResult);
+    const mockCopyPages = vi.fn().mockResolvedValue([{}]);
+    const mockChunkDoc = { copyPages: mockCopyPages, addPage: vi.fn(), save: mockSave };
+    vi.doMock("pdf-lib", () => ({
+      PDFDocument: {
+        load: vi.fn().mockResolvedValue({ getPageCount: vi.fn().mockReturnValue(4), copyPages: mockCopyPages }),
+        create: vi.fn().mockResolvedValue(mockChunkDoc),
+      },
+    }));
+    return mockSave;
+  }
+
+  it("splits large PDFs on mobile and produces multiple Markdown part files", async () => {
+    setupLargeMobilePdf();
+    // Simulate a 25 MB PDF on mobile (> 20 MB limit)
+    // TARGET_CHUNK_SIZE = 5 MB → ceil(25/5)=5 groups → pagesPerChunk=ceil(4/5)=1 → totalChunks=4
+    const mockSave = setupPdfLibMock();
     const requestSpy = mockOcrSuccess("# Part content");
     const createSpy = vi.spyOn(app.vault, "create").mockResolvedValue(
       new TFile("big_part_1.md", 0) as any
@@ -297,32 +309,11 @@ describe("pdf_ocr tool", () => {
 
     // Verify that save() was called with useObjectStreams: false for maximum OCR compatibility
     expect(mockSave).toHaveBeenCalledWith({ useObjectStreams: false });
-
-    vi.doUnmock("pdf-lib");
   });
 
   it("returns partial results when some chunks fail OCR and others succeed", async () => {
-    setPlatformMobile(true);
-
-    const fakePdfSize = 25 * 1024 * 1024;
-    vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) => {
-      if (p === "big.pdf") return new TFile("big.pdf", fakePdfSize) as any;
-      return null;
-    });
-    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(8) as any);
-
-    const mockSave = vi.fn().mockResolvedValue(mockValidPdfBytes());
-    const mockCopyPages = vi.fn().mockResolvedValue([{}]);
-    const mockChunkDoc = { copyPages: mockCopyPages, addPage: vi.fn(), save: mockSave };
-    vi.doMock("pdf-lib", () => ({
-      PDFDocument: {
-        load: vi.fn().mockResolvedValue({ getPageCount: vi.fn().mockReturnValue(4), copyPages: mockCopyPages }),
-        create: vi.fn().mockResolvedValue(mockChunkDoc),
-      },
-    }));
-
-    (app.vault as any).createBinary = vi.fn().mockResolvedValue(new TFile("_ocr_tmp/big_chunk_1.pdf", 100) as any);
-    vi.spyOn(app.vault, "delete" as any).mockResolvedValue(undefined);
+    setupLargeMobilePdf();
+    setupPdfLibMock();
 
     // Chunks 0 and 2 succeed; chunks 1 and 3 return empty content (simulating OCR failure).
     let callCount = 0;
@@ -331,7 +322,6 @@ describe("pdf_ocr tool", () => {
       const content = n % 2 === 0 ? "# Text" : null; // even chunks succeed, odd chunks fail
       return { status: 200, json: { choices: [{ message: { content } }] }, text: "" } as any;
     });
-
     const createSpy = vi.spyOn(app.vault, "create").mockResolvedValue(
       new TFile("big_part_1.md", 0) as any
     );
@@ -353,68 +343,23 @@ describe("pdf_ocr tool", () => {
 
     // Markdown was saved only for the two successful chunks
     expect(createSpy).toHaveBeenCalledTimes(2);
-
-    vi.doUnmock("pdf-lib");
   });
 
   it("returns error when all chunks fail OCR", async () => {
-    setPlatformMobile(true);
-
-    const fakePdfSize = 25 * 1024 * 1024;
-    vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) => {
-      if (p === "big.pdf") return new TFile("big.pdf", fakePdfSize) as any;
-      return null;
-    });
-    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(8) as any);
-
-    const mockSave = vi.fn().mockResolvedValue(mockValidPdfBytes());
-    const mockCopyPages = vi.fn().mockResolvedValue([{}]);
-    const mockChunkDoc = { copyPages: mockCopyPages, addPage: vi.fn(), save: mockSave };
-    vi.doMock("pdf-lib", () => ({
-      PDFDocument: {
-        load: vi.fn().mockResolvedValue({ getPageCount: vi.fn().mockReturnValue(4), copyPages: mockCopyPages }),
-        create: vi.fn().mockResolvedValue(mockChunkDoc),
-      },
-    }));
-
-    (app.vault as any).createBinary = vi.fn().mockResolvedValue(new TFile("_ocr_tmp/big_chunk_1.pdf", 100) as any);
-    vi.spyOn(app.vault, "delete" as any).mockResolvedValue(undefined);
-
-    // All chunks return null content → callOcr throws for each
-    vi.spyOn(Obsidian, "requestUrl").mockResolvedValue({
-      status: 200,
-      json: { choices: [{ message: { content: null } }] },
-      text: "",
-    } as any);
+    setupLargeMobilePdf();
+    setupPdfLibMock();
+    mockOcrEmptyContent();
 
     const res = await tool.execute(makeCtx({ pdfPath: "big.pdf", model: "google/gemini-2.0-flash-001" }));
 
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/OCR failed for all 4 part/i);
-
-    vi.doUnmock("pdf-lib");
   });
 
   it("returns error when a chunk PDF produced by pdf-lib is missing the PDF header", async () => {
-    setPlatformMobile(true);
-
-    const fakePdfSize = 25 * 1024 * 1024;
-    vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) => {
-      if (p === "big.pdf") return new TFile("big.pdf", fakePdfSize) as any;
-      return null;
-    });
-    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(8) as any);
-
+    setupLargeMobilePdf();
     // save() returns bytes that do NOT start with "%PDF-" – simulates a corrupt/invalid chunk
-    const mockSave = vi.fn().mockResolvedValue(new Uint8Array(100)); // all zeros, no PDF header
-    const mockCopyPages = vi.fn().mockResolvedValue([{}]);
-    const mockChunkDoc = { copyPages: mockCopyPages, addPage: vi.fn(), save: mockSave };
-    const mockCreate = vi.fn().mockResolvedValue(mockChunkDoc);
-    const mockLoad = vi.fn().mockResolvedValue({
-      getPageCount: vi.fn().mockReturnValue(4),
-      copyPages: mockCopyPages,
-    });
-    vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+    setupPdfLibMock(new Uint8Array(100)); // all zeros, no PDF header
 
     const res = await tool.execute(makeCtx({ pdfPath: "big.pdf", model: "google/gemini-2.0-flash-001" }));
 
@@ -422,8 +367,6 @@ describe("pdf_ocr tool", () => {
     expect(res.error).toMatch(/did not produce a valid PDF/i);
     // Error message should tell the user which chunk failed
     expect(res.error).toMatch(/Chunk 1/);
-
-    vi.doUnmock("pdf-lib");
   });
 
   // ── HITL ──────────────────────────────────────────────────────────────────
