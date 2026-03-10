@@ -107,6 +107,70 @@ describe("pdf_ocr tool", () => {
     expect(callBody.model).toBe("custom/model-v1");
   });
 
+  it("uses mistral-ocr engine and no text prompt for the default OCR model", async () => {
+    setPlatformMobile(false);
+    vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(
+      new TFile("doc.pdf", 50) as any
+    );
+    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(50) as any);
+    vi.spyOn(app.vault, "create").mockResolvedValue(new TFile("doc.md", 0) as any);
+    const requestSpy = mockOcrSuccess("ocr text");
+
+    // Default model contains "mistral-ocr" → should use mistral-ocr engine
+    await tool.execute(makeCtx({ pdfPath: "doc.pdf" }));
+
+    const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
+    const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
+    expect(plugin?.pdf?.engine).toBe("mistral-ocr");
+    // No extra text instruction for OCR-native models
+    const content = callBody.messages[0].content;
+    expect(content).toHaveLength(1);
+    expect(content[0].type).toBe("file");
+  });
+
+  it("uses auto engine and adds text prompt for non-OCR models", async () => {
+    setPlatformMobile(false);
+    vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(
+      new TFile("doc.pdf", 50) as any
+    );
+    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(50) as any);
+    vi.spyOn(app.vault, "create").mockResolvedValue(new TFile("doc.md", 0) as any);
+    const requestSpy = mockOcrSuccess("extracted text");
+
+    await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "mistralai/ministral-14b-instruct" }));
+
+    const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
+    const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
+    expect(plugin?.pdf?.engine).toBe("auto");
+    // Text instruction must be present so the chat model knows what to respond with
+    const content = callBody.messages[0].content;
+    expect(content).toHaveLength(2);
+    expect(content[0].type).toBe("file");
+    expect(content[1].type).toBe("text");
+    expect((content[1] as { type: string; text: string }).text).toMatch(/extract.*text/i);
+  });
+
+  it("error message for non-OCR model includes model suggestion when content is empty", async () => {
+    setPlatformMobile(false);
+    vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(
+      new TFile("doc.pdf", 50) as any
+    );
+    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(50) as any);
+    vi.spyOn(Obsidian, "requestUrl").mockResolvedValue({
+      status: 200,
+      json: { choices: [{ message: { content: null } }] },
+      text: "",
+    } as any);
+
+    const res = await tool.execute(
+      makeCtx({ pdfPath: "doc.pdf", model: "mistralai/ministral-14b-instruct" })
+    );
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/empty content/i);
+    expect(res.error).toMatch(/mistral-ocr-latest/i);
+  });
+
   it("uses outputPath when provided", async () => {
     setPlatformMobile(false);
     vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(

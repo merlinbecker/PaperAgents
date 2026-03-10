@@ -288,6 +288,10 @@ class PdfOcrTool implements IExecutableTool {
   /**
    * Call OpenRouter chat/completions with the file-parser plugin to OCR a single PDF chunk.
    * Returns the raw OCR text from the model.
+   *
+   * The `mistral-ocr` PDF engine is only compatible with Mistral OCR models.
+   * For all other models the `auto` engine is used, and an explicit text instruction
+   * is added so that general-purpose chat models know to return the document text.
    */
   private async callOcr(
     base64: string,
@@ -297,26 +301,42 @@ class PdfOcrTool implements IExecutableTool {
   ): Promise<string> {
     const dataUrl = `data:application/pdf;base64,${base64}`;
 
+    // The mistral-ocr engine is designed for Mistral OCR models only.
+    // Use the "auto" engine for any other model so OpenRouter can pick the best
+    // extraction method (OCR for scanned PDFs, text-extraction for digital ones).
+    const isMistralOcrModel = model.toLowerCase().includes("mistral-ocr");
+    const pdfEngine = isMistralOcrModel ? "mistral-ocr" : "auto";
+
+    // General-purpose chat models need an explicit instruction to know they should
+    // return the document content; OCR-specific models handle files without a prompt.
+    const messageContent: Array<Record<string, unknown>> = [
+      {
+        type: "file",
+        file: {
+          filename,
+          file_data: dataUrl,
+        },
+      },
+    ];
+    if (!isMistralOcrModel) {
+      messageContent.push({
+        type: "text",
+        text: "Please extract and return the complete text content of this document.",
+      });
+    }
+
     const requestBody = {
       model,
       messages: [
         {
           role: "user",
-          content: [
-            {
-              type: "file",
-              file: {
-                filename,
-                file_data: dataUrl,
-              },
-            },
-          ],
+          content: messageContent,
         },
       ],
       plugins: [
         {
           id: "file-parser",
-          pdf: { engine: "mistral-ocr" },
+          pdf: { engine: pdfEngine },
         },
       ],
     };
@@ -344,7 +364,10 @@ class PdfOcrTool implements IExecutableTool {
     };
     const content = data.choices?.[0]?.message?.content;
     if (content == null || content === "") {
-      throw new Error("OCR returned empty content from OpenRouter");
+      const hint = isMistralOcrModel
+        ? "The PDF may be encrypted, contain only images without recognizable text, or be in an unsupported format."
+        : `Model "${model}" may not support PDF extraction. Try using "${DEFAULT_OCR_MODEL}" for best OCR results on scanned documents.`;
+      throw new Error(`OCR returned empty content from OpenRouter. ${hint}`);
     }
 
     return content;
@@ -429,7 +452,7 @@ export function createPdfOcrFactory(
     description:
       "Convert a PDF file to Markdown using OCR via OpenRouter. " +
       "Handles PDF splitting for large files on mobile automatically. " +
-      "Input: pdfPath (required), outputPath (optional), model (optional, default mistralai/mistral-ocr-latest). " +
+      "Input: pdfPath (required), outputPath (optional), model (optional, default mistralai/mistral-ocr-latest — required for optimal OCR on scanned PDFs; other models use the 'auto' engine with varying results). " +
       "Output: list of created Markdown file paths.",
     parameters: PDF_OCR_PARAMS,
     create(app?: App): IExecutableTool {
