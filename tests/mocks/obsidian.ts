@@ -101,6 +101,24 @@ export class Vault {
     return tfile;
   }
 
+  async createBinary(path: string, data: ArrayBuffer): Promise<TFile> {
+    const bytes = new Uint8Array(data);
+    // Store a sentinel string so getAbstractFileByPath recognises the file
+    this.files.set(path, `[binary:${bytes.length}bytes]`);
+    const folderPath = path.split("/").slice(0, -1).join("/") || "/";
+    const folder = this.ensureFolder(folderPath);
+    const tfile = new TFile(path, bytes.length);
+    if (!folder.children.some((c) => c instanceof TFile && c.path === path)) {
+      folder.children.push(tfile);
+    }
+    return tfile;
+  }
+
+  async modifyBinary(file: TFile, data: ArrayBuffer): Promise<void> {
+    const bytes = new Uint8Array(data);
+    this.files.set(file.path, `[binary:${bytes.length}bytes]`);
+  }
+
   async exists(path: string): Promise<boolean> {
     return this.files.has(path);
   }

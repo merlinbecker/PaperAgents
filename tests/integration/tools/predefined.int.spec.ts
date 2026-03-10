@@ -293,19 +293,18 @@ describe("Predefined tools integration (mocked vault)", () => {
       expect(tool.shouldRequireHITL({})).toBe(false);
     });
 
-    it("returns metadata without base64 when chunkIndex is omitted (pdf-lib mocked)", async () => {
+    it("returns metadata without base64 when chunkIndex is omitted (raw byte page counting)", async () => {
       setPlatformMobile(true);
 
       const { TFile: MockTFile } = await import("../../mocks/obsidian");
       const largeTFile = new MockTFile("/pdfs/large.pdf", 32 * 1024 * 1024);
       vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(largeTFile as any);
-      vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(16) as any);
 
-      const mockLoad = vi.fn().mockResolvedValue({
-        getPageCount: vi.fn().mockReturnValue(4),
-      });
-
-      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: vi.fn() } }));
+      // Provide a buffer that contains /Count 4 so the raw-byte counter detects 4 pages.
+      // Phase 1 no longer uses pdf-lib, so no mock for pdf-lib is needed.
+      const pdfFragment = "/Pages /Count 4 /Kids";
+      const fragBuffer = new TextEncoder().encode(pdfFragment).buffer;
+      vi.spyOn(app.vault, "readBinary").mockResolvedValue(fragBuffer as any);
 
       const freshTool = SplitAndReadPdfFactory.create(app);
       // No chunkIndex → metadata-only response
@@ -321,8 +320,27 @@ describe("Predefined tools integration (mocked vault)", () => {
       expect(meta.totalPages).toBe(4);
       expect(meta.pagesPerChunk).toBe(2);
       expect(meta.filePath).toBe("/pdfs/large.pdf");
+    });
 
-      vi.doUnmock("pdf-lib");
+    it("metadata call falls back to file-size estimate when no /Count pattern found", async () => {
+      setPlatformMobile(true);
+
+      const { TFile: MockTFile } = await import("../../mocks/obsidian");
+      // 30 MB PDF – estimate: round(30 * 1024 * 1024 / (200 * 1024)) = round(153.6) = 154 pages
+      const largeTFile = new MockTFile("/pdfs/large.pdf", 30 * 1024 * 1024);
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(largeTFile as any);
+      // Buffer with no /Count pattern → raw counter returns null → use estimate
+      vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(16) as any);
+
+      const freshTool = SplitAndReadPdfFactory.create(app);
+      const res = await freshTool.execute(makeCtx({ filePath: "/pdfs/large.pdf", pagesPerChunk: 2 }));
+
+      expect(res.success).toBe(true);
+      const meta = res.data as any;
+      expect(meta.strategy).toBe("chunked");
+      // totalPages is an estimate from file size, must be >= 2
+      expect(meta.totalPages).toBeGreaterThanOrEqual(2);
+      expect(meta.totalChunks).toBeGreaterThanOrEqual(1);
     });
 
     it("returns a single chunk with base64 when chunkIndex is provided (pdf-lib mocked)", async () => {
@@ -398,14 +416,11 @@ describe("Predefined tools integration (mocked vault)", () => {
       const { TFile: MockTFile } = await import("../../mocks/obsidian");
       const hugeTFile = new MockTFile("/pdfs/huge-single.pdf", 25 * 1024 * 1024);
       vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(hugeTFile as any);
-      vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(16) as any);
 
-      vi.doMock("pdf-lib", () => ({
-        PDFDocument: {
-          load: vi.fn().mockResolvedValue({ getPageCount: vi.fn().mockReturnValue(1) }),
-          create: vi.fn(),
-        },
-      }));
+      // Provide a buffer with /Count 1 so the raw-byte counter detects a single page.
+      const pdfFragment = "/Pages /Count 1 /Kids";
+      const fragBuffer = new TextEncoder().encode(pdfFragment).buffer;
+      vi.spyOn(app.vault, "readBinary").mockResolvedValue(fragBuffer as any);
 
       const freshTool = SplitAndReadPdfFactory.create(app);
       const res = await freshTool.execute(makeCtx({ filePath: "/pdfs/huge-single.pdf" }));
@@ -413,6 +428,55 @@ describe("Predefined tools integration (mocked vault)", () => {
       expect(res.success).toBe(false);
       expect(res.error).toMatch(/only 1 page/i);
       expect(res.error).toMatch(/cannot be split/i);
+    });
+
+    it("saves chunk to vault and returns chunkPath (no base64) when saveTo is set", async () => {
+      setPlatformMobile(true);
+
+      const { TFile: MockTFile } = await import("../../mocks/obsidian");
+      const largeTFile = new MockTFile("/pdfs/large.pdf", 32 * 1024 * 1024);
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(largeTFile as any);
+      vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(16) as any);
+
+      const mockSave = vi.fn().mockResolvedValue(new Uint8Array(100));
+      const mockAddPage = vi.fn();
+      const mockCopyPages = vi.fn().mockResolvedValue([{}, {}]);
+      const mockCreate = vi.fn().mockResolvedValue({
+        copyPages: mockCopyPages,
+        addPage: mockAddPage,
+        save: mockSave,
+      });
+      const mockLoad = vi.fn().mockResolvedValue({
+        getPageCount: vi.fn().mockReturnValue(4),
+        copyPages: mockCopyPages,
+      });
+
+      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+
+      const freshTool = SplitAndReadPdfFactory.create(app);
+      const res = await freshTool.execute(makeCtx({
+        filePath: "/pdfs/large.pdf",
+        pagesPerChunk: 2,
+        chunkIndex: 0,
+        saveTo: "_chunks",
+      }));
+
+      expect(res.success).toBe(true);
+      const data = res.data as any;
+      // saveTo mode: chunkPath present, no base64
+      expect(data.base64).toBeUndefined();
+      expect(data.mimeType).toBeUndefined();
+      expect(typeof data.chunkPath).toBe("string");
+      expect(data.chunkPath).toMatch(/large_chunk_0\.pdf$/);
+      expect(data.chunkIndex).toBe(0);
+      expect(data.totalChunks).toBe(2);
+      expect(data.startPage).toBe(1);
+      expect(data.endPage).toBe(2);
+      expect(data.filePath).toBe("/pdfs/large.pdf");
+
+      // The chunk file must now exist in the vault
+      const savedFile = (app.vault as any).getAbstractFileByPath(data.chunkPath);
+      expect(savedFile).not.toBeNull();
 
       vi.doUnmock("pdf-lib");
     });
