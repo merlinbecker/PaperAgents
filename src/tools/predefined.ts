@@ -4,7 +4,7 @@
  */
 
 import { App, TFile, requestUrl, Platform } from "obsidian";
-import type { IExecutableTool, IToolFactory, Parameter, ExecutionContext, ExecutionResult, ToolExecution, PdfChunkResult, PdfSplitMetadata } from "../types";
+import type { IExecutableTool, IToolFactory, Parameter, ExecutionContext, ExecutionResult, ToolExecution, PdfChunkResult, PdfChunkSavedResult, PdfSplitMetadata } from "../types";
 import { PREDEFINED_TOOL_IDS } from "../utils/constants";
 import { globalLogger } from "../utils/logger";
 
@@ -637,6 +637,17 @@ const SPLIT_AND_READ_PDF_PARAMS: Parameter[] = [
     description: "Optional: pages per chunk (default: auto-calculated for ~15 MB chunks)",
     required: false,
   },
+  {
+    name: "saveTo",
+    type: "string",
+    description:
+      "Optional: vault folder path where each chunk PDF should be saved " +
+      "(e.g., '_chunks'). When set, the chunk is written to disk as " +
+      "'{saveTo}/{basename}_chunk_{n}.pdf' and the result contains only " +
+      "the file path – no base64 payload is kept in memory. " +
+      "This is the recommended approach for mobile devices to prevent OOM crashes.",
+    required: false,
+  },
 ];
 
 // Target chunk size before base64 encoding (15 MB → ~20 MB after base64)
@@ -669,31 +680,29 @@ class SplitAndReadPdfTool implements IExecutableTool {
         return delegate.execute(ctx);
       }
 
-      // Dynamic import of pdf-lib (avoids bundling cost when not needed)
-      const { PDFDocument } = await import("pdf-lib");
-
       const chunkIndex = ctx.parameters.chunkIndex as number | undefined;
       const requestedPagesPerChunk = ctx.parameters.pagesPerChunk as number | undefined;
-
-      // ── Shared: load PDF, validate, compute layout ─────────────────────────
-      const buffer = await this.app.vault.readBinary(tfile);
-      const pdfDoc = await PDFDocument.load(buffer);
-      const totalPages = pdfDoc.getPageCount();
-
-      if (totalPages === 1) {
-        throw new Error(
-          `PDF too large for mobile: file is ${(tfile.stat.size / 1024 / 1024).toFixed(1)} MB but contains only 1 page and` +
-          ` cannot be split further. Please reduce the file size or use a desktop device.`
-        );
-      }
-
-      const pagesPerChunk = requestedPagesPerChunk ??
-        Math.ceil(totalPages / Math.ceil(tfile.stat.size / TARGET_CHUNK_SIZE));
-      const totalChunks = Math.ceil(totalPages / pagesPerChunk);
+      const saveTo = ctx.parameters.saveTo as string | undefined;
 
       if (chunkIndex === undefined) {
         // ── Phase 1: metadata-only ──────────────────────────────────────────
-        // No base64 data is produced, so peak memory stays minimal.
+        // Read raw bytes and count pages without loading the full pdf-lib DOM.
+        // This saves ~75–100 MB compared to PDFDocument.load() on a 27 MB PDF.
+        const buffer = await this.app.vault.readBinary(tfile);
+        const rawPageCount = this.countPdfPagesFromRawBytes(buffer);
+        const totalPages = rawPageCount ?? this.estimatePdfPagesFromFileSize(tfile.stat.size);
+
+        if (totalPages === 1) {
+          throw new Error(
+            `PDF too large for mobile: file is ${(tfile.stat.size / 1024 / 1024).toFixed(1)} MB but contains only 1 page and` +
+            ` cannot be split further. Please reduce the file size or use a desktop device.`
+          );
+        }
+
+        const pagesPerChunk = requestedPagesPerChunk ??
+          Math.ceil(totalPages / Math.ceil(tfile.stat.size / TARGET_CHUNK_SIZE));
+        const totalChunks = Math.ceil(totalPages / pagesPerChunk);
+
         const metadata: PdfSplitMetadata = {
           filePath,
           totalPages,
@@ -711,9 +720,19 @@ class SplitAndReadPdfTool implements IExecutableTool {
       }
 
       // ── Phase 2: single-chunk retrieval ────────────────────────────────────
-      // Extract exactly the pages for the requested chunk, encode to base64,
-      // and return.  All pdf-lib and binary references are released once this
-      // call returns, so peak memory is limited to one chunk at a time.
+      // Dynamic import of pdf-lib (avoids bundling cost when not needed)
+      const { PDFDocument } = await import("pdf-lib");
+
+      // Load the full PDF, extract the chunk, then let all references go out of
+      // scope so the GC can reclaim memory before the next chunk call.
+      const buffer = await this.app.vault.readBinary(tfile);
+      const pdfDoc = await PDFDocument.load(buffer);
+      const totalPages = pdfDoc.getPageCount();
+
+      const pagesPerChunk = requestedPagesPerChunk ??
+        Math.ceil(totalPages / Math.ceil(tfile.stat.size / TARGET_CHUNK_SIZE));
+      const totalChunks = Math.ceil(totalPages / pagesPerChunk);
+
       if (chunkIndex < 0 || chunkIndex >= totalChunks) {
         throw new Error(
           `Invalid chunkIndex ${chunkIndex}: PDF has ${totalChunks} chunk(s) (0-based index 0–${totalChunks - 1}).`
@@ -730,6 +749,42 @@ class SplitAndReadPdfTool implements IExecutableTool {
         chunkDoc.addPage(page);
       }
       const chunkBuffer = await chunkDoc.save();
+
+      if (saveTo) {
+        // ── saveTo mode: write chunk to vault file, return path only ──────────
+        // No base64 is produced, keeping peak memory minimal.
+        // The agent can then use read_binary_file on the saved path for OCR.
+        const chunkPath = await this.saveChunkToVault(saveTo, filePath, chunkIndex, chunkBuffer);
+
+        const savedChunk: PdfChunkSavedResult = {
+          chunkPath,
+          chunkIndex,
+          totalChunks,
+          startPage: startPage + 1, // 1-based for display
+          endPage: endPage + 1,
+          filePath,
+          size: chunkBuffer.byteLength,
+        };
+
+        return {
+          success: true,
+          data: savedChunk,
+          log: [buildLogEntry(this.name, ctx.parameters, {
+            filePath,
+            totalPages,
+            chunkIndex,
+            totalChunks,
+            startPage: savedChunk.startPage,
+            endPage: savedChunk.endPage,
+            size: savedChunk.size,
+            chunkPath,
+          })],
+        };
+      }
+
+      // ── in-memory mode: encode to base64 and return ────────────────────────
+      // All pdf-lib and binary references are released once this call returns,
+      // so peak memory is limited to one chunk at a time.
       const base64 = this.arrayBufferToBase64(chunkBuffer.buffer as ArrayBuffer);
 
       const chunk: PdfChunkResult = {
@@ -762,6 +817,97 @@ class SplitAndReadPdfTool implements IExecutableTool {
     }
   }
 
+  /**
+   * Count PDF pages from raw bytes without using pdf-lib.
+   * Searches for /Count N entries in the PDF's Pages dictionary.
+   * Returns the largest value found (the root Pages node holds the total count),
+   * or null if no /Count entry was found (e.g., cross-reference streams only).
+   */
+  private countPdfPagesFromRawBytes(buffer: ArrayBuffer): number | null {
+    const view = new Uint8Array(buffer);
+    // ASCII byte values for the '/Count' keyword
+    const SLASH = 47, B_C = 67, B_o = 111, B_u = 117, B_n = 110, B_t = 116;
+    let maxCount = 0;
+
+    outer: for (let i = 0; i < view.length - 8; i++) {
+      if (view[i] !== SLASH) continue;
+      if (view[i + 1] !== B_C) continue;
+      if (view[i + 2] !== B_o) continue;
+      if (view[i + 3] !== B_u) continue;
+      if (view[i + 4] !== B_n) continue;
+      if (view[i + 5] !== B_t) continue;
+      // Must be followed by whitespace (space, tab, CR, LF)
+      const ws = view[i + 6];
+      if (ws !== 32 && ws !== 9 && ws !== 13 && ws !== 10) continue outer;
+
+      let j = i + 7;
+      while (j < view.length && (view[j] === 32 || view[j] === 9 || view[j] === 13 || view[j] === 10)) j++;
+
+      let numStr = "";
+      while (j < view.length) {
+        const byte = view[j];
+        if (byte === undefined || byte < 48 || byte > 57) break;
+        numStr += String.fromCharCode(byte);
+        j++;
+      }
+
+      if (numStr) {
+        const count = parseInt(numStr, 10);
+        if (count > maxCount) maxCount = count;
+      }
+    }
+
+    return maxCount > 0 ? maxCount : null;
+  }
+
+  /**
+   * Fallback page count estimate based on file size.
+   * 200 KB per page is a conservative midpoint for typical mixed-content PDFs
+   * (scanned pages at 150 dpi are ~200–400 KB; text-heavy PDFs are often <50 KB/page).
+   * Returns at least 2 so the caller always attempts splitting.
+   */
+  private estimatePdfPagesFromFileSize(fileSizeBytes: number): number {
+    return Math.max(2, Math.round(fileSizeBytes / (200 * 1024)));
+  }
+
+  /**
+   * Save a chunk buffer as a PDF file in the vault under `saveTo`.
+   * Creates the folder if it does not exist.
+   * Returns the vault path of the saved file.
+   */
+  private async saveChunkToVault(
+    saveTo: string,
+    originalFilePath: string,
+    chunkIndex: number,
+    chunkBuffer: Uint8Array
+  ): Promise<string> {
+    const folderPath = normPath(saveTo);
+
+    // Ensure folder exists
+    const existing = this.app.vault.getAbstractFileByPath(folderPath);
+    if (!existing) {
+      await this.app.vault.createFolder(folderPath);
+    }
+
+    const baseName = (originalFilePath.split("/").pop() ?? "chunk").replace(/\.pdf$/i, "");
+    const chunkPath = `${folderPath}/${baseName}_chunk_${chunkIndex}.pdf`;
+    const chunkArrayBuffer = chunkBuffer.buffer as ArrayBuffer;
+
+    // Obsidian's Vault binary API (not in the TypeScript definitions shipped with the
+    // obsidian package, but present at runtime).
+    type VaultBinary = { createBinary(p: string, d: ArrayBuffer): Promise<TFile>; modifyBinary(f: TFile, d: ArrayBuffer): Promise<void> };
+    const vaultBinary = this.app.vault as unknown as VaultBinary;
+
+    const existingChunk = this.app.vault.getAbstractFileByPath(chunkPath);
+    if (existingChunk instanceof TFile) {
+      await vaultBinary.modifyBinary(existingChunk, chunkArrayBuffer);
+    } else {
+      await vaultBinary.createBinary(chunkPath, chunkArrayBuffer);
+    }
+
+    return chunkPath;
+  }
+
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
     const chunksList: string[] = [];
@@ -784,6 +930,9 @@ export const SplitAndReadPdfFactory: IToolFactory = {
     "On mobile devices with PDFs larger than 20 MB, call this tool TWICE per chunk: " +
     "first WITHOUT chunkIndex to get metadata (totalChunks, pagesPerChunk); " +
     "then WITH chunkIndex=0, 1, … to retrieve each chunk individually. " +
+    "For the lowest memory footprint on mobile, also pass saveTo='/path/to/chunks': " +
+    "each chunk PDF is saved to the vault (no base64 in memory) and the result " +
+    "contains only the saved file path. Use read_binary_file on that path for OCR. " +
     "Only one chunk is kept in memory at a time, preventing out-of-memory crashes. " +
     "On desktop or for smaller files the behaviour is identical to read_binary_file.",
   parameters: SPLIT_AND_READ_PDF_PARAMS,

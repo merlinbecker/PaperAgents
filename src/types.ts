@@ -388,6 +388,21 @@ export interface PdfChunkResult {
 }
 
 /**
+ * Result returned by split_and_read_pdf when the `saveTo` parameter is set.
+ * The chunk PDF is written to the vault file at `chunkPath`; no base64 payload
+ * is kept in memory, which prevents out-of-memory crashes on mobile.
+ */
+export interface PdfChunkSavedResult {
+  chunkPath: string;
+  chunkIndex: number;
+  totalChunks: number;
+  startPage: number;
+  endPage: number;
+  filePath: string;
+  size: number;
+}
+
+/**
  * Metadata returned by split_and_read_pdf when no chunkIndex is given.
  * Tells the LLM how many chunks exist so it can request each one individually.
  */

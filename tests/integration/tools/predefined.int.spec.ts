@@ -13,6 +13,37 @@ function setPlatformMobile(isMobile: boolean): void {
   (Platform as any).isMobile = isMobile;
 }
 
+/**
+ * Build a pdf-lib mock for the given total page count (default: 4).
+ * Pass the returned factory to `vi.doMock("pdf-lib", ...)`.
+ */
+function buildPdfLibMock(pageCount = 4) {
+  const mockSave = vi.fn().mockResolvedValue(new Uint8Array(100));
+  const mockAddPage = vi.fn();
+  const mockCopyPages = vi.fn().mockResolvedValue(Array.from({ length: pageCount }, () => ({})));
+  const mockCreate = vi.fn().mockResolvedValue({ copyPages: mockCopyPages, addPage: mockAddPage, save: mockSave });
+  const mockLoad = vi.fn().mockResolvedValue({ getPageCount: vi.fn().mockReturnValue(pageCount), copyPages: mockCopyPages });
+  return { mockLoad, mockCreate };
+}
+
+/**
+ * Encode a minimal PDF `/Count N` byte sequence for the raw-byte page counter.
+ */
+function makePdfCountBuffer(pageCount: number): ArrayBuffer {
+  return new TextEncoder().encode(`/Pages /Count ${pageCount} /Kids`).buffer;
+}
+
+/**
+ * Switch to mobile, create a TFile stub of the given size, and mock vault spies.
+ * `readBuf` defaults to an empty 16-byte buffer (no /Count pattern).
+ */
+function setupMobileLargePdf(filePath: string, sizeBytes: number, readBuf: ArrayBuffer = new ArrayBuffer(16)): void {
+  setPlatformMobile(true);
+  const stub = new TFile(filePath, sizeBytes);
+  vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(stub as any);
+  vi.spyOn(app.vault, "readBinary").mockResolvedValue(readBuf as any);
+}
+
 describe("Predefined tools integration (mocked vault)", () => {
   beforeEach(async () => {
     (app as any).vault = new Vault();
@@ -176,11 +207,7 @@ describe("Predefined tools integration (mocked vault)", () => {
     });
 
     it("returns error on desktop when file exceeds 50 MB size limit", async () => {
-      // Simulate a file whose stat.size exceeds the desktop limit (50 MB).
-      const { TFile: MockTFile } = await import("../../mocks/obsidian");
-      const largeTFile = new MockTFile("/pdfs/huge.pdf", 51 * 1024 * 1024);
-      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(largeTFile as any);
-
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(new TFile("/pdfs/huge.pdf", 51 * 1024 * 1024) as any);
       const res = await tool.execute(makeCtx({ filePath: "/pdfs/huge.pdf" }));
       expect(res.success).toBe(false);
       expect(res.error).toMatch(/too large/i);
@@ -188,14 +215,9 @@ describe("Predefined tools integration (mocked vault)", () => {
     });
 
     it("returns error on mobile when file exceeds 20 MB size limit", async () => {
-      // Simulate mobile platform
       setPlatformMobile(true);
-
-      const { TFile: MockTFile } = await import("../../mocks/obsidian");
       // 25 MB — over the mobile limit (20 MB) but under the desktop limit (50 MB)
-      const mobileLargeTFile = new MockTFile("/pdfs/medium.pdf", 25 * 1024 * 1024);
-      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(mobileLargeTFile as any);
-
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(new TFile("/pdfs/medium.pdf", 25 * 1024 * 1024) as any);
       const res = await tool.execute(makeCtx({ filePath: "/pdfs/medium.pdf" }));
       expect(res.success).toBe(false);
       expect(res.error).toMatch(/too large/i);
@@ -204,22 +226,15 @@ describe("Predefined tools integration (mocked vault)", () => {
 
     it("accepts on mobile a file just below the 20 MB limit", async () => {
       setPlatformMobile(true);
-
       await (app.vault as any).create("/pdfs/mobile-ok.pdf", "small content");
-      const { TFile: MockTFile } = await import("../../mocks/obsidian");
-      const nearLimitTFile = new MockTFile("/pdfs/mobile-ok.pdf", 20 * 1024 * 1024 - 1);
-      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(nearLimitTFile as any);
-
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(new TFile("/pdfs/mobile-ok.pdf", 20 * 1024 * 1024 - 1) as any);
       const res = await tool.execute(makeCtx({ filePath: "/pdfs/mobile-ok.pdf" }));
       expect(res.success).toBe(true);
     });
 
     it("accepts a file just below the 50 MB desktop size limit", async () => {
       await (app.vault as any).create("/pdfs/near-limit.pdf", "small content");
-      const { TFile: MockTFile } = await import("../../mocks/obsidian");
-      const nearLimitTFile = new MockTFile("/pdfs/near-limit.pdf", 50 * 1024 * 1024 - 1);
-      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(nearLimitTFile as any);
-
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(new TFile("/pdfs/near-limit.pdf", 50 * 1024 * 1024 - 1) as any);
       const res = await tool.execute(makeCtx({ filePath: "/pdfs/near-limit.pdf" }));
       expect(res.success).toBe(true);
     });
@@ -255,26 +270,21 @@ describe("Predefined tools integration (mocked vault)", () => {
 
     it("delegates to read_binary_file on mobile when PDF is below 20 MB", async () => {
       setPlatformMobile(true);
-      const { TFile: MockTFile } = await import("../../mocks/obsidian");
       // Just below the 20 MB limit
-      const smallTFile = new MockTFile("/pdfs/test.pdf", 19 * 1024 * 1024);
-      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(smallTFile as any);
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValueOnce(new TFile("/pdfs/test.pdf", 19 * 1024 * 1024) as any);
       vi.spyOn(app.vault, "readBinary").mockResolvedValueOnce(new ArrayBuffer(8) as any);
 
       const res = await tool.execute(makeCtx({ filePath: "/pdfs/test.pdf" }));
       expect(res.success).toBe(true);
       // Delegated: single result, not an array
-      const data = res.data as any;
-      expect(Array.isArray(data)).toBe(false);
+      expect(Array.isArray(res.data)).toBe(false);
     });
 
     it("delegates to read_binary_file on mobile when file is not a PDF", async () => {
       setPlatformMobile(true);
       await (app.vault as any).create("/images/photo.png", "PNG data");
-      const { TFile: MockTFile } = await import("../../mocks/obsidian");
       // Large PNG – should NOT split (not a PDF), delegates to read_binary_file
-      const largePng = new MockTFile("/images/photo.png", 25 * 1024 * 1024);
-      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(largePng as any);
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(new TFile("/images/photo.png", 25 * 1024 * 1024) as any);
       vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(8) as any);
 
       const res = await tool.execute(makeCtx({ filePath: "/images/photo.png" }));
@@ -293,27 +303,15 @@ describe("Predefined tools integration (mocked vault)", () => {
       expect(tool.shouldRequireHITL({})).toBe(false);
     });
 
-    it("returns metadata without base64 when chunkIndex is omitted (pdf-lib mocked)", async () => {
-      setPlatformMobile(true);
-
-      const { TFile: MockTFile } = await import("../../mocks/obsidian");
-      const largeTFile = new MockTFile("/pdfs/large.pdf", 32 * 1024 * 1024);
-      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(largeTFile as any);
-      vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(16) as any);
-
-      const mockLoad = vi.fn().mockResolvedValue({
-        getPageCount: vi.fn().mockReturnValue(4),
-      });
-
-      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: vi.fn() } }));
+    it("returns metadata without base64 when chunkIndex is omitted (raw byte page counting)", async () => {
+      // Phase 1 reads raw bytes for /Count — no pdf-lib needed
+      setupMobileLargePdf("/pdfs/large.pdf", 32 * 1024 * 1024, makePdfCountBuffer(4));
 
       const freshTool = SplitAndReadPdfFactory.create(app);
-      // No chunkIndex → metadata-only response
       const res = await freshTool.execute(makeCtx({ filePath: "/pdfs/large.pdf", pagesPerChunk: 2 }));
 
       expect(res.success).toBe(true);
       const meta = res.data as any;
-      // Metadata response: no base64, no array
       expect(Array.isArray(meta)).toBe(false);
       expect(meta.base64).toBeUndefined();
       expect(meta.strategy).toBe("chunked");
@@ -321,40 +319,32 @@ describe("Predefined tools integration (mocked vault)", () => {
       expect(meta.totalPages).toBe(4);
       expect(meta.pagesPerChunk).toBe(2);
       expect(meta.filePath).toBe("/pdfs/large.pdf");
+    });
 
-      vi.doUnmock("pdf-lib");
+    it("metadata call falls back to file-size estimate when no /Count pattern found", async () => {
+      // 30 MB PDF with no /Count pattern → estimate: round(30 * 1024 * 1024 / (200 * 1024)) = 154 pages
+      setupMobileLargePdf("/pdfs/large.pdf", 30 * 1024 * 1024);
+
+      const freshTool = SplitAndReadPdfFactory.create(app);
+      const res = await freshTool.execute(makeCtx({ filePath: "/pdfs/large.pdf", pagesPerChunk: 2 }));
+
+      expect(res.success).toBe(true);
+      const meta = res.data as any;
+      expect(meta.strategy).toBe("chunked");
+      expect(meta.totalPages).toBeGreaterThanOrEqual(2);
+      expect(meta.totalChunks).toBeGreaterThanOrEqual(1);
     });
 
     it("returns a single chunk with base64 when chunkIndex is provided (pdf-lib mocked)", async () => {
-      setPlatformMobile(true);
-
-      const { TFile: MockTFile } = await import("../../mocks/obsidian");
-      const largeTFile = new MockTFile("/pdfs/large.pdf", 32 * 1024 * 1024);
-      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(largeTFile as any);
-      vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(16) as any);
-
-      const mockSave = vi.fn().mockResolvedValue(new Uint8Array(100));
-      const mockAddPage = vi.fn();
-      const mockCopyPages = vi.fn().mockResolvedValue([{}, {}]);
-      const mockCreate = vi.fn().mockResolvedValue({
-        copyPages: mockCopyPages,
-        addPage: mockAddPage,
-        save: mockSave,
-      });
-      const mockLoad = vi.fn().mockResolvedValue({
-        getPageCount: vi.fn().mockReturnValue(4),
-        copyPages: mockCopyPages,
-      });
-
+      setupMobileLargePdf("/pdfs/large.pdf", 32 * 1024 * 1024);
+      const { mockLoad, mockCreate } = buildPdfLibMock(4);
       vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
 
       const freshTool = SplitAndReadPdfFactory.create(app);
-      // Request chunk 0 of 2
       const res = await freshTool.execute(makeCtx({ filePath: "/pdfs/large.pdf", pagesPerChunk: 2, chunkIndex: 0 }));
 
       expect(res.success).toBe(true);
       const chunk = res.data as any;
-      // Single-chunk response: not an array
       expect(Array.isArray(chunk)).toBe(false);
       expect(chunk.chunkIndex).toBe(0);
       expect(chunk.totalChunks).toBe(2);
@@ -368,19 +358,9 @@ describe("Predefined tools integration (mocked vault)", () => {
     });
 
     it("returns error when chunkIndex is out of range (pdf-lib mocked)", async () => {
-      setPlatformMobile(true);
-
-      const { TFile: MockTFile } = await import("../../mocks/obsidian");
-      const largeTFile = new MockTFile("/pdfs/large.pdf", 32 * 1024 * 1024);
-      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(largeTFile as any);
-      vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(16) as any);
-
-      vi.doMock("pdf-lib", () => ({
-        PDFDocument: {
-          load: vi.fn().mockResolvedValue({ getPageCount: vi.fn().mockReturnValue(4) }),
-          create: vi.fn(),
-        },
-      }));
+      setupMobileLargePdf("/pdfs/large.pdf", 32 * 1024 * 1024);
+      const { mockLoad, mockCreate } = buildPdfLibMock(4);
+      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
 
       const freshTool = SplitAndReadPdfFactory.create(app);
       // pagesPerChunk=2 → totalChunks=2 → valid indices are 0,1; index 5 is out of range
@@ -393,19 +373,7 @@ describe("Predefined tools integration (mocked vault)", () => {
     });
 
     it("returns error on mobile for a single-page PDF that is too large", async () => {
-      setPlatformMobile(true);
-
-      const { TFile: MockTFile } = await import("../../mocks/obsidian");
-      const hugeTFile = new MockTFile("/pdfs/huge-single.pdf", 25 * 1024 * 1024);
-      vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(hugeTFile as any);
-      vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(16) as any);
-
-      vi.doMock("pdf-lib", () => ({
-        PDFDocument: {
-          load: vi.fn().mockResolvedValue({ getPageCount: vi.fn().mockReturnValue(1) }),
-          create: vi.fn(),
-        },
-      }));
+      setupMobileLargePdf("/pdfs/huge-single.pdf", 25 * 1024 * 1024, makePdfCountBuffer(1));
 
       const freshTool = SplitAndReadPdfFactory.create(app);
       const res = await freshTool.execute(makeCtx({ filePath: "/pdfs/huge-single.pdf" }));
@@ -413,6 +381,37 @@ describe("Predefined tools integration (mocked vault)", () => {
       expect(res.success).toBe(false);
       expect(res.error).toMatch(/only 1 page/i);
       expect(res.error).toMatch(/cannot be split/i);
+    });
+
+    it("saves chunk to vault and returns chunkPath (no base64) when saveTo is set", async () => {
+      setupMobileLargePdf("/pdfs/large.pdf", 32 * 1024 * 1024);
+      const { mockLoad, mockCreate } = buildPdfLibMock(4);
+      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+
+      const freshTool = SplitAndReadPdfFactory.create(app);
+      const res = await freshTool.execute(makeCtx({
+        filePath: "/pdfs/large.pdf",
+        pagesPerChunk: 2,
+        chunkIndex: 0,
+        saveTo: "_chunks",
+      }));
+
+      expect(res.success).toBe(true);
+      const data = res.data as any;
+      // saveTo mode: chunkPath present, no base64
+      expect(data.base64).toBeUndefined();
+      expect(data.mimeType).toBeUndefined();
+      expect(typeof data.chunkPath).toBe("string");
+      expect(data.chunkPath).toMatch(/large_chunk_0\.pdf$/);
+      expect(data.chunkIndex).toBe(0);
+      expect(data.totalChunks).toBe(2);
+      expect(data.startPage).toBe(1);
+      expect(data.endPage).toBe(2);
+      expect(data.filePath).toBe("/pdfs/large.pdf");
+
+      // The chunk file must now exist in the vault
+      const savedFile = (app.vault as any).getAbstractFileByPath(data.chunkPath);
+      expect(savedFile).not.toBeNull();
 
       vi.doUnmock("pdf-lib");
     });

@@ -282,6 +282,10 @@ export class Orchestrator {
             { type: "file", file: { filename, data: dataUrl } },
           ];
           formatted.push({ role: "user", content });
+          // Clear base64 from the stored result after including it in this LLM message.
+          // The LLM has received the payload; retaining it would waste memory on every
+          // subsequent round without any benefit.
+          delete (msg.toolCall.result as Record<string, unknown>).base64;
         } else {
           // Fallback to text if result data is incomplete
           formatted.push({
@@ -295,6 +299,7 @@ export class Orchestrator {
           // Legacy: array of chunks – format each as a separate multimodal file message
           const chunks = result as Array<{ base64?: string; mimeType?: string; filePath?: string; chunkIndex?: number; totalChunks?: number; startPage?: number; endPage?: number }>;
           const totalChunks = chunks[0]?.totalChunks ?? chunks.length;
+          let anyBase64 = false;
           for (const chunk of chunks) {
             if (chunk.base64 && chunk.mimeType && chunk.filePath) {
               const filename = chunk.filePath.split("/").pop() || chunk.filePath;
@@ -306,9 +311,12 @@ export class Orchestrator {
                 { type: "file", file: { filename, data: dataUrl } },
               ];
               formatted.push({ role: "user", content });
+              // Clear base64 from this chunk after including it to free memory
+              delete (chunk as Record<string, unknown>).base64;
+              anyBase64 = true;
             }
           }
-          if (!chunks.some((c) => c.base64)) {
+          if (!anyBase64) {
             formatted.push({
               role: "assistant",
               content: this.formatToolResultAsText(msg.toolCall.toolId, msg.toolCall.result, msg.toolCall.error),
@@ -327,6 +335,9 @@ export class Orchestrator {
               { type: "file", file: { filename, data: dataUrl } },
             ];
             formatted.push({ role: "user", content });
+            // Clear base64 from memory after including it in this LLM message.
+            // Metadata (chunkIndex, startPage, endPage, etc.) is preserved for context.
+            delete (msg.toolCall.result as Record<string, unknown>).base64;
           } else {
             formatted.push({
               role: "assistant",
@@ -334,7 +345,7 @@ export class Orchestrator {
             });
           }
         } else {
-          // Metadata-only response: format as text so the LLM can read totalChunks etc.
+          // Metadata-only response or saveTo result: format as text so the LLM can read fields
           formatted.push({
             role: "assistant",
             content: this.formatToolResultAsText(msg.toolCall.toolId, msg.toolCall.result, msg.toolCall.error),
