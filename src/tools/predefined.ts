@@ -675,25 +675,25 @@ class SplitAndReadPdfTool implements IExecutableTool {
       const chunkIndex = ctx.parameters.chunkIndex as number | undefined;
       const requestedPagesPerChunk = ctx.parameters.pagesPerChunk as number | undefined;
 
+      // ── Shared: load PDF, validate, compute layout ─────────────────────────
+      const buffer = await this.app.vault.readBinary(tfile);
+      const pdfDoc = await PDFDocument.load(buffer);
+      const totalPages = pdfDoc.getPageCount();
+
+      if (totalPages === 1) {
+        throw new Error(
+          `PDF too large for mobile: file is ${(tfile.stat.size / 1024 / 1024).toFixed(1)} MB but contains only 1 page and` +
+          ` cannot be split further. Please reduce the file size or use a desktop device.`
+        );
+      }
+
+      const pagesPerChunk = requestedPagesPerChunk ??
+        Math.ceil(totalPages / Math.ceil(tfile.stat.size / TARGET_CHUNK_SIZE));
+      const totalChunks = Math.ceil(totalPages / pagesPerChunk);
+
       if (chunkIndex === undefined) {
         // ── Phase 1: metadata-only ──────────────────────────────────────────
-        // Load the PDF just enough to count pages, then release everything.
         // No base64 data is produced, so peak memory stays minimal.
-        const buffer = await this.app.vault.readBinary(tfile);
-        const pdfDoc = await PDFDocument.load(buffer);
-        const totalPages = pdfDoc.getPageCount();
-
-        if (totalPages === 1) {
-          throw new Error(
-            `PDF too large for mobile: file is ${(tfile.stat.size / 1024 / 1024).toFixed(1)} MB but contains only 1 page and` +
-            ` cannot be split further. Please reduce the file size or use a desktop device.`
-          );
-        }
-
-        const pagesPerChunk = requestedPagesPerChunk ??
-          Math.ceil(totalPages / Math.ceil(tfile.stat.size / TARGET_CHUNK_SIZE));
-        const totalChunks = Math.ceil(totalPages / pagesPerChunk);
-
         const metadata: PdfSplitMetadata = {
           filePath,
           totalPages,
@@ -711,24 +711,9 @@ class SplitAndReadPdfTool implements IExecutableTool {
       }
 
       // ── Phase 2: single-chunk retrieval ────────────────────────────────────
-      // Load the PDF, extract exactly the pages for the requested chunk, encode
-      // to base64, and return.  All pdf-lib and binary references are released
-      // once this call returns, so peak memory is limited to one chunk at a time.
-      const buffer = await this.app.vault.readBinary(tfile);
-      const pdfDoc = await PDFDocument.load(buffer);
-      const totalPages = pdfDoc.getPageCount();
-
-      if (totalPages === 1) {
-        throw new Error(
-          `PDF too large for mobile: file is ${(tfile.stat.size / 1024 / 1024).toFixed(1)} MB but contains only 1 page and` +
-          ` cannot be split further. Please reduce the file size or use a desktop device.`
-        );
-      }
-
-      const pagesPerChunk = requestedPagesPerChunk ??
-        Math.ceil(totalPages / Math.ceil(tfile.stat.size / TARGET_CHUNK_SIZE));
-      const totalChunks = Math.ceil(totalPages / pagesPerChunk);
-
+      // Extract exactly the pages for the requested chunk, encode to base64,
+      // and return.  All pdf-lib and binary references are released once this
+      // call returns, so peak memory is limited to one chunk at a time.
       if (chunkIndex < 0 || chunkIndex >= totalChunks) {
         throw new Error(
           `Invalid chunkIndex ${chunkIndex}: PDF has ${totalChunks} chunk(s) (0-based index 0–${totalChunks - 1}).`

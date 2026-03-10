@@ -115,31 +115,28 @@ export class ConversationFileManager {
           });
         }
       } else if (msg.toolCall.toolId === PREDEFINED_TOOL_IDS.SPLIT_AND_READ_PDF) {
-        if (Array.isArray(msg.toolCall.result)) {
-          // Legacy: array of persisted chunks
-          await this.restorePdfChunks(msg);
-        } else {
-          // Single-chunk response persisted with _binaryRef
-          await this.restoreSinglePdfChunk(msg);
-        }
+        await this.restorePdfChunks(msg);
       }
     }
   }
 
   /**
-   * Restore base64 payloads for split_and_read_pdf chunks.
+   * Restore base64 payloads for split_and_read_pdf results.
+   * Handles both a legacy array of chunks and a single chunk object.
    * Re-generates each chunk from the original PDF using pdf-lib.
    */
   private async restorePdfChunks(msg: Message): Promise<void> {
-    // Chunks on disk have _binaryRef instead of base64; use Partial<PdfChunkResult> & { _binaryRef?: string }
     type PersistedChunk = Omit<PdfChunkResult, "base64"> & { _binaryRef?: string };
-    const chunks = msg.toolCall?.result as Array<PersistedChunk> | null | undefined;
-    if (!Array.isArray(chunks) || chunks.length === 0) return;
 
-    const firstChunk = chunks[0];
-    const binaryPath = firstChunk?._binaryRef;
-    if (!binaryPath) return;
+    const rawResult = msg.toolCall?.result;
+    const isArray = Array.isArray(rawResult);
+    const chunks: PersistedChunk[] = isArray
+      ? (rawResult as PersistedChunk[])
+      : [rawResult as PersistedChunk];
 
+    if (chunks.length === 0 || !chunks[0] || !chunks[0]._binaryRef) return;
+
+    const binaryPath = chunks[0]._binaryRef as string;
     const binaryFile = this.app.vault.getAbstractFileByPath(binaryPath);
     if (!(binaryFile instanceof TFile)) {
       globalLogger.warn(`PDF not found when restoring split chunks: ${binaryPath}`);
@@ -168,50 +165,9 @@ export class ConversationFileManager {
         })
       );
 
-      msg.toolCall!.result = restoredChunks;
+      msg.toolCall!.result = isArray ? restoredChunks : restoredChunks[0];
     } catch (err) {
       globalLogger.warn(`Failed to restore PDF chunks for ${binaryPath}`, {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-
-  /**
-   * Restore base64 payload for a single split_and_read_pdf chunk persisted with _binaryRef.
-   * Re-generates only the one chunk's pages from the original PDF.
-   */
-  private async restoreSinglePdfChunk(msg: Message): Promise<void> {
-    type PersistedSingleChunk = Omit<PdfChunkResult, "base64"> & { _binaryRef?: string };
-    const chunk = msg.toolCall?.result as PersistedSingleChunk | null | undefined;
-    if (!chunk?._binaryRef) return;
-
-    const binaryPath = chunk._binaryRef as string;
-    const binaryFile = this.app.vault.getAbstractFileByPath(binaryPath);
-    if (!(binaryFile instanceof TFile)) {
-      globalLogger.warn(`PDF not found when restoring single split chunk: ${binaryPath}`);
-      return;
-    }
-
-    try {
-      const { PDFDocument } = await import("pdf-lib");
-      const buffer = await this.app.vault.readBinary(binaryFile);
-      const pdfDoc = await PDFDocument.load(buffer);
-
-      const startPage = (chunk.startPage ?? 1) - 1; // convert to 0-based
-      const endPage = (chunk.endPage ?? 1) - 1;
-      const chunkDoc = await PDFDocument.create();
-      const pageIndices = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
-      const copiedPages = await chunkDoc.copyPages(pdfDoc, pageIndices);
-      for (const page of copiedPages) {
-        chunkDoc.addPage(page);
-      }
-      const chunkBuffer = await chunkDoc.save();
-      const base64 = this.arrayBufferToBase64(chunkBuffer.buffer as ArrayBuffer);
-
-      const { _binaryRef: _omit, ...rest } = chunk;
-      msg.toolCall!.result = { ...rest, base64 } satisfies PdfChunkResult;
-    } catch (err) {
-      globalLogger.warn(`Failed to restore single PDF chunk for ${binaryPath}`, {
         error: err instanceof Error ? err.message : String(err),
       });
     }
