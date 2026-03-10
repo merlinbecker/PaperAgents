@@ -67,15 +67,23 @@ describe("pdf_ocr tool", () => {
   it("returns error when API key is not configured", async () => {
     const factory = createPdfOcrFactory(() => "");
     const t = factory.create(app);
-    const res = await t.execute(makeCtx({ pdfPath: "test.pdf" }));
+    const res = await t.execute(makeCtx({ pdfPath: "test.pdf", model: "google/gemini-2.0-flash-001" }));
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/API key/i);
+  });
+
+  // ── Model validation ────────────────────────────────────────────────────────
+
+  it("returns error when model parameter is not provided", async () => {
+    const res = await tool.execute(makeCtx({ pdfPath: "test.pdf" }));
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/model.*required/i);
   });
 
   // ── File-not-found errors ───────────────────────────────────────────────────
 
   it("returns error when PDF file does not exist in vault", async () => {
-    const res = await tool.execute(makeCtx({ pdfPath: "nonexistent.pdf" }));
+    const res = await tool.execute(makeCtx({ pdfPath: "nonexistent.pdf", model: "google/gemini-2.0-flash-001" }));
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/not found/i);
   });
@@ -94,7 +102,7 @@ describe("pdf_ocr tool", () => {
     );
     const requestSpy = mockOcrSuccess("# OCR Result\n\nSome text");
 
-    const res = await tool.execute(makeCtx({ pdfPath: "papers/article.pdf" }));
+    const res = await tool.execute(makeCtx({ pdfPath: "papers/article.pdf", model: "google/gemini-2.0-flash-001" }));
 
     expect(res.success).toBe(true);
     const data = res.data as { files: string[]; totalFiles: number };
@@ -108,8 +116,9 @@ describe("pdf_ocr tool", () => {
     expect(callBody.plugins).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: "file-parser" })])
     );
-    expect(callBody.model).toBe("mistralai/mistral-ocr-latest");
-    expect(callBody.messages[0].content[0].type).toBe("file");
+    expect(callBody.model).toBe("google/gemini-2.0-flash-001");
+    expect(callBody.messages[0].content[0].type).toBe("text");
+    expect(callBody.messages[0].content[1].type).toBe("file");
 
     // Verify markdown was saved
     expect(createSpy).toHaveBeenCalledWith("papers/article.md", "# OCR Result\n\nSome text");
@@ -125,42 +134,31 @@ describe("pdf_ocr tool", () => {
     expect(callBody.model).toBe("custom/model-v1");
   });
 
-  it("uses mistral-ocr engine and no text prompt for the default OCR model", async () => {
-    setupSmallPdf();
-    const requestSpy = mockOcrSuccess("ocr text");
+  it.each([
+    ["google/gemini-2.0-flash-001"],
+    ["mistralai/ministral-14b-instruct"],
+  ])(
+    "uses mistral-ocr engine and includes text instruction before the file item (%s)",
+    async (model) => {
+      setupSmallPdf();
+      const requestSpy = mockOcrSuccess("ocr text");
 
-    // Default dedicated OCR model → no text prompt needed
-    await tool.execute(makeCtx({ pdfPath: "doc.pdf" }));
+      await tool.execute(makeCtx({ pdfPath: "doc.pdf", model }));
 
-    const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
-    const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
-    // engine is always mistral-ocr regardless of model
-    expect(plugin?.pdf?.engine).toBe("mistral-ocr");
-    // No extra text instruction for dedicated OCR models
-    const content = callBody.messages[0].content;
-    expect(content).toHaveLength(1);
-    expect(content[0].type).toBe("file");
-  });
+      const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
+      const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
+      // engine is always mistral-ocr regardless of which model is chosen
+      expect(plugin?.pdf?.engine).toBe("mistral-ocr");
+      // Text instruction BEFORE the file item is required for all models per OpenRouter docs
+      const content = callBody.messages[0].content;
+      expect(content).toHaveLength(2);
+      expect(content[0].type).toBe("text");
+      expect((content[0] as { type: string; text: string }).text).toMatch(/extract.*text/i);
+      expect(content[1].type).toBe("file");
+    }
+  );
 
-  it("uses mistral-ocr engine and adds text prompt for non-OCR models", async () => {
-    setupSmallPdf();
-    const requestSpy = mockOcrSuccess("extracted text");
-
-    await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "mistralai/ministral-14b-instruct" }));
-
-    const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
-    const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
-    // engine is always mistral-ocr — it is model-independent
-    expect(plugin?.pdf?.engine).toBe("mistral-ocr");
-    // Text instruction comes BEFORE the file item (matching OpenRouter docs)
-    const content = callBody.messages[0].content;
-    expect(content).toHaveLength(2);
-    expect(content[0].type).toBe("text");
-    expect((content[0] as { type: string; text: string }).text).toMatch(/extract.*text/i);
-    expect(content[1].type).toBe("file");
-  });
-
-  it("error message for non-OCR model includes model suggestion when content is empty", async () => {
+  it("error message includes model name and helpful hint when content is empty", async () => {
     setupSmallPdf();
     mockOcrEmptyContent();
 
@@ -170,7 +168,7 @@ describe("pdf_ocr tool", () => {
 
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/empty content/i);
-    expect(res.error).toMatch(/mistral-ocr-latest/i);
+    expect(res.error).toMatch(/mistralai\/ministral-14b-instruct/);
   });
 
   it("uses outputPath when provided", async () => {
@@ -178,7 +176,7 @@ describe("pdf_ocr tool", () => {
     mockOcrSuccess("content");
 
     const res = await tool.execute(
-      makeCtx({ pdfPath: "input.pdf", outputPath: "output/result" })
+      makeCtx({ pdfPath: "input.pdf", outputPath: "output/result", model: "google/gemini-2.0-flash-001" })
     );
 
     expect(res.success).toBe(true);
@@ -196,7 +194,7 @@ describe("pdf_ocr tool", () => {
       json: {},
     } as any);
 
-    const res = await tool.execute(makeCtx({ pdfPath: "doc.pdf" }));
+    const res = await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001" }));
 
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/OCR API error/i);
@@ -207,7 +205,7 @@ describe("pdf_ocr tool", () => {
     setupSmallPdf();
     mockOcrEmptyContent();
 
-    const res = await tool.execute(makeCtx({ pdfPath: "doc.pdf" }));
+    const res = await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001" }));
 
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/empty content/i);
@@ -250,7 +248,7 @@ describe("pdf_ocr tool", () => {
       new TFile("big_part_1.md", 0) as any
     );
 
-    const res = await tool.execute(makeCtx({ pdfPath: "big.pdf" }));
+    const res = await tool.execute(makeCtx({ pdfPath: "big.pdf", model: "google/gemini-2.0-flash-001" }));
 
     expect(res.success).toBe(true);
     const data = res.data as { files: string[]; totalFiles: number };
