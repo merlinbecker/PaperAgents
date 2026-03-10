@@ -7,6 +7,11 @@ import { globalMetrics } from "../utils/metrics";
 import { PREDEFINED_TOOL_IDS, randomId } from "../utils/constants";
 
 const MAX_TOOL_CALL_ROUNDS = 10;
+// Number of recent messages to keep in memory after successfully writing a Markdown
+// file (e.g., OCR output). Earlier messages are pruned to release the memory that
+// large OCR texts and tool results would otherwise occupy when processing many PDF
+// files in a single session.
+const PRUNE_KEEP_MESSAGES_AFTER_WRITE = 6;
 
 /**
  * Returns the Obsidian wikilink basename for a vault file path.
@@ -273,6 +278,17 @@ export class Orchestrator {
         toolCallInfo
       );
 
+      // After successfully saving a Markdown file (e.g., OCR output), prune old
+      // conversation messages to release memory held by large OCR texts and tool
+      // results. The written content is persisted on disk; keeping more than a few
+      // recent messages in memory is unnecessary and wastes RAM, especially when
+      // processing many PDF files in sequence.
+      if (toolName === PREDEFINED_TOOL_IDS.WRITE_FILE && result.success) {
+        if (typeof params.filePath === "string" && params.filePath.toLowerCase().endsWith(".md")) {
+          this.conversationManager.pruneOldMessages(conversationId, PRUNE_KEEP_MESSAGES_AFTER_WRITE);
+        }
+      }
+
       callbacks?.onToolCallEnd?.(toolName, result.data, result.error);
       globalMetrics.endTrace(toolSpan, result.success ? "success" : "error");
       globalMetrics.recordExecution(`tool.${toolName}`, Date.now() - toolSpan.startTime, result.success);
@@ -322,7 +338,7 @@ export class Orchestrator {
           const filename = result.filePath.split("/").pop() || result.filePath;
           const dataUrl = `data:${result.mimeType};base64,${result.base64}`;
           const content: ContentPart[] = [
-            { type: "file", file: { filename, data: dataUrl } },
+            { type: "file", file: { filename, file_data: dataUrl } },
           ];
           formatted.push({ role: "user", content });
           // Clear base64 from the stored result after including it in this LLM message.
@@ -351,7 +367,7 @@ export class Orchestrator {
               const textPart: ContentTextPart = { type: "text", text: contextNote };
               const content: ContentPart[] = [
                 textPart,
-                { type: "file", file: { filename, data: dataUrl } },
+                { type: "file", file: { filename, file_data: dataUrl } },
               ];
               formatted.push({ role: "user", content });
               // Clear base64 from this chunk after including it to free memory
@@ -375,7 +391,7 @@ export class Orchestrator {
             const textPart: ContentTextPart = { type: "text", text: contextNote };
             const content: ContentPart[] = [
               textPart,
-              { type: "file", file: { filename, data: dataUrl } },
+              { type: "file", file: { filename, file_data: dataUrl } },
             ];
             formatted.push({ role: "user", content });
             // Clear base64 from memory after including it in this LLM message.
@@ -459,7 +475,7 @@ export class Orchestrator {
     if (agent.tools.includes(PREDEFINED_TOOL_IDS.FILE_PARSER)) {
       const plugin: { id: string } & Record<string, unknown> = { id: "file-parser" };
       if (agent.ocrConfig?.model) {
-        plugin["model"] = agent.ocrConfig.model;
+        plugin["pdf"] = { engine: agent.ocrConfig.model };
       }
       plugins.push(plugin);
     }

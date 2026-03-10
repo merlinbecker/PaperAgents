@@ -21,8 +21,8 @@ export interface ContentFilePart {
   type: "file";
   file: {
     filename: string;
-    /** data URI: "data:<mimeType>;base64,<base64data>" */
-    data: string;
+    /** data URI or URL: "data:<mimeType>;base64,<base64data>" or "https://..." */
+    file_data: string;
   };
 }
 

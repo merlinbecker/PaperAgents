@@ -192,6 +192,38 @@ describe("ConversationManager", () => {
     });
   });
 
+  describe("pruneOldMessages", () => {
+    it("should remove oldest messages keeping the last N", () => {
+      manager.createConversation("agent_1", "conv_prune");
+      for (let i = 0; i < 10; i++) {
+        manager.addMessage("conv_prune", "user", `Message ${i}`);
+      }
+
+      const result = manager.pruneOldMessages("conv_prune", 3);
+      expect(result).toBe(true);
+
+      const messages = manager.getMessages("conv_prune");
+      expect(messages).toHaveLength(3);
+      expect(messages[0]?.content).toBe("Message 7");
+      expect(messages[2]?.content).toBe("Message 9");
+    });
+
+    it("should return false and not prune when total <= keepLast", () => {
+      manager.createConversation("agent_1", "conv_prune_noop");
+      manager.addMessage("conv_prune_noop", "user", "A");
+      manager.addMessage("conv_prune_noop", "user", "B");
+
+      const result = manager.pruneOldMessages("conv_prune_noop", 5);
+      expect(result).toBe(false);
+      expect(manager.getMessages("conv_prune_noop")).toHaveLength(2);
+    });
+
+    it("should return false for non-existent conversation", () => {
+      const result = manager.pruneOldMessages("nonexistent", 5);
+      expect(result).toBe(false);
+    });
+  });
+
   describe("estimateTokens", () => {
     it("should estimate tokens for text", () => {
       const tokens = manager.estimateTokens("Hello, world!");
