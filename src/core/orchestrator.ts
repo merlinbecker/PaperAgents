@@ -6,7 +6,7 @@ import { globalLogger } from "../utils/logger";
 import { globalMetrics } from "../utils/metrics";
 import { PREDEFINED_TOOL_IDS, randomId } from "../utils/constants";
 
-const MAX_TOOL_CALL_ROUNDS = 10;
+const MAX_TOOL_CALL_ROUNDS = 25;
 // Number of recent messages to keep in memory after successfully writing a Markdown
 // file (e.g., OCR output). Earlier messages are pruned to release the memory that
 // large OCR texts and tool results would otherwise occupy when processing many PDF

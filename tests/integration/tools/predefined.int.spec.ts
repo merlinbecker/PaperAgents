@@ -384,7 +384,14 @@ describe("Predefined tools integration (mocked vault)", () => {
     });
 
     it("saves chunk to vault and returns chunkPath (no base64) when saveTo is set", async () => {
-      setupMobileLargePdf("/pdfs/large.pdf", 32 * 1024 * 1024);
+      // Set up a mobile large PDF, but return null for chunk paths (not yet saved)
+      setPlatformMobile(true);
+      const pdfStub = new TFile("/pdfs/large.pdf", 32 * 1024 * 1024);
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) =>
+        p === "/pdfs/large.pdf" || p === "pdfs/large.pdf" ? pdfStub as any : null
+      );
+      vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(16) as any);
+
       const { mockLoad, mockCreate } = buildPdfLibMock(4);
       vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
 
@@ -409,9 +416,78 @@ describe("Predefined tools integration (mocked vault)", () => {
       expect(data.endPage).toBe(2);
       expect(data.filePath).toBe("/pdfs/large.pdf");
 
-      // The chunk file must now exist in the vault
-      const savedFile = (app.vault as any).getAbstractFileByPath(data.chunkPath);
-      expect(savedFile).not.toBeNull();
+      // The chunk file must now exist in the vault's internal storage
+      const vaultFiles = (app.vault as any).files as Map<string, string>;
+      expect(vaultFiles.has(data.chunkPath)).toBe(true);
+
+      vi.doUnmock("pdf-lib");
+    });
+
+    it("batch-saves all chunks when saveTo is set (pdf-lib loaded only once)", async () => {
+      // Set up mobile large PDF; chunk files do not exist yet
+      setPlatformMobile(true);
+      const pdfStub = new TFile("/pdfs/large.pdf", 32 * 1024 * 1024);
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) =>
+        p === "/pdfs/large.pdf" || p === "pdfs/large.pdf" ? pdfStub as any : null
+      );
+      vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(16) as any);
+
+      const { mockLoad, mockCreate } = buildPdfLibMock(4);
+      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+
+      const freshTool = SplitAndReadPdfFactory.create(app);
+      await freshTool.execute(makeCtx({
+        filePath: "/pdfs/large.pdf",
+        pagesPerChunk: 2,
+        chunkIndex: 0,
+        saveTo: "_chunks",
+      }));
+
+      // Both chunk files (0 and 1) must exist in the vault's internal storage
+      const vaultFiles = (app.vault as any).files as Map<string, string>;
+      expect(vaultFiles.has("_chunks/large_chunk_0.pdf")).toBe(true);
+      expect(vaultFiles.has("_chunks/large_chunk_1.pdf")).toBe(true);
+
+      // pdf-lib was loaded exactly once (one PDFDocument.load call)
+      expect(mockLoad).toHaveBeenCalledTimes(1);
+
+      vi.doUnmock("pdf-lib");
+    });
+
+    it("fast-path: returns cached chunk without reloading PDF when saveTo chunk already exists", async () => {
+      // Pre-save a chunk file so the fast-path is triggered
+      setPlatformMobile(true);
+      const pdfStub = new TFile("/pdfs/large.pdf", 32 * 1024 * 1024);
+      const chunkStub = new TFile("_chunks/large_chunk_1.pdf", 500);
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) => {
+        if (p === "/pdfs/large.pdf" || p === "pdfs/large.pdf") return pdfStub as any;
+        if (p === "_chunks/large_chunk_1.pdf") return chunkStub as any;
+        return null;
+      });
+      vi.spyOn(app.vault, "readBinary").mockResolvedValue(makePdfCountBuffer(4) as any);
+
+      const { mockLoad, mockCreate } = buildPdfLibMock(4);
+      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+
+      const freshTool = SplitAndReadPdfFactory.create(app);
+      const res = await freshTool.execute(makeCtx({
+        filePath: "/pdfs/large.pdf",
+        pagesPerChunk: 2,
+        chunkIndex: 1,
+        saveTo: "_chunks",
+      }));
+
+      expect(res.success).toBe(true);
+      const data = res.data as any;
+      expect(data.chunkPath).toBe("_chunks/large_chunk_1.pdf");
+      expect(data.chunkIndex).toBe(1);
+      expect(data.totalChunks).toBe(2);
+      expect(data.startPage).toBe(3); // pages 3-4 (1-based)
+      expect(data.endPage).toBe(4);
+      expect(data.base64).toBeUndefined();
+
+      // pdf-lib must NOT have been loaded (fast-path skips full PDF parse)
+      expect(mockLoad).not.toHaveBeenCalled();
 
       vi.doUnmock("pdf-lib");
     });
