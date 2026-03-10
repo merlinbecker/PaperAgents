@@ -152,12 +152,12 @@ describe("pdf_ocr tool", () => {
     const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
     // engine is always mistral-ocr — it is model-independent
     expect(plugin?.pdf?.engine).toBe("mistral-ocr");
-    // Text instruction is added so chat models know to return the document content
+    // Text instruction comes BEFORE the file item (matching OpenRouter docs)
     const content = callBody.messages[0].content;
     expect(content).toHaveLength(2);
-    expect(content[0].type).toBe("file");
-    expect(content[1].type).toBe("text");
-    expect((content[1] as { type: string; text: string }).text).toMatch(/extract.*text/i);
+    expect(content[0].type).toBe("text");
+    expect((content[0] as { type: string; text: string }).text).toMatch(/extract.*text/i);
+    expect(content[1].type).toBe("file");
   });
 
   it("error message for non-OCR model includes model suggestion when content is empty", async () => {

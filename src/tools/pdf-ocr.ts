@@ -310,21 +310,25 @@ class PdfOcrTool implements IExecutableTool {
     // return the extracted document text rather than producing an empty response.
     const isDedicatedOcrModel = model.toLowerCase().includes("mistral-ocr");
 
-    const messageContent: Array<Record<string, unknown>> = [
-      {
-        type: "file",
-        file: {
-          filename,
-          file_data: dataUrl,
-        },
+    // The OpenRouter docs show the text instruction BEFORE the file item in all
+    // examples. Dedicated OCR models (mistral-ocr-latest) can handle a bare file
+    // message; general-purpose chat models need an explicit instruction first.
+    const fileItem: Record<string, unknown> = {
+      type: "file",
+      file: {
+        filename,
+        file_data: dataUrl,
       },
-    ];
-    if (!isDedicatedOcrModel) {
-      messageContent.push({
-        type: "text",
-        text: "Please extract and return the complete text content of this document.",
-      });
-    }
+    };
+    const messageContent: Array<Record<string, unknown>> = isDedicatedOcrModel
+      ? [fileItem]
+      : [
+          {
+            type: "text",
+            text: "Please extract and return the complete text content of this document.",
+          },
+          fileItem,
+        ];
 
     const requestBody = {
       model,
