@@ -222,7 +222,26 @@ class PdfOcrTool implements IExecutableTool {
           );
           const copiedPages = await chunkDoc.copyPages(pdfDoc, pageIndices);
           for (const page of copiedPages) chunkDoc.addPage(page);
-          const chunkBuffer = await chunkDoc.save();
+          // useObjectStreams: false produces a PDF 1.4-compatible file (no cross-reference
+          // streams), which is more broadly supported by OCR engines and PDF parsers.
+          const chunkBuffer = await chunkDoc.save({ useObjectStreams: false });
+
+          // Validate that pdf-lib produced a well-formed PDF chunk.
+          // A valid PDF begins with the 5-byte magic sequence "%PDF-".
+          if (
+            chunkBuffer.length < 5 ||
+            chunkBuffer[0] !== 0x25 || // %
+            chunkBuffer[1] !== 0x50 || // P
+            chunkBuffer[2] !== 0x44 || // D
+            chunkBuffer[3] !== 0x46 || // F
+            chunkBuffer[4] !== 0x2d    // -
+          ) {
+            throw new Error(
+              `Chunk ${i + 1} of ${totalChunks} (pages ${startPage + 1}–${endPage + 1}): ` +
+              `pdf-lib did not produce a valid PDF. ` +
+              `The source PDF may use features incompatible with splitting.`
+            );
+          }
 
           // Save chunk to vault temp folder so it can be cleaned up after OCR
           const tempPath = await this.saveChunkToVault(
