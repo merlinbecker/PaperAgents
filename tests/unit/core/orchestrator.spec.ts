@@ -539,7 +539,7 @@ describe("Orchestrator", () => {
       const filePart = (fileMessage!.content as ContentFilePart[]).find((p) => p.type === "file");
       expect(filePart).toBeDefined();
       expect((filePart as ContentFilePart).file.filename).toBe("report.pdf");
-      expect((filePart as ContentFilePart).file.data).toBe("data:application/pdf;base64,JVBERi0xLjQK");
+      expect((filePart as ContentFilePart).file.file_data).toBe("data:application/pdf;base64,JVBERi0xLjQK");
     });
 
     it("falls back to text when read_binary_file result has no base64", async () => {
@@ -586,7 +586,133 @@ describe("Orchestrator", () => {
       expect(fileMessage).toBeDefined();
       const filePart = (fileMessage!.content as ContentFilePart[]).find((p) => p.type === "file");
       expect(filePart).toBeDefined();
-      expect((filePart as ContentFilePart).file.data).toBe(`data:application/pdf;base64,${largeBase64}`);
+      expect((filePart as ContentFilePart).file.file_data).toBe(`data:application/pdf;base64,${largeBase64}`);
+    });
+  });
+
+  // ── file-parser plugin ────────────────────────────────────────────────────────
+
+  describe("file-parser plugin", () => {
+    it("adds file-parser plugin when agent includes file_parser tool", async () => {
+      mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("OCR done.") as never);
+
+      const agent: AgentDefinition = { ...makeAgent(), tools: [PREDEFINED_TOOL_IDS.FILE_PARSER] };
+      const convId = "conv-file-parser";
+      conversationManager.createConversation(agent.id, convId);
+
+      await orchestrator.sendMessage(agent, convId, "Convert this PDF");
+      expect(getRequestBody().plugins).toEqual([{ id: "file-parser" }]);
+    });
+
+    it("passes pdf.engine when ocrConfig.model is set", async () => {
+      mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("OCR done.") as never);
+
+      const agent: AgentDefinition = {
+        ...makeAgent(),
+        tools: [PREDEFINED_TOOL_IDS.FILE_PARSER],
+        ocrConfig: { model: "mistralai/mistral-ocr-latest" },
+      };
+      const convId = "conv-file-parser-model";
+      conversationManager.createConversation(agent.id, convId);
+
+      await orchestrator.sendMessage(agent, convId, "Convert this PDF");
+      expect(getRequestBody().plugins).toEqual([
+        { id: "file-parser", pdf: { engine: "mistralai/mistral-ocr-latest" } },
+      ]);
+    });
+
+    it("does not include file_parser as a function tool definition", async () => {
+      mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("Done.") as never);
+
+      const agent: AgentDefinition = { ...makeAgent(), tools: [PREDEFINED_TOOL_IDS.FILE_PARSER] };
+      const convId = "conv-file-parser-nodef";
+      conversationManager.createConversation(agent.id, convId);
+
+      await orchestrator.sendMessage(agent, convId, "Convert");
+      // file_parser should appear in plugins, not in the tools function definitions
+      expect(getRequestBody().tools).toBeUndefined();
+    });
+  });
+
+  // ── Memory pruning after write_file ──────────────────────────────────────────
+
+  describe("write_file memory pruning", () => {
+    /** Register a write_file stub in the tool registry. */
+    function registerWriteFileTool(
+      registry: ToolRegistry,
+      executeResult: { success: boolean; data: unknown; error?: string }
+    ): void {
+      registry.registerPredefined({
+        name: PREDEFINED_TOOL_IDS.WRITE_FILE,
+        description: "Write file",
+        parameters: [
+          { name: "filePath", type: "string", required: true },
+          { name: "content", type: "string", required: true },
+        ],
+        create: () => ({
+          name: PREDEFINED_TOOL_IDS.WRITE_FILE,
+          parameters: [],
+          execute: async () => ({ ...executeResult, log: [] }),
+          shouldRequireHITL: () => false,
+        }),
+      });
+    }
+
+    it("prunes old conversation messages after write_file saves a markdown file", async () => {
+      mockRequestUrl
+        .mockResolvedValueOnce(makeToolCallStreamResponse("write_file", { filePath: "notes/result.md", content: "OCR text" }) as never)
+        .mockResolvedValueOnce(makeStreamResponse("File saved.") as never);
+
+      const agent: AgentDefinition = { ...makeAgent(), tools: [PREDEFINED_TOOL_IDS.WRITE_FILE] };
+      const convId = "conv-prune-write";
+      conversationManager.createConversation(agent.id, convId);
+      registerWriteFileTool(toolRegistry, {
+        success: true,
+        data: { filePath: "notes/result.md", size: 100 },
+      });
+
+      // Add many old messages to simulate a long OCR workflow
+      for (let i = 0; i < 20; i++) {
+        conversationManager.addMessage(convId, "assistant", `Old OCR content ${i}: ${"x".repeat(1000)}`);
+      }
+      expect(conversationManager.getMessages(convId).length).toBe(20);
+
+      await orchestrator.sendMessage(agent, convId, "Save the OCR result");
+
+      // PRUNE_KEEP_MESSAGES_AFTER_WRITE = 6 (internal constant).
+      // After pruning the orchestrator adds one more assistant reply, so ≤ 7 total.
+      // The 20 original "OCR content" messages must all be gone.
+      const messagesAfter = conversationManager.getMessages(convId).length;
+      expect(messagesAfter).toBeLessThanOrEqual(7);
+      // Verify the large OCR content messages were pruned
+      const hasOldOCR = conversationManager.getMessages(convId).some((m) => m.content.startsWith("Old OCR content 0"));
+      expect(hasOldOCR).toBe(false);
+    });
+
+    it("does not prune messages after write_file saves a non-markdown file", async () => {
+      mockRequestUrl
+        .mockResolvedValueOnce(makeToolCallStreamResponse("write_file", { filePath: "data/result.txt", content: "text" }) as never)
+        .mockResolvedValueOnce(makeStreamResponse("File saved.") as never);
+
+      const agent: AgentDefinition = { ...makeAgent(), tools: [PREDEFINED_TOOL_IDS.WRITE_FILE] };
+      const convId = "conv-no-prune-txt";
+      conversationManager.createConversation(agent.id, convId);
+      registerWriteFileTool(toolRegistry, {
+        success: true,
+        data: { filePath: "data/result.txt", size: 10 },
+      });
+
+      for (let i = 0; i < 10; i++) {
+        conversationManager.addMessage(convId, "assistant", `Content ${i}`);
+      }
+      const countBefore = conversationManager.getMessages(convId).length;
+
+      await orchestrator.sendMessage(agent, convId, "Save text file");
+
+      // Messages should NOT be pruned for non-markdown files
+      const messagesAfter = conversationManager.getMessages(convId).length;
+      // +2 for the user message and the tool call result + assistant
+      expect(messagesAfter).toBeGreaterThan(countBefore);
     });
   });
 });

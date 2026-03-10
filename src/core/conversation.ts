@@ -114,6 +114,27 @@ export class ConversationManager {
     return true;
   }
 
+  /**
+   * Removes messages from the beginning of the conversation, keeping only the last
+   * `keepLast` messages. Returns true if any messages were removed.
+   *
+   * Use this after saving large OCR results to disk to release the memory held by
+   * old assistant messages (which may contain large OCR texts) and tool results.
+   */
+  pruneOldMessages(conversationId: string, keepLast: number): boolean {
+    const conversation = this.conversations.get(conversationId);
+    if (!conversation) {
+      return false;
+    }
+    const total = conversation.messages.length;
+    if (total <= keepLast) {
+      return false;
+    }
+    conversation.messages = conversation.messages.slice(total - keepLast);
+    conversation.updatedAt = Date.now();
+    return true;
+  }
+
   estimateTokens(text: string): number {
     if (!text) return 0;
     return Math.ceil(text.length / CHARS_PER_TOKEN);
