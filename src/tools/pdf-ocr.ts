@@ -93,7 +93,21 @@ function buildLogEntry(
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
+  return uint8ArrayToBase64(new Uint8Array(buffer));
+}
+
+/**
+ * Convert a Uint8Array directly to a base64 string.
+ *
+ * This avoids the `Uint8Array.buffer.slice(byteOffset, ...)` pattern used
+ * elsewhere: when pdf-lib (or any Wasm/Node.js pooled allocator) returns a
+ * Uint8Array that is a *view* of a larger backing buffer, accessing `.buffer`
+ * returns the entire pool ArrayBuffer rather than just the PDF bytes.  The
+ * explicit `.slice()` call compensates for this, but iterating over the
+ * Uint8Array view itself is simpler and guaranteed correct regardless of the
+ * buffer layout.
+ */
+function uint8ArrayToBase64(bytes: Uint8Array): string {
   const chunks: string[] = [];
   const chunkSize = 0x8000;
   for (let i = 0; i < bytes.length; i += chunkSize) {
@@ -160,6 +174,9 @@ class PdfOcrTool implements IExecutableTool {
 
     const createdFiles: string[] = [];
     const tempChunkPaths: string[] = [];
+    // Records descriptions of any per-chunk OCR failures (multi-chunk path only).
+    // Keeping this at the outer scope lets us surface it in the final result data.
+    const chunkErrors: string[] = [];
 
     try {
       const needsSplit =
@@ -252,32 +269,67 @@ class PdfOcrTool implements IExecutableTool {
           );
           tempChunkPaths.push(tempPath);
 
-          // OCR this chunk
-          const chunkArrayBuffer = chunkBuffer.buffer.slice(
-            chunkBuffer.byteOffset,
-            chunkBuffer.byteOffset + chunkBuffer.byteLength
-          );
-          const base64 = arrayBufferToBase64(chunkArrayBuffer);
-          const chunkFileNameForOcr = `${baseName}_chunk_${i}.pdf`;
+          // OCR this chunk.
+          // Use uint8ArrayToBase64 directly on the Uint8Array returned by pdf-lib
+          // instead of going through `chunkBuffer.buffer.slice(byteOffset, ...)`.
+          // When pdf-lib (or its Wasm/Node allocator) returns a Uint8Array that is a
+          // *view* into a larger pooled buffer, `buffer.slice` still works correctly
+          // but is unnecessarily indirect; iterating the view itself is simpler and
+          // guaranteed to encode only the actual PDF bytes.
+          const base64 = uint8ArrayToBase64(chunkBuffer);
+          const chunkFileNameForOcr = `${baseName}_chunk_${i + 1}.pdf`;
 
           globalLogger.info("pdf_ocr: OCR-ing chunk", {
             chunkIndex: i,
             totalChunks,
             startPage: startPage + 1,
             endPage: endPage + 1,
+            chunkKb: Math.round(chunkBuffer.byteLength / 1024),
           });
-          const ocrText = await this.callOcr(base64, chunkFileNameForOcr, model, apiKey);
+
+          let ocrText: string;
+          try {
+            ocrText = await this.callOcr(base64, chunkFileNameForOcr, model, apiKey);
+          } catch (chunkErr) {
+            // Record the failure but continue with remaining chunks so the caller
+            // receives partial results rather than nothing.
+            const msg = chunkErr instanceof Error ? chunkErr.message : String(chunkErr);
+            globalLogger.warn("pdf_ocr: OCR failed for chunk – skipping", {
+              chunkIndex: i,
+              startPage: startPage + 1,
+              endPage: endPage + 1,
+              error: msg,
+            });
+            chunkErrors.push(
+              `Part ${i + 1} (pages ${startPage + 1}–${endPage + 1}): ${msg}`
+            );
+            continue;
+          }
 
           const mdPath = `${outputBase}_part_${i + 1}.md`;
           await this.writeMarkdown(mdPath, ocrText);
           createdFiles.push(mdPath);
         }
+
+        // If every chunk failed there is nothing useful to return.
+        if (createdFiles.length === 0 && chunkErrors.length > 0) {
+          throw new Error(
+            `OCR failed for all ${totalChunks} part(s). ` +
+            `Errors:\n${chunkErrors.join("\n")}`
+          );
+        }
       }
+
+      const resultData: Record<string, unknown> = {
+        files: createdFiles,
+        totalFiles: createdFiles.length,
+        ...(chunkErrors.length > 0 && { failedParts: chunkErrors }),
+      };
 
       return {
         success: true,
-        data: { files: createdFiles, totalFiles: createdFiles.length },
-        log: [buildLogEntry(this.name, ctx.parameters, { files: createdFiles })],
+        data: resultData,
+        log: [buildLogEntry(this.name, ctx.parameters, resultData)],
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

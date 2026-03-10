@@ -268,7 +268,7 @@ describe("pdf_ocr tool", () => {
     vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
 
     // Mock createBinary for saving chunks to temp folder
-    (app.vault as any).createBinary = vi.fn().mockResolvedValue(new TFile("_ocr_tmp/big_chunk_0.pdf", 100) as any);
+    (app.vault as any).createBinary = vi.fn().mockResolvedValue(new TFile("_ocr_tmp/big_chunk_1.pdf", 100) as any);
 
     // Mock delete for cleanup
     vi.spyOn(app.vault, "delete" as any).mockResolvedValue(undefined);
@@ -281,11 +281,13 @@ describe("pdf_ocr tool", () => {
     const res = await tool.execute(makeCtx({ pdfPath: "big.pdf", model: "google/gemini-2.0-flash-001" }));
 
     expect(res.success).toBe(true);
-    const data = res.data as { files: string[]; totalFiles: number };
+    const data = res.data as { files: string[]; totalFiles: number; failedParts?: string[] };
     // 25 MB / 5 MB TARGET_CHUNK_SIZE → ceil(25/5)=5 groups, 4 pages / ceil(4/5)=1 ppc → 4 chunks
     expect(data.totalFiles).toBe(4);
     expect(data.files[0]).toBe("big_part_1.md");
     expect(data.files[3]).toBe("big_part_4.md");
+    // No failures expected
+    expect(data.failedParts).toBeUndefined();
 
     // OCR should have been called once per chunk
     expect(requestSpy).toHaveBeenCalledTimes(4);
@@ -295,6 +297,100 @@ describe("pdf_ocr tool", () => {
 
     // Verify that save() was called with useObjectStreams: false for maximum OCR compatibility
     expect(mockSave).toHaveBeenCalledWith({ useObjectStreams: false });
+
+    vi.doUnmock("pdf-lib");
+  });
+
+  it("returns partial results when some chunks fail OCR and others succeed", async () => {
+    setPlatformMobile(true);
+
+    const fakePdfSize = 25 * 1024 * 1024;
+    vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) => {
+      if (p === "big.pdf") return new TFile("big.pdf", fakePdfSize) as any;
+      return null;
+    });
+    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(8) as any);
+
+    const mockSave = vi.fn().mockResolvedValue(mockValidPdfBytes());
+    const mockCopyPages = vi.fn().mockResolvedValue([{}]);
+    const mockChunkDoc = { copyPages: mockCopyPages, addPage: vi.fn(), save: mockSave };
+    vi.doMock("pdf-lib", () => ({
+      PDFDocument: {
+        load: vi.fn().mockResolvedValue({ getPageCount: vi.fn().mockReturnValue(4), copyPages: mockCopyPages }),
+        create: vi.fn().mockResolvedValue(mockChunkDoc),
+      },
+    }));
+
+    (app.vault as any).createBinary = vi.fn().mockResolvedValue(new TFile("_ocr_tmp/big_chunk_1.pdf", 100) as any);
+    vi.spyOn(app.vault, "delete" as any).mockResolvedValue(undefined);
+
+    // Chunks 0 and 2 succeed; chunks 1 and 3 return empty content (simulating OCR failure).
+    let callCount = 0;
+    vi.spyOn(Obsidian, "requestUrl").mockImplementation(async () => {
+      const n = callCount++;
+      const content = n % 2 === 0 ? "# Text" : null; // even chunks succeed, odd chunks fail
+      return { status: 200, json: { choices: [{ message: { content } }] }, text: "" } as any;
+    });
+
+    const createSpy = vi.spyOn(app.vault, "create").mockResolvedValue(
+      new TFile("big_part_1.md", 0) as any
+    );
+
+    const res = await tool.execute(makeCtx({ pdfPath: "big.pdf", model: "google/gemini-2.0-flash-001" }));
+
+    // Operation should still succeed with partial results (parts 1 and 3 succeeded; parts 2 and 4 failed)
+    expect(res.success).toBe(true);
+    const data = res.data as { files: string[]; totalFiles: number; failedParts: string[] };
+    expect(data.totalFiles).toBe(2);
+    expect(data.files).toHaveLength(2);
+    expect(data.files[0]).toBe("big_part_1.md");
+    expect(data.files[1]).toBe("big_part_3.md");
+
+    // Failed parts should be reported in the result
+    expect(data.failedParts).toHaveLength(2);
+    expect(data.failedParts[0]).toMatch(/Part 2/);
+    expect(data.failedParts[1]).toMatch(/Part 4/);
+
+    // Markdown was saved only for the two successful chunks
+    expect(createSpy).toHaveBeenCalledTimes(2);
+
+    vi.doUnmock("pdf-lib");
+  });
+
+  it("returns error when all chunks fail OCR", async () => {
+    setPlatformMobile(true);
+
+    const fakePdfSize = 25 * 1024 * 1024;
+    vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) => {
+      if (p === "big.pdf") return new TFile("big.pdf", fakePdfSize) as any;
+      return null;
+    });
+    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(8) as any);
+
+    const mockSave = vi.fn().mockResolvedValue(mockValidPdfBytes());
+    const mockCopyPages = vi.fn().mockResolvedValue([{}]);
+    const mockChunkDoc = { copyPages: mockCopyPages, addPage: vi.fn(), save: mockSave };
+    vi.doMock("pdf-lib", () => ({
+      PDFDocument: {
+        load: vi.fn().mockResolvedValue({ getPageCount: vi.fn().mockReturnValue(4), copyPages: mockCopyPages }),
+        create: vi.fn().mockResolvedValue(mockChunkDoc),
+      },
+    }));
+
+    (app.vault as any).createBinary = vi.fn().mockResolvedValue(new TFile("_ocr_tmp/big_chunk_1.pdf", 100) as any);
+    vi.spyOn(app.vault, "delete" as any).mockResolvedValue(undefined);
+
+    // All chunks return null content → callOcr throws for each
+    vi.spyOn(Obsidian, "requestUrl").mockResolvedValue({
+      status: 200,
+      json: { choices: [{ message: { content: null } }] },
+      text: "",
+    } as any);
+
+    const res = await tool.execute(makeCtx({ pdfPath: "big.pdf", model: "google/gemini-2.0-flash-001" }));
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/OCR failed for all 4 part/i);
 
     vi.doUnmock("pdf-lib");
   });
