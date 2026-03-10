@@ -44,6 +44,36 @@ function setupMobileLargePdf(filePath: string, sizeBytes: number, readBuf: Array
   vi.spyOn(app.vault, "readBinary").mockResolvedValue(readBuf as any);
 }
 
+/**
+ * Switch to mobile and mock vault spies for saveTo tests.
+ * Unlike `setupMobileLargePdf`, `getAbstractFileByPath` returns null for any path
+ * that is not the original PDF – preventing the fast-path from triggering when the
+ * chunk file does not yet exist.
+ */
+function setupMobileLargePdfForSaveTo(
+  filePath: string,
+  sizeBytes: number,
+  readBuf: ArrayBuffer = new ArrayBuffer(16)
+): TFile {
+  setPlatformMobile(true);
+  const pdfStub = new TFile(filePath, sizeBytes);
+  vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) =>
+    p === filePath || p === filePath.replace(/^\//, "") ? pdfStub as any : null
+  );
+  vi.spyOn(app.vault, "readBinary").mockResolvedValue(readBuf as any);
+  return pdfStub;
+}
+
+/**
+ * Register a pdf-lib mock for the current test and return the mock handles.
+ * Call `vi.doUnmock("pdf-lib")` at the end of the test to clean up.
+ */
+function installPdfLibMock(pageCount = 4) {
+  const { mockLoad, mockCreate } = buildPdfLibMock(pageCount);
+  vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+  return { mockLoad, mockCreate };
+}
+
 describe("Predefined tools integration (mocked vault)", () => {
   beforeEach(async () => {
     (app as any).vault = new Vault();
@@ -337,8 +367,7 @@ describe("Predefined tools integration (mocked vault)", () => {
 
     it("returns a single chunk with base64 when chunkIndex is provided (pdf-lib mocked)", async () => {
       setupMobileLargePdf("/pdfs/large.pdf", 32 * 1024 * 1024);
-      const { mockLoad, mockCreate } = buildPdfLibMock(4);
-      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+      const { mockLoad, mockCreate } = installPdfLibMock(4);
 
       const freshTool = SplitAndReadPdfFactory.create(app);
       const res = await freshTool.execute(makeCtx({ filePath: "/pdfs/large.pdf", pagesPerChunk: 2, chunkIndex: 0 }));
@@ -359,8 +388,7 @@ describe("Predefined tools integration (mocked vault)", () => {
 
     it("returns error when chunkIndex is out of range (pdf-lib mocked)", async () => {
       setupMobileLargePdf("/pdfs/large.pdf", 32 * 1024 * 1024);
-      const { mockLoad, mockCreate } = buildPdfLibMock(4);
-      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+      const { mockLoad, mockCreate } = installPdfLibMock(4);
 
       const freshTool = SplitAndReadPdfFactory.create(app);
       // pagesPerChunk=2 → totalChunks=2 → valid indices are 0,1; index 5 is out of range
@@ -384,9 +412,9 @@ describe("Predefined tools integration (mocked vault)", () => {
     });
 
     it("saves chunk to vault and returns chunkPath (no base64) when saveTo is set", async () => {
-      setupMobileLargePdf("/pdfs/large.pdf", 32 * 1024 * 1024);
-      const { mockLoad, mockCreate } = buildPdfLibMock(4);
-      vi.doMock("pdf-lib", () => ({ PDFDocument: { load: mockLoad, create: mockCreate } }));
+      // Set up a mobile large PDF, but return null for chunk paths (not yet saved)
+      setupMobileLargePdfForSaveTo("/pdfs/large.pdf", 32 * 1024 * 1024);
+      const { mockLoad, mockCreate } = installPdfLibMock(4);
 
       const freshTool = SplitAndReadPdfFactory.create(app);
       const res = await freshTool.execute(makeCtx({
@@ -409,9 +437,69 @@ describe("Predefined tools integration (mocked vault)", () => {
       expect(data.endPage).toBe(2);
       expect(data.filePath).toBe("/pdfs/large.pdf");
 
-      // The chunk file must now exist in the vault
-      const savedFile = (app.vault as any).getAbstractFileByPath(data.chunkPath);
-      expect(savedFile).not.toBeNull();
+      // The chunk file must now exist in the vault's internal storage
+      const vaultFiles = (app.vault as any).files as Map<string, string>;
+      expect(vaultFiles.has(data.chunkPath)).toBe(true);
+
+      vi.doUnmock("pdf-lib");
+    });
+
+    it("batch-saves all chunks when saveTo is set (pdf-lib loaded only once)", async () => {
+      // Set up mobile large PDF; chunk files do not exist yet
+      setupMobileLargePdfForSaveTo("/pdfs/large.pdf", 32 * 1024 * 1024);
+      const { mockLoad, mockCreate } = installPdfLibMock(4);
+
+      const freshTool = SplitAndReadPdfFactory.create(app);
+      await freshTool.execute(makeCtx({
+        filePath: "/pdfs/large.pdf",
+        pagesPerChunk: 2,
+        chunkIndex: 0,
+        saveTo: "_chunks",
+      }));
+
+      // Both chunk files (0 and 1) must exist in the vault's internal storage
+      const vaultFiles = (app.vault as any).files as Map<string, string>;
+      expect(vaultFiles.has("_chunks/large_chunk_0.pdf")).toBe(true);
+      expect(vaultFiles.has("_chunks/large_chunk_1.pdf")).toBe(true);
+
+      // pdf-lib was loaded exactly once (one PDFDocument.load call)
+      expect(mockLoad).toHaveBeenCalledTimes(1);
+
+      vi.doUnmock("pdf-lib");
+    });
+
+    it("fast-path: returns cached chunk without reloading PDF when saveTo chunk already exists", async () => {
+      // Pre-save a chunk file so the fast-path is triggered
+      setPlatformMobile(true);
+      const pdfStub = new TFile("/pdfs/large.pdf", 32 * 1024 * 1024);
+      const chunkStub = new TFile("_chunks/large_chunk_1.pdf", 500);
+      vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) => {
+        if (p === "/pdfs/large.pdf" || p === "pdfs/large.pdf") return pdfStub as any;
+        if (p === "_chunks/large_chunk_1.pdf") return chunkStub as any;
+        return null;
+      });
+      vi.spyOn(app.vault, "readBinary").mockResolvedValue(makePdfCountBuffer(4) as any);
+      const { mockLoad, mockCreate } = installPdfLibMock(4);
+
+      const freshTool = SplitAndReadPdfFactory.create(app);
+      const res = await freshTool.execute(makeCtx({
+        filePath: "/pdfs/large.pdf",
+        pagesPerChunk: 2,
+        chunkIndex: 1,
+        saveTo: "_chunks",
+      }));
+
+      expect(res.success).toBe(true);
+      const data = res.data as any;
+      expect(data.chunkPath).toBe("_chunks/large_chunk_1.pdf");
+      expect(data.chunkIndex).toBe(1);
+      expect(data.totalChunks).toBe(2);
+      expect(data.startPage).toBe(3); // pages 3-4 (1-based)
+      expect(data.endPage).toBe(4);
+      expect(data.base64).toBeUndefined();
+
+      // pdf-lib must NOT have been loaded (fast-path skips full PDF parse)
+      expect(mockLoad).not.toHaveBeenCalled();
 
       vi.doUnmock("pdf-lib");
     });

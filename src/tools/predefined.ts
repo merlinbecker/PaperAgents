@@ -721,11 +721,55 @@ class SplitAndReadPdfTool implements IExecutableTool {
       }
 
       // ── Phase 2: single-chunk retrieval ────────────────────────────────────
+
+      // ── saveTo fast-path: return an already-saved chunk without loading PDF ─
+      // When the agent requests a chunk that was written during a previous call
+      // (either by this fast-path's batch-save or by a prior run), we can skip
+      // the expensive PDFDocument.load() entirely.  Page metadata is recomputed
+      // from the raw byte stream (cheap) so the result matches what the agent
+      // already knows from the Phase-1 metadata call.
+      if (saveTo !== undefined) {
+        const fastFolderPath = normPath(saveTo);
+        const fastBaseName = (filePath.split("/").pop() ?? "chunk").replace(/\.pdf$/i, "");
+        const fastChunkPath = `${fastFolderPath}/${fastBaseName}_chunk_${chunkIndex}.pdf`;
+        const fastExisting = this.app.vault.getAbstractFileByPath(fastChunkPath);
+
+        if (fastExisting instanceof TFile) {
+          const rawBuf = await this.app.vault.readBinary(tfile);
+          const rawPageCount = this.countPdfPagesFromRawBytes(rawBuf);
+          const fastTotalPages = rawPageCount ?? this.estimatePdfPagesFromFileSize(tfile.stat.size);
+          const fastPpc = requestedPagesPerChunk ??
+            Math.ceil(fastTotalPages / Math.ceil(tfile.stat.size / TARGET_CHUNK_SIZE));
+          const fastTc = Math.ceil(fastTotalPages / fastPpc);
+          const fastSp = chunkIndex * fastPpc;
+          const fastEp = Math.min(fastSp + fastPpc - 1, fastTotalPages - 1);
+
+          const cachedChunk: PdfChunkSavedResult = {
+            chunkPath: fastChunkPath,
+            chunkIndex,
+            totalChunks: fastTc,
+            startPage: fastSp + 1, // 1-based for display
+            endPage: fastEp + 1,
+            filePath,
+            size: fastExisting.stat.size,
+          };
+
+          return {
+            success: true,
+            data: cachedChunk,
+            log: [buildLogEntry(this.name, ctx.parameters, { ...cachedChunk, cached: true })],
+          };
+        }
+      }
+
       // Dynamic import of pdf-lib (avoids bundling cost when not needed)
       const { PDFDocument } = await import("pdf-lib");
 
-      // Load the full PDF, extract the chunk, then let all references go out of
-      // scope so the GC can reclaim memory before the next chunk call.
+      // Load the full PDF once.  When saveTo is set we use this single load to
+      // save ALL chunks to disk, so subsequent chunkIndex requests hit the fast
+      // path above and never reload the PDF.  This prevents the repeated
+      // PDFDocument.load() calls that cause OOM crashes on mobile when a large
+      // PDF is split into several chunks.
       const buffer = await this.app.vault.readBinary(tfile);
       const pdfDoc = await PDFDocument.load(buffer);
       const totalPages = pdfDoc.getPageCount();
@@ -752,10 +796,23 @@ class SplitAndReadPdfTool implements IExecutableTool {
       const chunkBuffer = await chunkDoc.save();
 
       if (saveTo) {
-        // ── saveTo mode: write chunk to vault file, return path only ──────────
-        // No base64 is produced, keeping peak memory minimal.
-        // The agent can then use read_binary_file on the saved path for OCR.
+        // ── saveTo batch-save mode ────────────────────────────────────────────
+        // Save the requested chunk, then immediately save every OTHER chunk while
+        // the PDF is still loaded.  Future requests for those chunks will hit the
+        // fast-path above, so the PDF is only fully parsed once per file.
         const chunkPath = await this.saveChunkToVault(saveTo, filePath, chunkIndex, chunkBuffer);
+
+        for (let i = 0; i < totalChunks; i++) {
+          if (i === chunkIndex) continue; // already saved above
+          const iStart = i * pagesPerChunk;
+          const iEnd = Math.min(iStart + pagesPerChunk - 1, totalPages - 1);
+          const iChunkDoc = await PDFDocument.create();
+          const iIndices = Array.from({ length: iEnd - iStart + 1 }, (_, k) => iStart + k);
+          const iCopied = await iChunkDoc.copyPages(pdfDoc, iIndices);
+          for (const page of iCopied) iChunkDoc.addPage(page);
+          const iBuf = await iChunkDoc.save();
+          await this.saveChunkToVault(saveTo, filePath, i, iBuf);
+        }
 
         const savedChunk: PdfChunkSavedResult = {
           chunkPath,
@@ -786,7 +843,13 @@ class SplitAndReadPdfTool implements IExecutableTool {
       // ── in-memory mode: encode to base64 and return ────────────────────────
       // All pdf-lib and binary references are released once this call returns,
       // so peak memory is limited to one chunk at a time.
-      const base64 = this.arrayBufferToBase64(chunkBuffer.buffer as ArrayBuffer);
+      // Use slice to extract only this chunk's bytes from the backing ArrayBuffer
+      // (chunkBuffer may be a Uint8Array subview with byteOffset > 0).
+      const chunkArrayBuffer = chunkBuffer.buffer.slice(
+        chunkBuffer.byteOffset,
+        chunkBuffer.byteOffset + chunkBuffer.byteLength
+      );
+      const base64 = this.arrayBufferToBase64(chunkArrayBuffer);
 
       const chunk: PdfChunkResult = {
         chunkIndex,
@@ -892,7 +955,13 @@ class SplitAndReadPdfTool implements IExecutableTool {
 
     const baseName = (originalFilePath.split("/").pop() ?? "chunk").replace(/\.pdf$/i, "");
     const chunkPath = `${folderPath}/${baseName}_chunk_${chunkIndex}.pdf`;
-    const chunkArrayBuffer = chunkBuffer.buffer as ArrayBuffer;
+    // Extract only the chunk's bytes from the backing ArrayBuffer.  pdf-lib may
+    // return a Uint8Array that is a subview (byteOffset > 0), so casting
+    // .buffer directly would include extra bytes outside the chunk.
+    const chunkArrayBuffer = chunkBuffer.buffer.slice(
+      chunkBuffer.byteOffset,
+      chunkBuffer.byteOffset + chunkBuffer.byteLength
+    );
 
     // Obsidian's Vault binary API (not in the TypeScript definitions shipped with the
     // obsidian package, but present at runtime).
