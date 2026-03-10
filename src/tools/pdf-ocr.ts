@@ -317,6 +317,16 @@ class PdfOcrTool implements IExecutableTool {
     model: string,
     apiKey: string
   ): Promise<string> {
+    if (!base64 || base64.length === 0) {
+      throw new Error(
+        `Cannot perform OCR on "${filename}": the PDF could not be read or is empty. ` +
+        `Please check that the file exists in the vault and is a valid, non-empty PDF.`
+      );
+    }
+
+    const estimatedKb = Math.round((base64.length * 3) / 4 / 1024); // base64 is ~4/3× the original binary size
+    globalLogger.info("pdf_ocr: sending file to OpenRouter for OCR", { filename, estimatedKb });
+
     const dataUrl = `data:application/pdf;base64,${base64}`;
 
     // The OpenRouter docs always place the text instruction BEFORE the file item.
