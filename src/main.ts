@@ -10,6 +10,7 @@ import { executionHistory } from "./core/history";
 import { initializeHistoryPersistence } from "./core/persistence";
 
 import PredefinedToolsFactory from "./tools/predefined";
+import { createPdfOcrFactory } from "./tools/pdf-ocr";
 
 import ToolLoader from "./parser/tool-loader";
 import { AgentParser } from "./parser/agent-parser";
@@ -153,7 +154,10 @@ export default class PaperAgents extends Plugin {
       PredefinedToolsFactory.finishTask,
       PredefinedToolsFactory.askUser,
     ]);
-    globalLogger.info("Predefined tools registered", { count: 10 });
+    this.toolRegistry.registerPredefined(
+      createPdfOcrFactory(() => this.settings.openRouterApiKey)
+    );
+    globalLogger.info("Predefined tools registered", { count: 11 });
   }
 
   async loadCustomToolsFromVault(): Promise<void> {
