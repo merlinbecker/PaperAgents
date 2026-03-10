@@ -134,42 +134,29 @@ describe("pdf_ocr tool", () => {
     expect(callBody.model).toBe("custom/model-v1");
   });
 
-  it("uses mistral-ocr engine and includes text instruction before the file item", async () => {
-    setupSmallPdf();
-    const requestSpy = mockOcrSuccess("ocr text");
+  it.each([
+    ["google/gemini-2.0-flash-001"],
+    ["mistralai/ministral-14b-instruct"],
+  ])(
+    "uses mistral-ocr engine and includes text instruction before the file item (%s)",
+    async (model) => {
+      setupSmallPdf();
+      const requestSpy = mockOcrSuccess("ocr text");
 
-    // Text instruction is required for all models per OpenRouter docs.
-    await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001" }));
+      await tool.execute(makeCtx({ pdfPath: "doc.pdf", model }));
 
-    const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
-    const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
-    // engine is always mistral-ocr regardless of model
-    expect(plugin?.pdf?.engine).toBe("mistral-ocr");
-    // Text instruction BEFORE the file item is required for all models
-    const content = callBody.messages[0].content;
-    expect(content).toHaveLength(2);
-    expect(content[0].type).toBe("text");
-    expect((content[0] as { type: string; text: string }).text).toMatch(/extract.*text/i);
-    expect(content[1].type).toBe("file");
-  });
-
-  it("uses mistral-ocr engine and adds text prompt for non-OCR models", async () => {
-    setupSmallPdf();
-    const requestSpy = mockOcrSuccess("extracted text");
-
-    await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "mistralai/ministral-14b-instruct" }));
-
-    const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
-    const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
-    // engine is always mistral-ocr — it is model-independent
-    expect(plugin?.pdf?.engine).toBe("mistral-ocr");
-    // Text instruction comes BEFORE the file item (matching OpenRouter docs)
-    const content = callBody.messages[0].content;
-    expect(content).toHaveLength(2);
-    expect(content[0].type).toBe("text");
-    expect((content[0] as { type: string; text: string }).text).toMatch(/extract.*text/i);
-    expect(content[1].type).toBe("file");
-  });
+      const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
+      const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
+      // engine is always mistral-ocr regardless of which model is chosen
+      expect(plugin?.pdf?.engine).toBe("mistral-ocr");
+      // Text instruction BEFORE the file item is required for all models per OpenRouter docs
+      const content = callBody.messages[0].content;
+      expect(content).toHaveLength(2);
+      expect(content[0].type).toBe("text");
+      expect((content[0] as { type: string; text: string }).text).toMatch(/extract.*text/i);
+      expect(content[1].type).toBe("file");
+    }
+  );
 
   it("error message includes model name and helpful hint when content is empty", async () => {
     setupSmallPdf();
