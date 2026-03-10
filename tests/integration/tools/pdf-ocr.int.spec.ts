@@ -116,19 +116,20 @@ describe("pdf_ocr tool", () => {
     vi.spyOn(app.vault, "create").mockResolvedValue(new TFile("doc.md", 0) as any);
     const requestSpy = mockOcrSuccess("ocr text");
 
-    // Default model contains "mistral-ocr" → should use mistral-ocr engine
+    // Default dedicated OCR model → no text prompt needed
     await tool.execute(makeCtx({ pdfPath: "doc.pdf" }));
 
     const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
     const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
+    // engine is always mistral-ocr regardless of model
     expect(plugin?.pdf?.engine).toBe("mistral-ocr");
-    // No extra text instruction for OCR-native models
+    // No extra text instruction for dedicated OCR models
     const content = callBody.messages[0].content;
     expect(content).toHaveLength(1);
     expect(content[0].type).toBe("file");
   });
 
-  it("uses auto engine and adds text prompt for non-OCR models", async () => {
+  it("uses mistral-ocr engine and adds text prompt for non-OCR models", async () => {
     setPlatformMobile(false);
     vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(
       new TFile("doc.pdf", 50) as any
@@ -141,8 +142,9 @@ describe("pdf_ocr tool", () => {
 
     const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
     const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
-    expect(plugin?.pdf?.engine).toBe("auto");
-    // Text instruction must be present so the chat model knows what to respond with
+    // engine is always mistral-ocr — it is model-independent
+    expect(plugin?.pdf?.engine).toBe("mistral-ocr");
+    // Text instruction is added so chat models know to return the document content
     const content = callBody.messages[0].content;
     expect(content).toHaveLength(2);
     expect(content[0].type).toBe("file");
