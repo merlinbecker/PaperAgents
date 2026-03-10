@@ -5,6 +5,12 @@ import { ConversationFileManager } from "../core/conversation-file-manager";
 import { Orchestrator, OrchestratorCallbacks, AgenticLoopCallbacks } from "../core/orchestrator";
 import { showHITLInputModal } from "./hitl-modal";
 import { globalLogger } from "../utils/logger";
+import { PREDEFINED_TOOL_IDS } from "../utils/constants";
+
+/** Returns the wikilink display name for a vault file path (strips path segments and .md extension). */
+function markdownWikilink(filePath: string): string {
+  return filePath.split("/").pop()?.replace(/\.md$/i, "") ?? filePath;
+}
 
 export const VIEW_TYPE_PAPER_AGENTS_CHAT = "paper-agents-chat";
 
@@ -640,7 +646,17 @@ export class PaperAgentsChatView extends ItemView {
 
     const content = details.createDiv({ cls: "pa-chat-tool-content" });
     content.createEl("h4", { text: "Parameters" });
-    content.createEl("pre").createEl("code", { text: JSON.stringify(params, null, 2) });
+    // For write_file with a Markdown file: strip the potentially huge content parameter
+    // to prevent the chat view from rendering a massive OCR blob in the details pane.
+    let displayParams = params;
+    if (toolId === PREDEFINED_TOOL_IDS.WRITE_FILE) {
+      const filePath = params.filePath as string | undefined;
+      if (filePath && filePath.toLowerCase().endsWith(".md") && params.content) {
+        const { content: _omit, ...rest } = params as { content?: unknown } & Record<string, unknown>;
+        displayParams = { ...rest, content: `[[${markdownWikilink(filePath)}]] (content omitted)` };
+      }
+    }
+    content.createEl("pre").createEl("code", { text: JSON.stringify(displayParams, null, 2) });
 
     toolEl.dataset["toolId"] = toolId;
   }
@@ -666,9 +682,20 @@ export class PaperAgentsChatView extends ItemView {
       content.createDiv({ cls: "pa-output-error-box", text: error });
     } else if (result !== undefined) {
       content.createEl("h4", { text: "Result" });
-      content.createEl("pre").createEl("code", {
-        text: typeof result === "string" ? result : JSON.stringify(result, null, 2),
-      });
+      // For write_file with a Markdown file: show only the wikilink, not the full result blob.
+      let displayText: string;
+      if (toolId === PREDEFINED_TOOL_IDS.WRITE_FILE) {
+        const res = result as { filePath?: string } | null | undefined;
+        const filePath = typeof res === "object" && res !== null ? res.filePath : undefined;
+        if (filePath && filePath.toLowerCase().endsWith(".md")) {
+          displayText = `[[${markdownWikilink(filePath)}]]`;
+        } else {
+          displayText = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+        }
+      } else {
+        displayText = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+      }
+      content.createEl("pre").createEl("code", { text: displayText });
     }
   }
 

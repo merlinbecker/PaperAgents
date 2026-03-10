@@ -24,6 +24,11 @@ const CHARS_PER_TOKEN = 4;
 const DEFAULT_MAX_MESSAGES = 50;
 const DEFAULT_MAX_TOKENS = 4000;
 
+/** Returns the wikilink display name for a vault file path (strips path segments and .md extension). */
+function markdownWikilink(filePath: string): string {
+  return filePath.split("/").pop()?.replace(/\.md$/i, "") ?? filePath;
+}
+
 export class ConversationManager {
   private readonly conversations: Map<string, Conversation> = new Map();
 
@@ -301,6 +306,18 @@ export class ConversationManager {
                 }
               } else {
                 // Metadata-only response: no base64 to strip, persist as-is
+                lines.push(`Result: ${JSON.stringify(msg.toolCall.result)}`);
+              }
+            } else if (msg.toolCall.toolId === PREDEFINED_TOOL_IDS.WRITE_FILE) {
+              // For Markdown files: persist only a wikilink; the content is already on disk.
+              // The _contentRef flag signals that the content was stripped and should not be
+              // restored (unlike _binaryRef which triggers a re-read of binary files).
+              const result = msg.toolCall.result as { filePath?: string } & Record<string, unknown> | undefined;
+              const filePath = result?.filePath as string | undefined;
+              if (filePath && filePath.toLowerCase().endsWith(".md")) {
+                lines.push(`[[${markdownWikilink(filePath)}]]`);
+                lines.push(`Result: ${JSON.stringify(result)}`);
+              } else {
                 lines.push(`Result: ${JSON.stringify(msg.toolCall.result)}`);
               }
             } else {

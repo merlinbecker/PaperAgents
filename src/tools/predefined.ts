@@ -634,7 +634,7 @@ const SPLIT_AND_READ_PDF_PARAMS: Parameter[] = [
   {
     name: "pagesPerChunk",
     type: "number",
-    description: "Optional: pages per chunk (default: auto-calculated for ~15 MB chunks)",
+    description: "Optional: pages per chunk (default: auto-calculated for ~5 MB chunks)",
     required: false,
   },
   {
@@ -650,8 +650,9 @@ const SPLIT_AND_READ_PDF_PARAMS: Parameter[] = [
   },
 ];
 
-// Target chunk size before base64 encoding (15 MB → ~20 MB after base64)
-const TARGET_CHUNK_SIZE = 15 * 1024 * 1024;
+// Target chunk size before base64 encoding (5 MB → ~7 MB after base64).
+// Kept conservative to prevent OOM crashes on mobile devices.
+const TARGET_CHUNK_SIZE = 5 * 1024 * 1024;
 
 class SplitAndReadPdfTool implements IExecutableTool {
   name = PREDEFINED_TOOL_IDS.SPLIT_AND_READ_PDF;
@@ -934,6 +935,7 @@ export const SplitAndReadPdfFactory: IToolFactory = {
     "each chunk PDF is saved to the vault (no base64 in memory) and the result " +
     "contains only the saved file path. Use read_binary_file on that path for OCR. " +
     "Only one chunk is kept in memory at a time, preventing out-of-memory crashes. " +
+    "Chunks are kept small (~5 MB) to avoid OOM on mobile. " +
     "On desktop or for smaller files the behaviour is identical to read_binary_file.",
   parameters: SPLIT_AND_READ_PDF_PARAMS,
   create: (app?: App) => new SplitAndReadPdfTool(requireApp(app, "SplitAndReadPdfTool")),

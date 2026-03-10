@@ -8,6 +8,31 @@ import { PREDEFINED_TOOL_IDS, randomId } from "../utils/constants";
 
 const MAX_TOOL_CALL_ROUNDS = 10;
 
+/**
+ * Returns the Obsidian wikilink basename for a vault file path.
+ * For "notes/my-file.md" returns "my-file"; for "plain.txt" returns "plain.txt".
+ */
+function markdownWikilink(filePath: string): string {
+  return filePath.split("/").pop()?.replace(/\.md$/i, "") ?? filePath;
+}
+
+/**
+ * For a successful write_file call targeting a Markdown file, strip the potentially
+ * huge `content` parameter from the stored tool call parameters and replace it with a
+ * `_contentRef` flag pointing at the written file path. This prevents large OCR blobs
+ * from being persisted in the conversation history.
+ */
+function sanitizeWriteFileParams(
+  params: Record<string, unknown>,
+  success: boolean
+): Record<string, unknown> {
+  if (!success) return params;
+  const filePath = params.filePath as string | undefined;
+  if (!filePath || !filePath.toLowerCase().endsWith(".md")) return params;
+  const { content: _omit, ...rest } = params as { content?: unknown } & Record<string, unknown>;
+  return { ...rest, _contentRef: filePath };
+}
+
 export interface OrchestratorConfig {
   openRouterConfig: OpenRouterConfig;
   maxToolCallRounds?: number;
@@ -186,9 +211,16 @@ export class Orchestrator {
 
       const result = await tool.execute(context);
 
+      // For WRITE_FILE writing a Markdown file: strip the large content parameter from the
+      // stored toolCallInfo so that huge OCR blobs are never persisted in the conversation
+      // history (markdown file or chat view). Only the wikilink reference is kept.
+      const storedParams = toolName === PREDEFINED_TOOL_IDS.WRITE_FILE
+        ? sanitizeWriteFileParams(params, result.success)
+        : params;
+
       const toolCallInfo: ToolCallInfo = {
         toolId: toolName,
-        parameters: params,
+        parameters: storedParams,
         result: result.data,
         error: result.error,
       };
@@ -200,6 +232,8 @@ export class Orchestrator {
       // is kept in toolCallInfo.result and is correctly picked up by buildLLMMessages.
       // For SPLIT_AND_READ_PDF the same principle applies: a single chunk's base64 is
       // kept only in toolCallInfo.result; message content contains only metadata.
+      // For WRITE_FILE writing a .md file: return a wikilink so the LLM can reference
+      // the file without the full content bloating the conversation context.
       let messageContent: string;
       if (toolName === PREDEFINED_TOOL_IDS.READ_BINARY_FILE && result.data) {
         const { base64: _omit, ...metadata } = result.data as { base64?: string } & Record<string, unknown>;
@@ -217,6 +251,15 @@ export class Orchestrator {
           messageContent = JSON.stringify(metadata);
         } else {
           // Metadata-only response (no chunkIndex supplied): plain JSON, no base64 present
+          messageContent = JSON.stringify(result.data || result.error || "No output");
+        }
+      } else if (toolName === PREDEFINED_TOOL_IDS.WRITE_FILE && result.success) {
+        // For Markdown files, report a wikilink so the LLM can reference the written file
+        // without including the entire OCR content in the conversation context.
+        const filePath = params.filePath as string | undefined;
+        if (filePath && filePath.toLowerCase().endsWith(".md")) {
+          messageContent = JSON.stringify({ filePath, wikilink: `[[${markdownWikilink(filePath)}]]` });
+        } else {
           messageContent = JSON.stringify(result.data || result.error || "No output");
         }
       } else {
