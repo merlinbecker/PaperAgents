@@ -129,8 +129,10 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
  * Remove Markdown image syntax from an OCR result.
  *
  * Mistral-OCR embeds page images as `![description](data:image/...;base64,…)` blocks.
- * Base64 strings never contain `)`, so `[^)]*` is a safe, non-backtracking way to
- * match the data URL up to the closing parenthesis.
+ * Base64 encoding uses only A–Z, a–z, 0–9, +, / and = — no parentheses — so
+ * `[^)]*` is safe and non-backtracking: the engine advances one character at a time
+ * until it finds `)` or reaches end-of-line, without any opportunity for catastrophic
+ * backtracking.
  *
  * The function handles:
  *   - Inline images with data URLs:  `![alt](data:image/png;base64,AAA…)`

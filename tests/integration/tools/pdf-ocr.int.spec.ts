@@ -456,6 +456,12 @@ describe("pdf_ocr tool", () => {
     expect(plugin?.pdf?.include_image_base64).toBeUndefined();
   });
 
+  /** Extract the instruction text from a captured requestUrl call body. */
+  function getInstructionText(requestSpy: ReturnType<typeof vi.fn>, callIndex = 0): string {
+    const callBody = JSON.parse(requestSpy.mock.calls[callIndex][0].body);
+    return (callBody.messages[0].content[0] as { type: string; text: string }).text;
+  }
+
   it("uses image-free OCR instruction when stripping images (default)", async () => {
     setupSmallPdf("doc.pdf");
     const requestSpy = mockOcrSuccess("text only");
@@ -463,8 +469,7 @@ describe("pdf_ocr tool", () => {
 
     await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001" }));
 
-    const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
-    const instructionText = (callBody.messages[0].content[0] as { type: string; text: string }).text;
+    const instructionText = getInstructionText(requestSpy);
     expect(instructionText).toMatch(/only.*text|text.*only/i);
     expect(instructionText).toMatch(/do not include images/i);
   });
@@ -478,8 +483,7 @@ describe("pdf_ocr tool", () => {
       makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001", stripImages: false })
     );
 
-    const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
-    const instructionText = (callBody.messages[0].content[0] as { type: string; text: string }).text;
+    const instructionText = getInstructionText(requestSpy);
     expect(instructionText).toMatch(/complete text content/i);
     expect(instructionText).not.toMatch(/do not include images/i);
   });
