@@ -109,7 +109,8 @@ describe("pdf_ocr tool", () => {
       expect.arrayContaining([expect.objectContaining({ id: "file-parser" })])
     );
     expect(callBody.model).toBe("mistralai/mistral-ocr-latest");
-    expect(callBody.messages[0].content[0].type).toBe("file");
+    expect(callBody.messages[0].content[0].type).toBe("text");
+    expect(callBody.messages[0].content[1].type).toBe("file");
 
     // Verify markdown was saved
     expect(createSpy).toHaveBeenCalledWith("papers/article.md", "# OCR Result\n\nSome text");
@@ -125,21 +126,23 @@ describe("pdf_ocr tool", () => {
     expect(callBody.model).toBe("custom/model-v1");
   });
 
-  it("uses mistral-ocr engine and no text prompt for the default OCR model", async () => {
+  it("uses mistral-ocr engine and includes text instruction for the default OCR model", async () => {
     setupSmallPdf();
     const requestSpy = mockOcrSuccess("ocr text");
 
-    // Default dedicated OCR model → no text prompt needed
+    // Default dedicated OCR model — text instruction is required by all models per OpenRouter docs.
     await tool.execute(makeCtx({ pdfPath: "doc.pdf" }));
 
     const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
     const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
     // engine is always mistral-ocr regardless of model
     expect(plugin?.pdf?.engine).toBe("mistral-ocr");
-    // No extra text instruction for dedicated OCR models
+    // Text instruction BEFORE the file item is required for all models
     const content = callBody.messages[0].content;
-    expect(content).toHaveLength(1);
-    expect(content[0].type).toBe("file");
+    expect(content).toHaveLength(2);
+    expect(content[0].type).toBe("text");
+    expect((content[0] as { type: string; text: string }).text).toMatch(/extract.*text/i);
+    expect(content[1].type).toBe("file");
   });
 
   it("uses mistral-ocr engine and adds text prompt for non-OCR models", async () => {

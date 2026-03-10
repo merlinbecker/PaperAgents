@@ -293,9 +293,10 @@ class PdfOcrTool implements IExecutableTool {
    * file-parser plugin to extract text from the PDF before passing the content to
    * whichever model is configured.
    *
-   * Dedicated OCR models (e.g. mistral-ocr-latest) can respond to a bare file message.
-   * General-purpose chat models (e.g. ministral-14b) need an explicit instruction
-   * alongside the parsed content, otherwise they return an empty response.
+   * The OpenRouter docs show the text instruction BEFORE the file item in all examples.
+   * All models (including dedicated OCR models like mistral-ocr-latest) require an
+   * explicit text instruction alongside the file so they know to return the extracted
+   * document text rather than producing an empty response.
    */
   private async callOcr(
     base64: string,
@@ -305,14 +306,12 @@ class PdfOcrTool implements IExecutableTool {
   ): Promise<string> {
     const dataUrl = `data:application/pdf;base64,${base64}`;
 
-    // Dedicated OCR models can handle a bare file message.
-    // General-purpose chat models need an explicit instruction so they know to
-    // return the extracted document text rather than producing an empty response.
+    // isDedicatedOcrModel is used only for tailoring the empty-content error hint.
     const isDedicatedOcrModel = model.toLowerCase().includes("mistral-ocr");
 
-    // The OpenRouter docs show the text instruction BEFORE the file item in all
-    // examples. Dedicated OCR models (mistral-ocr-latest) can handle a bare file
-    // message; general-purpose chat models need an explicit instruction first.
+    // The OpenRouter docs always place the text instruction BEFORE the file item.
+    // All models — including dedicated OCR models like mistral-ocr-latest — require
+    // an explicit instruction; without it the model returns an empty response.
     const fileItem: Record<string, unknown> = {
       type: "file",
       file: {
@@ -320,15 +319,13 @@ class PdfOcrTool implements IExecutableTool {
         file_data: dataUrl,
       },
     };
-    const messageContent: Array<Record<string, unknown>> = isDedicatedOcrModel
-      ? [fileItem]
-      : [
-          {
-            type: "text",
-            text: "Please extract and return the complete text content of this document.",
-          },
-          fileItem,
-        ];
+    const messageContent: Array<Record<string, unknown>> = [
+      {
+        type: "text",
+        text: "Extract and return the complete text content of this document. Preserve the original structure and formatting as faithfully as possible.",
+      },
+      fileItem,
+    ];
 
     const requestBody = {
       model,
