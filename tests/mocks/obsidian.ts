@@ -123,6 +123,26 @@ export class Vault {
     return this.files.has(path);
   }
 
+  async delete(file: TFile | TFolder, _force?: boolean): Promise<void> {
+    if (file instanceof TFile) {
+      this.files.delete(file.path);
+      // Remove from parent folder children
+      const parentPath = file.path.split("/").slice(0, -1).join("/") || "/";
+      const parent = this.getAbstractFileByPath(parentPath);
+      if (parent instanceof TFolder) {
+        parent.children = parent.children.filter(
+          (c) => !(c instanceof TFile && c.path === file.path)
+        );
+      }
+    } else {
+      // Delete folder: remove all contained files
+      const prefix = file.path + "/";
+      for (const key of Array.from(this.files.keys())) {
+        if (key.startsWith(prefix)) this.files.delete(key);
+      }
+    }
+  }
+
   on(_event: string, _cb: (...args: any[]) => void) {
     // noop in tests - override per test for event simulation
     return () => {};

@@ -13,6 +13,7 @@ export const PREDEFINED_TOOL_IDS = {
   FILE_PARSER: "file_parser",
   READ_BINARY_FILE: "read_binary_file",
   SPLIT_AND_READ_PDF: "split_and_read_pdf",
+  PDF_OCR: "pdf_ocr",
   FINISH_TASK: "finish_task",
   ASK_USER: "ask_user",
 };
