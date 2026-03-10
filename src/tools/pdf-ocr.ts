@@ -74,6 +74,15 @@ export const PDF_OCR_PARAMS: Parameter[] = [
       "(e.g. 'papers/article'). Defaults to pdfPath with '.pdf' replaced by '.md'.",
     required: false,
   },
+  {
+    name: "stripImages",
+    type: "boolean",
+    description:
+      "When true (default), removes all image references and embedded image data (e.g. " +
+      "base64 data-URLs) from the OCR output so that only text is passed to the LLM. " +
+      "Set to false to keep images in the Markdown output.",
+    required: false,
+  },
 ];
 
 // ============================================================================
@@ -116,6 +125,27 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
   return btoa(chunks.join(""));
 }
 
+/**
+ * Remove Markdown image syntax from an OCR result.
+ *
+ * Mistral-OCR embeds page images as `![description](data:image/...;base64,…)` blocks.
+ * Base64 strings never contain `)`, so `[^)]*` is a safe, non-backtracking way to
+ * match the data URL up to the closing parenthesis.
+ *
+ * The function handles:
+ *   - Inline images with data URLs:  `![alt](data:image/png;base64,AAA…)`
+ *   - Inline images with regular URLs:  `![alt](https://example.com/img.png)`
+ *   - Images with empty alt text:  `![](url)`
+ *
+ * After removal, consecutive blank lines are collapsed to a single blank line.
+ */
+function stripMarkdownImages(text: string): string {
+  return text
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")  // remove ![alt](url) / ![alt](data:...)
+    .replace(/\n{3,}/g, "\n\n")             // collapse runs of blank lines
+    .trim();
+}
+
 // ============================================================================
 // PDF OCR TOOL
 // ============================================================================
@@ -133,6 +163,8 @@ class PdfOcrTool implements IExecutableTool {
     const pdfPath = ctx.parameters.pdfPath as string;
     const outputPath = ctx.parameters.outputPath as string | undefined;
     const model = ctx.parameters.model as string | undefined;
+    // Default to true: strip images so only text is forwarded to the LLM.
+    const stripImages = ctx.parameters.stripImages !== false;
 
     const apiKey = this.getApiKey();
     if (!apiKey) {
@@ -205,7 +237,7 @@ class PdfOcrTool implements IExecutableTool {
         const fileName = normalizedPath.split("/").pop() || "document.pdf";
 
         globalLogger.info("pdf_ocr: starting single-file OCR", { pdfPath, model });
-        const ocrText = await this.callOcr(base64, fileName, model, apiKey);
+        const ocrText = await this.callOcr(base64, fileName, model, apiKey, stripImages);
 
         const mdPath = `${outputBase}.md`;
         await this.writeMarkdown(mdPath, ocrText);
@@ -289,7 +321,7 @@ class PdfOcrTool implements IExecutableTool {
 
           let ocrText: string;
           try {
-            ocrText = await this.callOcr(base64, chunkFileNameForOcr, model, apiKey);
+            ocrText = await this.callOcr(base64, chunkFileNameForOcr, model, apiKey, stripImages);
           } catch (chunkErr) {
             // Record the failure but continue with remaining chunks so the caller
             // receives partial results rather than nothing.
@@ -386,7 +418,8 @@ class PdfOcrTool implements IExecutableTool {
     base64: string,
     filename: string,
     model: string,
-    apiKey: string
+    apiKey: string,
+    stripImages = true,
   ): Promise<string> {
     if (!base64 || base64.length === 0) {
       throw new Error(
@@ -400,6 +433,16 @@ class PdfOcrTool implements IExecutableTool {
 
     const dataUrl = `data:application/pdf;base64,${base64}`;
 
+    // The instruction tells the model what to extract.
+    // When stripImages is enabled we explicitly ask for text only so that models
+    // that echo image placeholders back as text omit them as well.
+    const instructionText = stripImages
+      ? "Extract and return only the text content of this document. " +
+        "Do not include images, image placeholders, or descriptions of images. " +
+        "Preserve the original text structure and formatting as faithfully as possible."
+      : "Extract and return the complete text content of this document. " +
+        "Preserve the original structure and formatting as faithfully as possible.";
+
     // The OpenRouter docs always place the text instruction BEFORE the file item.
     // All models require an explicit instruction; without it the model returns an empty response.
     const fileItem: Record<string, unknown> = {
@@ -412,10 +455,18 @@ class PdfOcrTool implements IExecutableTool {
     const messageContent: Array<Record<string, unknown>> = [
       {
         type: "text",
-        text: "Extract and return the complete text content of this document. Preserve the original structure and formatting as faithfully as possible.",
+        text: instructionText,
       },
       fileItem,
     ];
+
+    // When stripping images, pass include_image_base64: false to the mistral-ocr engine.
+    // This prevents the OCR engine from embedding base64 image data in its response,
+    // which would otherwise result in large data-URL strings in the Markdown output.
+    const pdfPluginOptions: Record<string, unknown> = { engine: "mistral-ocr" };
+    if (stripImages) {
+      pdfPluginOptions["include_image_base64"] = false;
+    }
 
     const requestBody = {
       model,
@@ -428,7 +479,7 @@ class PdfOcrTool implements IExecutableTool {
       plugins: [
         {
           id: "file-parser",
-          pdf: { engine: "mistral-ocr" },
+          pdf: pdfPluginOptions,
         },
       ],
     };
@@ -464,7 +515,7 @@ class PdfOcrTool implements IExecutableTool {
       );
     }
 
-    return content;
+    return stripImages ? stripMarkdownImages(content) : content;
   }
 
   /** Write (or overwrite) a Markdown file in the vault. Creates parent folders as needed. */
@@ -546,7 +597,10 @@ export function createPdfOcrFactory(
     description:
       "Convert a PDF file to Markdown using OCR via OpenRouter. " +
       "Handles PDF splitting for large files on mobile automatically. " +
-      "Input: pdfPath (required), model (required — specify an OpenRouter model, see https://openrouter.ai/models), outputPath (optional). " +
+      "By default, image data is stripped from the output so that only text is forwarded to the LLM " +
+      "(set stripImages: false to keep images). " +
+      "Input: pdfPath (required), model (required — specify an OpenRouter model, see https://openrouter.ai/models), " +
+      "outputPath (optional), stripImages (optional, default true). " +
       "The file-parser plugin with the mistral-ocr engine is used for PDF text extraction regardless of the chosen model. " +
       "Output: list of created Markdown file paths.",
     parameters: PDF_OCR_PARAMS,

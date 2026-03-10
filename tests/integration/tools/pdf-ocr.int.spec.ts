@@ -381,4 +381,106 @@ describe("pdf_ocr tool", () => {
     const factory = createPdfOcrFactory(() => "sk-or-test");
     expect(() => factory.create(undefined)).toThrow("PdfOcrTool requires App instance");
   });
+
+  // ── stripImages (image removal) ────────────────────────────────────────────
+
+  it("strips Markdown image syntax from OCR output by default (stripImages not set)", async () => {
+    setupSmallPdf("doc.pdf");
+    // OCR returns text that contains an inline image and a base64 data URL image
+    const ocrWithImages =
+      "# Title\n\n" +
+      "Some text before.\n\n" +
+      "![Figure 1](https://example.com/figure1.png)\n\n" +
+      "Some text after.\n\n" +
+      "![](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA)\n\n" +
+      "More text.";
+    mockOcrSuccess(ocrWithImages);
+    const modifySpy = vi.spyOn(app.vault, "modify").mockResolvedValue(undefined as any);
+
+    const res = await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001" }));
+
+    expect(res.success).toBe(true);
+    const savedContent = (modifySpy.mock.calls[0][1] as string);
+    // Images should be removed
+    expect(savedContent).not.toMatch(/!\[/);
+    expect(savedContent).not.toMatch(/Figure 1/);
+    expect(savedContent).not.toMatch(/data:image/);
+    // Text content should be preserved
+    expect(savedContent).toContain("Title");
+    expect(savedContent).toContain("Some text before.");
+    expect(savedContent).toContain("Some text after.");
+    expect(savedContent).toContain("More text.");
+  });
+
+  it("strips images when stripImages is explicitly true", async () => {
+    setupSmallPdf("doc.pdf");
+    const ocrWithImage = "Text before.\n\n![alt](https://img.example.com/photo.jpg)\n\nText after.";
+    const requestSpy = mockOcrSuccess(ocrWithImage);
+    const modifySpy = vi.spyOn(app.vault, "modify").mockResolvedValue(undefined as any);
+
+    const res = await tool.execute(
+      makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001", stripImages: true })
+    );
+
+    expect(res.success).toBe(true);
+    const savedContent = (modifySpy.mock.calls[0][1] as string);
+    expect(savedContent).not.toMatch(/!\[/);
+    expect(savedContent).toContain("Text before.");
+    expect(savedContent).toContain("Text after.");
+
+    // Verify include_image_base64: false was sent to the API
+    const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
+    const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
+    expect(plugin?.pdf?.include_image_base64).toBe(false);
+  });
+
+  it("keeps images in OCR output when stripImages is false", async () => {
+    setupSmallPdf("doc.pdf");
+    const ocrWithImage = "Text.\n\n![Figure 1](https://example.com/fig.png)\n\nEnd.";
+    const requestSpy = mockOcrSuccess(ocrWithImage);
+    const modifySpy = vi.spyOn(app.vault, "modify").mockResolvedValue(undefined as any);
+
+    const res = await tool.execute(
+      makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001", stripImages: false })
+    );
+
+    expect(res.success).toBe(true);
+    const savedContent = (modifySpy.mock.calls[0][1] as string);
+    // Image reference should be preserved
+    expect(savedContent).toContain("![Figure 1]");
+    expect(savedContent).toContain("https://example.com/fig.png");
+
+    // include_image_base64 should NOT be present when stripImages is false
+    const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
+    const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
+    expect(plugin?.pdf?.include_image_base64).toBeUndefined();
+  });
+
+  it("uses image-free OCR instruction when stripping images (default)", async () => {
+    setupSmallPdf("doc.pdf");
+    const requestSpy = mockOcrSuccess("text only");
+    vi.spyOn(app.vault, "create").mockResolvedValue(new TFile("doc.md", 0) as any);
+
+    await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001" }));
+
+    const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
+    const instructionText = (callBody.messages[0].content[0] as { type: string; text: string }).text;
+    expect(instructionText).toMatch(/only.*text|text.*only/i);
+    expect(instructionText).toMatch(/do not include images/i);
+  });
+
+  it("uses full-content OCR instruction when stripImages is false", async () => {
+    setupSmallPdf("doc.pdf");
+    const requestSpy = mockOcrSuccess("full content");
+    vi.spyOn(app.vault, "create").mockResolvedValue(new TFile("doc.md", 0) as any);
+
+    await tool.execute(
+      makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001", stripImages: false })
+    );
+
+    const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
+    const instructionText = (callBody.messages[0].content[0] as { type: string; text: string }).text;
+    expect(instructionText).toMatch(/complete text content/i);
+    expect(instructionText).not.toMatch(/do not include images/i);
+  });
 });
