@@ -7,17 +7,19 @@
  *   2. For large PDFs on mobile: split into memory-safe chunks (≤ 5 MB) with pdf-lib
  *      and save each chunk to a temp vault folder.
  *   3. Run OCR on each chunk by calling OpenRouter's chat/completions endpoint with the
- *      file-parser plugin and the specified (or default) Mistral OCR model.
+ *      file-parser plugin and the caller-specified model.
  *   4. Save each chunk's OCR result as a Markdown file.
  *   5. Clean up temporary chunk PDFs from the vault.
  *   6. Return the list of created Markdown file paths.
  *
  * Input parameters:
  *   - pdfPath   (required) – vault path to the PDF to convert.
+ *   - model     (required) – OpenRouter model to use for OCR.
+ *                             See https://openrouter.ai/models for available models.
+ *                             The file-parser plugin with the mistral-ocr engine is
+ *                             used for PDF extraction regardless of the chosen model.
  *   - outputPath (optional) – base path for output Markdown files (without extension).
  *                             Defaults to pdfPath with ".pdf" replaced by ".md".
- *   - model     (optional) – OpenRouter model for OCR.
- *                             Defaults to "mistralai/mistral-ocr-latest".
  *
  * Output:
  *   { files: string[], totalFiles: number }
@@ -33,7 +35,6 @@ import { globalLogger } from "../utils/logger";
 // CONSTANTS
 // ============================================================================
 
-const DEFAULT_OCR_MODEL = "mistralai/mistral-ocr-latest";
 const OCR_TEMP_FOLDER = "_ocr_tmp";
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -56,18 +57,21 @@ export const PDF_OCR_PARAMS: Parameter[] = [
     required: true,
   },
   {
+    name: "model",
+    type: "string",
+    description:
+      "OpenRouter model to use for OCR (required). " +
+      "See https://openrouter.ai/models for available models. " +
+      "The file-parser plugin with the mistral-ocr engine is used for PDF text extraction " +
+      "regardless of the chosen model.",
+    required: true,
+  },
+  {
     name: "outputPath",
     type: "string",
     description:
       "Base vault path for the output Markdown file(s) without extension " +
       "(e.g. 'papers/article'). Defaults to pdfPath with '.pdf' replaced by '.md'.",
-    required: false,
-  },
-  {
-    name: "model",
-    type: "string",
-    description:
-      `OpenRouter model to use for OCR. Defaults to "${DEFAULT_OCR_MODEL}".`,
     required: false,
   },
 ];
@@ -114,13 +118,23 @@ class PdfOcrTool implements IExecutableTool {
   async execute(ctx: ExecutionContext): Promise<ExecutionResult> {
     const pdfPath = ctx.parameters.pdfPath as string;
     const outputPath = ctx.parameters.outputPath as string | undefined;
-    const model = (ctx.parameters.model as string | undefined) || DEFAULT_OCR_MODEL;
+    const model = ctx.parameters.model as string | undefined;
 
     const apiKey = this.getApiKey();
     if (!apiKey) {
       return {
         success: false,
         error: "OpenRouter API key is not configured. Please set it in plugin settings.",
+        log: [buildLogEntry(this.name, ctx.parameters)],
+      };
+    }
+
+    if (!model) {
+      return {
+        success: false,
+        error:
+          "The 'model' parameter is required. Please specify an OpenRouter model to use for OCR. " +
+          "See https://openrouter.ai/models for available models.",
         log: [buildLogEntry(this.name, ctx.parameters)],
       };
     }
@@ -293,10 +307,9 @@ class PdfOcrTool implements IExecutableTool {
    * file-parser plugin to extract text from the PDF before passing the content to
    * whichever model is configured.
    *
-   * The OpenRouter docs show the text instruction BEFORE the file item in all examples.
-   * All models (including dedicated OCR models like mistral-ocr-latest) require an
-   * explicit text instruction alongside the file so they know to return the extracted
-   * document text rather than producing an empty response.
+   * The OpenRouter docs always show the text instruction BEFORE the file item. All models
+   * require an explicit instruction alongside the file; without it the model returns an
+   * empty response.
    */
   private async callOcr(
     base64: string,
@@ -306,12 +319,8 @@ class PdfOcrTool implements IExecutableTool {
   ): Promise<string> {
     const dataUrl = `data:application/pdf;base64,${base64}`;
 
-    // isDedicatedOcrModel is used only for tailoring the empty-content error hint.
-    const isDedicatedOcrModel = model.toLowerCase().includes("mistral-ocr");
-
     // The OpenRouter docs always place the text instruction BEFORE the file item.
-    // All models — including dedicated OCR models like mistral-ocr-latest — require
-    // an explicit instruction; without it the model returns an empty response.
+    // All models require an explicit instruction; without it the model returns an empty response.
     const fileItem: Record<string, unknown> = {
       type: "file",
       file: {
@@ -366,10 +375,12 @@ class PdfOcrTool implements IExecutableTool {
     };
     const content = data.choices?.[0]?.message?.content;
     if (content == null || content === "") {
-      const hint = isDedicatedOcrModel
-        ? "The PDF may be encrypted, contain only images without recognizable text, or be in an unsupported format."
-        : `Model "${model}" may not support PDF extraction. Try using "${DEFAULT_OCR_MODEL}" for best OCR results on scanned documents.`;
-      throw new Error(`OCR returned empty content from OpenRouter. ${hint}`);
+      throw new Error(
+        `OCR returned empty content from OpenRouter. ` +
+        `The PDF may be encrypted, contain only images without recognizable text, ` +
+        `be in an unsupported format, or the model "${model}" may not support PDF extraction ` +
+        `via the file-parser plugin. See https://openrouter.ai/models for compatible models.`
+      );
     }
 
     return content;
@@ -454,7 +465,8 @@ export function createPdfOcrFactory(
     description:
       "Convert a PDF file to Markdown using OCR via OpenRouter. " +
       "Handles PDF splitting for large files on mobile automatically. " +
-      "Input: pdfPath (required), outputPath (optional), model (optional, default mistralai/mistral-ocr-latest — required for optimal OCR on scanned PDFs; other models may produce lower quality results). " +
+      "Input: pdfPath (required), model (required — specify an OpenRouter model, see https://openrouter.ai/models), outputPath (optional). " +
+      "The file-parser plugin with the mistral-ocr engine is used for PDF text extraction regardless of the chosen model. " +
       "Output: list of created Markdown file paths.",
     parameters: PDF_OCR_PARAMS,
     create(app?: App): IExecutableTool {
