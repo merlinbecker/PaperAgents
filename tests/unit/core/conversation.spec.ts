@@ -795,5 +795,57 @@ Test message
         expect(chunk["base64"]).toBeUndefined();
       }
     });
+
+    it("should persist a single split_and_read_pdf chunk with _binaryRef and no base64", () => {
+      manager.createConversation("ocr_agent", "conv_single_chunk");
+      manager.addMessage("conv_single_chunk", "user", "Get chunk 0");
+      manager.addMessage("conv_single_chunk", "tool", "", {
+        toolId: "split_and_read_pdf",
+        parameters: { filePath: "pdfs/large.pdf", chunkIndex: 0 },
+        result: { chunkIndex: 0, totalChunks: 2, startPage: 1, endPage: 60, base64: "singlechunkbase64", mimeType: "application/pdf", filePath: "pdfs/large.pdf", size: 1000 },
+      });
+
+      const file = manager.toConversationFile("conv_single_chunk")!;
+
+      expect(file).not.toContain("singlechunkbase64");
+      expect(file).toContain("[[pdfs/large.pdf]]");
+      expect(file).toContain("_binaryRef");
+
+      const manager2 = new ConversationManager();
+      const loaded = manager2.loadFromConversationFile(file);
+
+      expect(loaded?.messages).toHaveLength(2);
+      const toolMsg = loaded?.messages[1];
+      expect(toolMsg?.toolCall?.toolId).toBe("split_and_read_pdf");
+      const chunk = toolMsg?.toolCall?.result as Record<string, unknown>;
+      expect(Array.isArray(chunk)).toBe(false);
+      expect(chunk["_binaryRef"]).toBe("pdfs/large.pdf");
+      expect(chunk["base64"]).toBeUndefined();
+      expect(chunk["chunkIndex"]).toBe(0);
+    });
+
+    it("should persist split_and_read_pdf metadata-only response as plain JSON", () => {
+      manager.createConversation("ocr_agent", "conv_meta");
+      manager.addMessage("conv_meta", "user", "How many chunks?");
+      manager.addMessage("conv_meta", "tool", "", {
+        toolId: "split_and_read_pdf",
+        parameters: { filePath: "pdfs/large.pdf" },
+        result: { filePath: "pdfs/large.pdf", totalPages: 120, totalChunks: 2, pagesPerChunk: 60, fileSize: 28000000, strategy: "chunked" },
+      });
+
+      const file = manager.toConversationFile("conv_meta")!;
+
+      // Metadata has no base64 at all – just plain JSON
+      expect(file).toContain('"strategy":"chunked"');
+      expect(file).toContain('"totalChunks":2');
+      expect(file).not.toContain("base64");
+
+      const manager2 = new ConversationManager();
+      const loaded = manager2.loadFromConversationFile(file);
+      const toolMsg = loaded?.messages[1];
+      const meta = toolMsg?.toolCall?.result as Record<string, unknown>;
+      expect(meta["strategy"]).toBe("chunked");
+      expect(meta["totalChunks"]).toBe(2);
+    });
   });
 });

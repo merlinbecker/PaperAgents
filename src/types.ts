@@ -387,6 +387,19 @@ export interface PdfChunkResult {
   size: number;
 }
 
+/**
+ * Metadata returned by split_and_read_pdf when no chunkIndex is given.
+ * Tells the LLM how many chunks exist so it can request each one individually.
+ */
+export interface PdfSplitMetadata {
+  filePath: string;
+  totalPages: number;
+  totalChunks: number;
+  pagesPerChunk: number;
+  fileSize: number;
+  strategy: "chunked";
+}
+
 // ============================================================================
 // WEBSEARCH ANNOTATIONS (OpenRouter web-search plugin response)
 // ============================================================================

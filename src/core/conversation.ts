@@ -274,19 +274,35 @@ export class ConversationManager {
               } else {
                 lines.push(`Result: ${JSON.stringify(metadata)}`);
               }
-            } else if (msg.toolCall.toolId === PREDEFINED_TOOL_IDS.SPLIT_AND_READ_PDF && Array.isArray(msg.toolCall.result)) {
-              // Strip base64 from every chunk; store _binaryRef + chunkIndex for restoration
-              const chunks = msg.toolCall.result as Array<{ base64?: string; filePath?: string; chunkIndex?: number } & Record<string, unknown>>;
-              if (chunks.length > 0 && chunks[0]?.filePath) {
-                lines.push(`[[${chunks[0].filePath}]]`);
+            } else if (msg.toolCall.toolId === PREDEFINED_TOOL_IDS.SPLIT_AND_READ_PDF) {
+              if (Array.isArray(msg.toolCall.result)) {
+                // Legacy: array of chunks – strip base64 from every chunk; store _binaryRef + chunkIndex for restoration
+                const chunks = msg.toolCall.result as Array<{ base64?: string; filePath?: string; chunkIndex?: number } & Record<string, unknown>>;
+                if (chunks.length > 0 && chunks[0]?.filePath) {
+                  lines.push(`[[${chunks[0].filePath}]]`);
+                }
+                const strippedChunks = chunks.map(({ base64: _omit, filePath, chunkIndex, ...rest }) => ({
+                  ...rest,
+                  filePath,
+                  chunkIndex,
+                  _binaryRef: filePath,
+                }));
+                lines.push(`Result: ${JSON.stringify(strippedChunks)}`);
+              } else if (msg.toolCall.result && typeof msg.toolCall.result === "object" && "base64" in (msg.toolCall.result as object)) {
+                // Single chunk: strip base64, store _binaryRef for restoration
+                const chunk = msg.toolCall.result as { base64?: string; filePath?: string } & Record<string, unknown>;
+                const { base64: _omit, ...metadata } = chunk;
+                const filePath = metadata["filePath"] as string | undefined;
+                if (filePath) {
+                  lines.push(`[[${filePath}]]`);
+                  lines.push(`Result: ${JSON.stringify({ ...metadata, _binaryRef: filePath })}`);
+                } else {
+                  lines.push(`Result: ${JSON.stringify(metadata)}`);
+                }
+              } else {
+                // Metadata-only response: no base64 to strip, persist as-is
+                lines.push(`Result: ${JSON.stringify(msg.toolCall.result)}`);
               }
-              const strippedChunks = chunks.map(({ base64: _omit, filePath, chunkIndex, ...rest }) => ({
-                ...rest,
-                filePath,
-                chunkIndex,
-                _binaryRef: filePath,
-              }));
-              lines.push(`Result: ${JSON.stringify(strippedChunks)}`);
             } else {
               lines.push(`Result: ${JSON.stringify(msg.toolCall.result)}`);
             }

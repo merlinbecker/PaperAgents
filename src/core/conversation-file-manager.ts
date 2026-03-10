@@ -121,19 +121,22 @@ export class ConversationFileManager {
   }
 
   /**
-   * Restore base64 payloads for split_and_read_pdf chunks.
+   * Restore base64 payloads for split_and_read_pdf results.
+   * Handles both a legacy array of chunks and a single chunk object.
    * Re-generates each chunk from the original PDF using pdf-lib.
    */
   private async restorePdfChunks(msg: Message): Promise<void> {
-    // Chunks on disk have _binaryRef instead of base64; use Partial<PdfChunkResult> & { _binaryRef?: string }
     type PersistedChunk = Omit<PdfChunkResult, "base64"> & { _binaryRef?: string };
-    const chunks = msg.toolCall?.result as Array<PersistedChunk> | null | undefined;
-    if (!Array.isArray(chunks) || chunks.length === 0) return;
 
-    const firstChunk = chunks[0];
-    const binaryPath = firstChunk?._binaryRef;
-    if (!binaryPath) return;
+    const rawResult = msg.toolCall?.result;
+    const isArray = Array.isArray(rawResult);
+    const chunks: PersistedChunk[] = isArray
+      ? (rawResult as PersistedChunk[])
+      : [rawResult as PersistedChunk];
 
+    if (chunks.length === 0 || !chunks[0] || !chunks[0]._binaryRef) return;
+
+    const binaryPath = chunks[0]._binaryRef as string;
     const binaryFile = this.app.vault.getAbstractFileByPath(binaryPath);
     if (!(binaryFile instanceof TFile)) {
       globalLogger.warn(`PDF not found when restoring split chunks: ${binaryPath}`);
@@ -162,7 +165,7 @@ export class ConversationFileManager {
         })
       );
 
-      msg.toolCall!.result = restoredChunks;
+      msg.toolCall!.result = isArray ? restoredChunks : restoredChunks[0];
     } catch (err) {
       globalLogger.warn(`Failed to restore PDF chunks for ${binaryPath}`, {
         error: err instanceof Error ? err.message : String(err),
