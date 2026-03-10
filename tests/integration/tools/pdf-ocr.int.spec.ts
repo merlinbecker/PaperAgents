@@ -13,11 +13,35 @@ function setPlatformMobile(isMobile: boolean): void {
   (Platform as any).isMobile = isMobile;
 }
 
+/**
+ * Set up vault mocks for a single small PDF on desktop.
+ * Mocks getAbstractFileByPath, readBinary, and create so that success-path
+ * tests require no per-test boilerplate.
+ */
+function setupSmallPdf(pdfPath = "doc.pdf"): void {
+  vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(
+    new TFile(pdfPath, 50) as any
+  );
+  vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(50) as any);
+  vi.spyOn(app.vault, "create").mockResolvedValue(
+    new TFile(pdfPath.replace(".pdf", ".md"), 0) as any
+  );
+}
+
 /** Fake a successful OCR API response. */
 function mockOcrSuccess(content: string) {
   return vi.spyOn(Obsidian, "requestUrl").mockResolvedValue({
     status: 200,
     json: { choices: [{ message: { content } }] },
+    text: "",
+  } as any);
+}
+
+/** Fake an OCR API response that returns null content (empty extraction). */
+function mockOcrEmptyContent() {
+  return vi.spyOn(Obsidian, "requestUrl").mockResolvedValue({
+    status: 200,
+    json: { choices: [{ message: { content: null } }] },
     text: "",
   } as any);
 }
@@ -59,7 +83,6 @@ describe("pdf_ocr tool", () => {
   // ── Desktop single-file OCR ─────────────────────────────────────────────────
 
   it("calls OCR API and saves a single Markdown file for a small PDF on desktop", async () => {
-    setPlatformMobile(false);
     vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) => {
       // Only return a file for the PDF path; output .md doesn't exist yet
       if (p === "papers/article.pdf") return new TFile("papers/article.pdf", 100) as any;
@@ -93,12 +116,7 @@ describe("pdf_ocr tool", () => {
   });
 
   it("uses the specified model parameter", async () => {
-    setPlatformMobile(false);
-    vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(
-      new TFile("doc.pdf", 50) as any
-    );
-    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(50) as any);
-    vi.spyOn(app.vault, "create").mockResolvedValue(new TFile("doc.md", 0) as any);
+    setupSmallPdf();
     const requestSpy = mockOcrSuccess("text");
 
     await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "custom/model-v1" }));
@@ -107,13 +125,56 @@ describe("pdf_ocr tool", () => {
     expect(callBody.model).toBe("custom/model-v1");
   });
 
-  it("uses outputPath when provided", async () => {
-    setPlatformMobile(false);
-    vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(
-      new TFile("input.pdf", 50) as any
+  it("uses mistral-ocr engine and no text prompt for the default OCR model", async () => {
+    setupSmallPdf();
+    const requestSpy = mockOcrSuccess("ocr text");
+
+    // Default dedicated OCR model → no text prompt needed
+    await tool.execute(makeCtx({ pdfPath: "doc.pdf" }));
+
+    const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
+    const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
+    // engine is always mistral-ocr regardless of model
+    expect(plugin?.pdf?.engine).toBe("mistral-ocr");
+    // No extra text instruction for dedicated OCR models
+    const content = callBody.messages[0].content;
+    expect(content).toHaveLength(1);
+    expect(content[0].type).toBe("file");
+  });
+
+  it("uses mistral-ocr engine and adds text prompt for non-OCR models", async () => {
+    setupSmallPdf();
+    const requestSpy = mockOcrSuccess("extracted text");
+
+    await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "mistralai/ministral-14b-instruct" }));
+
+    const callBody = JSON.parse(requestSpy.mock.calls[0][0].body);
+    const plugin = callBody.plugins.find((p: { id: string }) => p.id === "file-parser");
+    // engine is always mistral-ocr — it is model-independent
+    expect(plugin?.pdf?.engine).toBe("mistral-ocr");
+    // Text instruction comes BEFORE the file item (matching OpenRouter docs)
+    const content = callBody.messages[0].content;
+    expect(content).toHaveLength(2);
+    expect(content[0].type).toBe("text");
+    expect((content[0] as { type: string; text: string }).text).toMatch(/extract.*text/i);
+    expect(content[1].type).toBe("file");
+  });
+
+  it("error message for non-OCR model includes model suggestion when content is empty", async () => {
+    setupSmallPdf();
+    mockOcrEmptyContent();
+
+    const res = await tool.execute(
+      makeCtx({ pdfPath: "doc.pdf", model: "mistralai/ministral-14b-instruct" })
     );
-    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(50) as any);
-    vi.spyOn(app.vault, "create").mockResolvedValue(new TFile("output/result.md", 0) as any);
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/empty content/i);
+    expect(res.error).toMatch(/mistral-ocr-latest/i);
+  });
+
+  it("uses outputPath when provided", async () => {
+    setupSmallPdf("input.pdf");
     mockOcrSuccess("content");
 
     const res = await tool.execute(
@@ -128,11 +189,7 @@ describe("pdf_ocr tool", () => {
   // ── API errors ──────────────────────────────────────────────────────────────
 
   it("returns error when OCR API returns non-2xx status", async () => {
-    setPlatformMobile(false);
-    vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(
-      new TFile("doc.pdf", 50) as any
-    );
-    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(50) as any);
+    setupSmallPdf();
     vi.spyOn(Obsidian, "requestUrl").mockResolvedValue({
       status: 500,
       text: "Internal Server Error",
@@ -147,16 +204,8 @@ describe("pdf_ocr tool", () => {
   });
 
   it("returns error when OCR API returns empty content", async () => {
-    setPlatformMobile(false);
-    vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(
-      new TFile("doc.pdf", 50) as any
-    );
-    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(50) as any);
-    vi.spyOn(Obsidian, "requestUrl").mockResolvedValue({
-      status: 200,
-      json: { choices: [{ message: { content: null } }] },
-      text: "",
-    } as any);
+    setupSmallPdf();
+    mockOcrEmptyContent();
 
     const res = await tool.execute(makeCtx({ pdfPath: "doc.pdf" }));
 
