@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as Obsidian from "obsidian";
 import { app, TFile, Vault, Platform } from "obsidian";
 import * as pdfLibActual from "pdf-lib";
-import { createPdfOcrFactory } from "../../../src/tools/pdf-ocr";
+import { createPdfOcrFactory, removeInlineImagesFromStreamBytes } from "../../../src/tools/pdf-ocr";
 import type { ExecutionContext, IExecutableTool } from "../../../src/types";
 
 /** Wrap plain parameters into a minimal ExecutionContext. */
@@ -575,5 +575,174 @@ describe("pdf_ocr tool", () => {
     expect(res.success).toBe(true);
     // PDFDocument.load must NOT be called in the single-file strip path
     expect(mockLoad).not.toHaveBeenCalled();
+  });
+
+  // ── HTML img tag stripping ─────────────────────────────────────────────────
+
+  it("strips HTML img tags from OCR output when stripImages is true", async () => {
+    setupSmallPdf("doc.pdf");
+    const ocrWithHtmlImg =
+      "Text before.\n\n" +
+      '<img src="data:image/png;base64,iVBORw0KGgo=" />\n\n' +
+      "Text after.\n\n" +
+      '<img src="https://example.com/figure.png" alt="Figure 1">\n\n' +
+      "More text.";
+    mockOcrSuccess(ocrWithHtmlImg);
+    const modifySpy = vi.spyOn(app.vault, "modify").mockResolvedValue(undefined as any);
+
+    const res = await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001" }));
+
+    expect(res.success).toBe(true);
+    const savedContent = modifySpy.mock.calls[0]?.[1] as string;
+    // HTML img tags should be removed
+    expect(savedContent).not.toMatch(/<img/i);
+    expect(savedContent).not.toMatch(/data:image/);
+    expect(savedContent).not.toMatch(/figure\.png/);
+    // Text content should be preserved
+    expect(savedContent).toContain("Text before.");
+    expect(savedContent).toContain("Text after.");
+    expect(savedContent).toContain("More text.");
+  });
+
+  it("keeps HTML img tags when stripImages is false", async () => {
+    setupSmallPdf("doc.pdf");
+    const ocrWithHtmlImg = 'Text.\n\n<img src="https://example.com/img.png" alt="Figure">\n\nEnd.';
+    mockOcrSuccess(ocrWithHtmlImg);
+    const modifySpy = vi.spyOn(app.vault, "modify").mockResolvedValue(undefined as any);
+
+    const res = await tool.execute(
+      makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001", stripImages: false })
+    );
+
+    expect(res.success).toBe(true);
+    const savedContent = modifySpy.mock.calls[0]?.[1] as string;
+    expect(savedContent).toContain('<img src="https://example.com/img.png"');
+  });
+
+  // ── Improved API error response parsing ───────────────────────────────────
+
+  it("extracts error.message from JSON error body for a non-2xx response", async () => {
+    setupSmallPdf();
+    vi.spyOn(Obsidian, "requestUrl").mockResolvedValue({
+      status: 402,
+      text: '{"error":{"message":"Your credit balance is too low to complete this request.","code":402}}',
+      json: { error: { message: "Your credit balance is too low to complete this request.", code: 402 } },
+    } as any);
+
+    const res = await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001" }));
+
+    expect(res.success).toBe(false);
+    expect(res.error).toContain("Your credit balance is too low");
+    expect(res.error).toMatch(/HTTP 402/);
+    // Error code from the JSON body should be included
+    expect(res.error).toContain("code: 402");
+  });
+
+  it("falls back to raw text when error body is not JSON", async () => {
+    setupSmallPdf();
+    vi.spyOn(Obsidian, "requestUrl").mockResolvedValue({
+      status: 503,
+      text: "Service Unavailable",
+      get json() { throw new Error("Not JSON"); },
+    } as any);
+
+    const res = await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001" }));
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/HTTP 503/);
+    expect(res.error).toContain("Service Unavailable");
+  });
+
+  it("returns a descriptive error when the success response body is not JSON", async () => {
+    setupSmallPdf();
+    vi.spyOn(Obsidian, "requestUrl").mockResolvedValue({
+      status: 200,
+      text: "not-json-response",
+      get json() { throw new Error("Not JSON"); },
+    } as any);
+
+    const res = await tool.execute(makeCtx({ pdfPath: "doc.pdf", model: "google/gemini-2.0-flash-001" }));
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/could not be parsed as JSON/i);
+    expect(res.error).toContain("not-json-response");
+  });
+});
+
+// ── removeInlineImagesFromStreamBytes unit tests ───────────────────────────
+
+/** Build a Uint8Array from an ASCII/binary string (latin1 byte-for-byte). */
+function strToBytes(s: string): Uint8Array {
+  const buf = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) buf[i] = s.charCodeAt(i);
+  return buf;
+}
+
+/** Convert a Uint8Array back to a latin1 string. */
+function bytesToStr(b: Uint8Array): string {
+  let s = "";
+  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i] as number);
+  return s;
+}
+
+describe("removeInlineImagesFromStreamBytes", () => {
+  it("removes a simple inline image block from a content stream", () => {
+    const input = strToBytes(
+      "q\nBT /F1 12 Tf (Hello) Tj ET\n" +
+      "BI /W 2 /H 2 /BPC 8 /CS /DeviceGray\nID\n\x80\x80\x80\x80\nEI\n" +
+      "Q\n",
+    );
+    const output = removeInlineImagesFromStreamBytes(input);
+    const text = bytesToStr(output);
+    expect(text).not.toContain("BI");
+    expect(text).not.toContain(" ID");
+    expect(text).not.toContain("\nEI");
+    expect(text).toContain("Hello");
+    expect(text).toContain("q");
+    expect(text).toContain("Q");
+  });
+
+  it("leaves a content stream without inline images unchanged", () => {
+    const input = strToBytes("q\nBT /F1 12 Tf (Hello World) Tj ET\nQ\n");
+    const output = removeInlineImagesFromStreamBytes(input);
+    expect(output).toEqual(input);
+  });
+
+  it("removes multiple consecutive inline image blocks", () => {
+    const input = strToBytes(
+      "BI /W 1 /H 1 /BPC 8 /CS /DeviceGray\nID\n\xff\nEI\n" +
+      "(Text)\n" +
+      "BI /W 1 /H 1 /BPC 8 /CS /DeviceGray\nID\n\xfe\nEI\n",
+    );
+    const output = removeInlineImagesFromStreamBytes(input);
+    const text = bytesToStr(output);
+    expect(text).not.toMatch(/\bBI\b/);
+    expect(text).toContain("Text");
+  });
+
+  it("does not treat 'BI' inside a text string as an inline image", () => {
+    // The 'B' of 'BI' is preceded by '(' (not whitespace), so it must NOT be treated
+    // as the start of an inline image block.
+    const input = strToBytes("BT /F1 12 Tf (BI image description) Tj ET\n");
+    const output = removeInlineImagesFromStreamBytes(input);
+    expect(output).toEqual(input);
+  });
+
+  it("copies 'BI' bytes unchanged when no matching 'ID' is found", () => {
+    // Lone 'BI' with whitespace but no 'ID' — should be copied as-is.
+    const input = strToBytes("q\nBI \nsome content\nQ\n");
+    const output = removeInlineImagesFromStreamBytes(input);
+    expect(bytesToStr(output)).toContain("BI");
+  });
+
+  it("copies 'BI'/'ID' bytes unchanged when no matching 'EI' is found", () => {
+    const input = strToBytes("q\nBI /W 1 /H 1\nID\n\xde\xad\n");
+    const output = removeInlineImagesFromStreamBytes(input);
+    // Without EI the scanner should fall back and copy 'B' then advance
+    expect(bytesToStr(output)).toContain("BI");
+  });
+
+  it("handles an empty input without error", () => {
+    expect(removeInlineImagesFromStreamBytes(new Uint8Array(0))).toEqual(new Uint8Array(0));
   });
 });
