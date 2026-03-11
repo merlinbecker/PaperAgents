@@ -133,26 +133,198 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
 }
 
 /**
- * Remove Markdown image syntax from an OCR result.
+ * Remove Markdown image syntax and HTML img tags from an OCR result.
  *
- * Mistral-OCR embeds page images as `![description](data:image/...;base64,…)` blocks.
+ * Mistral-OCR embeds page images as `![description](data:image/...;base64,…)` blocks
+ * or as HTML `<img>` tags. This function removes both forms so that only text content
+ * is forwarded to the LLM.
+ *
  * Base64 encoding uses only A–Z, a–z, 0–9, +, / and = — no parentheses — so
- * `[^)]*` is safe and non-backtracking: the engine advances one character at a time
- * until it finds `)` or reaches end-of-line, without any opportunity for catastrophic
- * backtracking.
+ * `[^)]*` is safe and non-backtracking.
  *
  * The function handles:
  *   - Inline images with data URLs:  `![alt](data:image/png;base64,AAA…)`
  *   - Inline images with regular URLs:  `![alt](https://example.com/img.png)`
  *   - Images with empty alt text:  `![](url)`
+ *   - HTML img tags:  `<img src="..." />` and `<img src="..." alt="…">`
  *
  * After removal, consecutive blank lines are collapsed to a single blank line.
  */
 function stripMarkdownImages(text: string): string {
   return text
     .replace(/!\[[^\]]*\]\([^)]*\)/g, "")  // remove ![alt](url) / ![alt](data:...)
+    .replace(/<img\b[^>]*>/gi, "")          // remove <img ...> / <img ... />
     .replace(/\n{3,}/g, "\n\n")             // collapse runs of blank lines
     .trim();
+}
+
+// ── Inline image (BI/ID/EI) stripping from PDF content streams ───────────────
+
+/**
+ * Return true for the six PDF white-space characters (PDF 1.7 §7.2.2).
+ */
+function isPdfWhitespace(b: number): boolean {
+  return b === 0x00 || b === 0x09 || b === 0x0a || b === 0x0c || b === 0x0d || b === 0x20;
+}
+
+/**
+ * Safe indexed access into a Uint8Array.
+ * Returns -1 for any out-of-bounds index so callers can use a single
+ * conditional without separate range checks (rather than having to guard
+ * each access with an explicit bounds check).
+ */
+function safeByteAt(bytes: Uint8Array, index: number): number {
+  return index >= 0 && index < bytes.length ? (bytes[index] as number) : -1;
+}
+
+/**
+ * Scan an **uncompressed** PDF content-stream byte array and return a copy with
+ * all inline image blocks removed.
+ *
+ * Inline images in PDF content streams are delimited by three operators:
+ *   - `BI`  (Begin Image) – marks the start of the parameter dictionary
+ *   - `ID`  (Image Data) – marks the start of the raw image bytes
+ *   - `EI`  (End Image)  – marks the end of the image data
+ *
+ * Unlike XObject images (which live in the page Resources dictionary), inline
+ * images are embedded directly in the content stream, so they cannot be
+ * removed by simply editing the Resources dictionary.
+ *
+ * Algorithm:
+ *   1. Walk the byte array looking for `BI` surrounded by PDF whitespace.
+ *   2. Scan forward from `BI` to find the `ID` operator.
+ *   3. Scan forward from `ID` to find `EI` surrounded by PDF whitespace.
+ *   4. Omit the entire `BI`…`EI` span from the output; emit a single space
+ *      to keep adjacent PDF operators properly separated.
+ *
+ * Exported for unit testing.
+ *
+ * Limitation: the scan stops at the *first* `EI` sequence that is surrounded
+ * by PDF whitespace within the image-data region.  For typical image encodings
+ * (CCITT fax, JPEG/DCT, lossless predictors) the probability of the byte pair
+ * 0x45 0x49 appearing flanked by whitespace bytes in the raw pixel data is
+ * very low, making false early termination extremely rare in practice.
+ */
+export function removeInlineImagesFromStreamBytes(bytes: Uint8Array): Uint8Array {
+  const out: number[] = [];
+  let i = 0;
+
+  while (i < bytes.length) {
+    // Detect "BI" operator: bytes B I, preceded by PDF whitespace (or stream
+    // start) and followed immediately by PDF whitespace.
+    if (
+      safeByteAt(bytes, i) === 0x42 /* B */ &&
+      safeByteAt(bytes, i + 1) === 0x49 /* I */ &&
+      isPdfWhitespace(safeByteAt(bytes, i + 2)) &&
+      (i === 0 || isPdfWhitespace(safeByteAt(bytes, i - 1)))
+    ) {
+      // ── Locate "ID" operator ──────────────────────────────────────────────
+      let j = i + 2;
+      let idPos = -1;
+      while (j + 1 < bytes.length) {
+        if (
+          safeByteAt(bytes, j) === 0x49 /* I */ &&
+          safeByteAt(bytes, j + 1) === 0x44 /* D */ &&
+          isPdfWhitespace(safeByteAt(bytes, j - 1)) &&
+          isPdfWhitespace(safeByteAt(bytes, j + 2))
+        ) {
+          idPos = j;
+          break;
+        }
+        j++;
+      }
+      if (idPos === -1) {
+        // No matching "ID" — not a valid inline image; copy 'B' and move on.
+        out.push(safeByteAt(bytes, i));
+        i++;
+        continue;
+      }
+
+      // Advance past "ID" and skip the single mandatory whitespace byte that
+      // the PDF spec (ISO 32000 §8.9.7) requires to follow the ID operator
+      // before the raw image data begins.
+      j = idPos + 2;
+      if (isPdfWhitespace(safeByteAt(bytes, j))) j++;
+
+      // ── Locate "EI" operator ──────────────────────────────────────────────
+      let eiEnd = -1;
+      while (j + 1 < bytes.length) {
+        if (
+          safeByteAt(bytes, j) === 0x45 /* E */ &&
+          safeByteAt(bytes, j + 1) === 0x49 /* I */ &&
+          isPdfWhitespace(safeByteAt(bytes, j - 1)) &&
+          (j + 2 >= bytes.length || isPdfWhitespace(safeByteAt(bytes, j + 2)))
+        ) {
+          eiEnd = j + 2;
+          if (isPdfWhitespace(safeByteAt(bytes, eiEnd))) eiEnd++;
+          break;
+        }
+        j++;
+      }
+      if (eiEnd === -1) {
+        // No matching "EI" found — copy 'B' and move on.
+        out.push(safeByteAt(bytes, i));
+        i++;
+        continue;
+      }
+
+      // Entire BI…EI block removed; emit a space to preserve operator spacing.
+      out.push(0x20 /* space */);
+      i = eiEnd;
+    } else {
+      out.push(safeByteAt(bytes, i));
+      i++;
+    }
+  }
+
+  return new Uint8Array(out);
+}
+
+/**
+ * Remove inline image (BI/ID/EI) operator blocks from every page's content
+ * streams in a PDFDocument.
+ *
+ * Only operates on **uncompressed** content streams (those without a /Filter
+ * entry).  Decompressing and re-compressing filtered streams (e.g.
+ * FlateDecode) requires a zlib implementation that is not available in the
+ * Obsidian plugin environment.  The post-processing `stripMarkdownImages` step
+ * serves as a fallback for images that survive through compressed streams.
+ */
+async function stripInlineImages(pdfDoc: import("pdf-lib").PDFDocument): Promise<void> {
+  const { PDFName, PDFRef, PDFRawStream, PDFArray, PDFNumber } = await import("pdf-lib");
+  const context = pdfDoc.context;
+
+  for (const page of pdfDoc.getPages()) {
+    const contentsRaw = page.node.get(PDFName.of("Contents"));
+    if (!contentsRaw) continue;
+
+    // Contents may be a single indirect reference or an array of references.
+    const streamRefs: import("pdf-lib").PDFRef[] = [];
+    if (contentsRaw instanceof PDFRef) {
+      streamRefs.push(contentsRaw);
+    } else if (contentsRaw instanceof PDFArray) {
+      for (const item of contentsRaw.asArray()) {
+        if (item instanceof PDFRef) streamRefs.push(item);
+      }
+    }
+
+    for (const ref of streamRefs) {
+      const rawObj = context.lookup(ref);
+      if (!(rawObj instanceof PDFRawStream)) continue;
+
+      // Skip compressed streams – cannot decode/re-encode without zlib.
+      if (rawObj.dict.get(PDFName.of("Filter"))) continue;
+
+      const newContents = removeInlineImagesFromStreamBytes(rawObj.contents);
+      if (newContents.length !== rawObj.contents.length) {
+        // PDFRawStream.contents is readonly; create a replacement stream with
+        // the same dictionary (updated /Length) and register it in the context.
+        rawObj.dict.set(PDFName.of("Length"), PDFNumber.of(newContents.length));
+        const newStream = PDFRawStream.of(rawObj.dict, newContents);
+        context.assign(ref, newStream);
+      }
+    }
+  }
 }
 
 /**
@@ -164,9 +336,8 @@ function stripMarkdownImages(text: string): string {
  *
  * Limitations:
  *  - Only *referenced* XObject images are removed.  Inline images embedded directly
- *    inside a page's content stream via the `BI`/`EI` operators are not handled;
- *    they are rare in academic PDFs and the post-processing `stripMarkdownImages`
- *    step covers any that the OCR engine may surface as Markdown.
+ *    inside a page's content stream via the `BI`/`EI` operators are handled separately
+ *    by `stripInlineImages` (for uncompressed streams only).
  *  - Resources that are inherited from a parent page tree node (rather than declared
  *    on the page itself) are also walked through the same resolution logic.
  */
@@ -330,13 +501,15 @@ class PdfOcrTool implements IExecutableTool {
         let pdfBytesToSend: Uint8Array | ArrayBuffer;
 
         if (stripImages) {
-          // Load the PDF into pdf-lib, strip image XObjects, then re-serialise.
-          // This ensures no binary image data is transmitted to the OCR API.
+          // Load the PDF into pdf-lib, strip image XObjects and inline images,
+          // then re-serialise.  This ensures no binary image data is transmitted
+          // to the OCR API.
           const { PDFDocument } = await import("pdf-lib");
           const singleDoc = await PDFDocument.load(buffer);
           await stripImageXObjects(singleDoc);
+          await stripInlineImages(singleDoc);
           pdfBytesToSend = await singleDoc.save({ useObjectStreams: false });
-          globalLogger.info("pdf_ocr: stripped image XObjects from single PDF before OCR", { pdfPath });
+          globalLogger.info("pdf_ocr: stripped images from single PDF before OCR", { pdfPath });
         } else {
           pdfBytesToSend = buffer;
         }
@@ -365,11 +538,13 @@ class PdfOcrTool implements IExecutableTool {
         const buffer = await this.app.vault.readBinary(pdfFile);
         const pdfDoc = await PDFDocument.load(buffer);
 
-        // Strip image XObjects from the source document once, before page-copying.
-        // Chunks created via copyPages will inherit the image-free resource dictionaries.
+        // Strip image XObjects and inline images from the source document once,
+        // before page-copying. Chunks created via copyPages will inherit the
+        // image-free resource dictionaries and content streams.
         if (stripImages) {
           await stripImageXObjects(pdfDoc);
-          globalLogger.info("pdf_ocr: stripped image XObjects from source PDF before chunking", {
+          await stripInlineImages(pdfDoc);
+          globalLogger.info("pdf_ocr: stripped images from source PDF before chunking", {
             pdfPath,
             sizeMb: (pdfFile.stat.size / 1024 / 1024).toFixed(1),
           });
@@ -620,14 +795,32 @@ class PdfOcrTool implements IExecutableTool {
     });
 
     if (response.status < 200 || response.status >= 300) {
+      // Try to extract a structured error message from the JSON response body.
+      // OpenRouter returns { error: { message: string, code: number } } for most errors.
+      let errorDetail = response.text || "(no body)";
+      try {
+        const errJson = response.json as { error?: { message?: string; code?: number } };
+        if (errJson?.error?.message) {
+          const code = errJson.error.code != null ? ` (code: ${errJson.error.code})` : "";
+          errorDetail = `${errJson.error.message}${code}`;
+        }
+      } catch {
+        // response.json is not valid JSON – fall back to the raw text.
+      }
       throw new Error(
-        `OCR API error: HTTP ${response.status} — ${response.text || "no body"}`
+        `OCR API error: HTTP ${response.status} — ${errorDetail}`
       );
     }
 
-    const data = response.json as {
-      choices?: Array<{ message?: { content?: string | null } }>;
-    };
+    let data: { choices?: Array<{ message?: { content?: string | null } }> };
+    try {
+      data = response.json as typeof data;
+    } catch {
+      throw new Error(
+        `OCR response from OpenRouter could not be parsed as JSON. ` +
+        `Raw response (first 200 chars): ${response.text?.slice(0, 200) ?? "(empty)"}`
+      );
+    }
     const content = data.choices?.[0]?.message?.content;
     if (content == null || content === "") {
       throw new Error(
