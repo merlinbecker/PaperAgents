@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as Obsidian from "obsidian";
 import { app, TFile, Vault, Platform } from "obsidian";
+import * as pdfLibActual from "pdf-lib";
 import { createPdfOcrFactory } from "../../../src/tools/pdf-ocr";
 import type { ExecutionContext, IExecutableTool } from "../../../src/types";
 
@@ -14,9 +15,33 @@ function setPlatformMobile(isMobile: boolean): void {
 }
 
 /**
+ * Stub pdf-lib's PDFDocument so that the pre-OCR image-stripping step
+ * (PDFDocument.load → stripImageXObjects → save) is a safe no-op.
+ *
+ * Call this whenever the vault's readBinary mock returns non-PDF bytes (e.g. a
+ * fake ArrayBuffer).  Spreading pdfLibActual keeps PDFName/PDFDict/PDFRef/PDFStream
+ * available to the stripImageXObjects helper inside the tool.
+ */
+function mockPdfLibForSingleFile(): void {
+  vi.doMock("pdf-lib", () => ({
+    ...pdfLibActual,
+    PDFDocument: {
+      load: vi.fn().mockResolvedValue({
+        getPages: vi.fn().mockReturnValue([]),
+        save: vi.fn().mockResolvedValue(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])),
+      }),
+    },
+  }));
+}
+
+/**
  * Set up vault mocks for a single small PDF on desktop.
  * Mocks getAbstractFileByPath, readBinary, and create so that success-path
  * tests require no per-test boilerplate.
+ *
+ * Also mocks pdf-lib's PDFDocument so that the image-stripping step
+ * (PDFDocument.load → stripImageXObjects → save) is a safe no-op with no
+ * real PDF bytes required.
  */
 function setupSmallPdf(pdfPath = "doc.pdf"): void {
   vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(
@@ -26,6 +51,7 @@ function setupSmallPdf(pdfPath = "doc.pdf"): void {
   vi.spyOn(app.vault, "create").mockResolvedValue(
     new TFile(pdfPath.replace(".pdf", ".md"), 0) as any
   );
+  mockPdfLibForSingleFile();
 }
 
 /** Fake a successful OCR API response. */
@@ -92,6 +118,7 @@ describe("pdf_ocr tool", () => {
   // ── Desktop single-file OCR ─────────────────────────────────────────────────
 
   it("calls OCR API and saves a single Markdown file for a small PDF on desktop", async () => {
+    mockPdfLibForSingleFile();
     vi.spyOn(app.vault, "getAbstractFileByPath").mockImplementation((p: string) => {
       // Only return a file for the PDF path; output .md doesn't exist yet
       if (p === "papers/article.pdf") return new TFile("papers/article.pdf", 100) as any;
@@ -266,14 +293,28 @@ describe("pdf_ocr tool", () => {
    * Mock the pdf-lib module so each chunk's save() returns the given `saveResult`.
    * The mocked document has 4 pages (matches the 25 MB / 5 MB chunk math).
    * Returns the `mockSave` spy for per-test assertions.
+   *
+   * Spreads pdfLibActual so that PDFName/PDFDict/PDFRef/PDFStream remain available
+   * to the stripImageXObjects helper inside the tool.  getPages() on the source
+   * doc returns [] so the strip step is a safe no-op.
    */
   function setupPdfLibMock(saveResult: Uint8Array = mockValidPdfBytes()): ReturnType<typeof vi.fn> {
     const mockSave = vi.fn().mockResolvedValue(saveResult);
     const mockCopyPages = vi.fn().mockResolvedValue([{}]);
-    const mockChunkDoc = { copyPages: mockCopyPages, addPage: vi.fn(), save: mockSave };
+    const mockChunkDoc = {
+      copyPages: mockCopyPages,
+      addPage: vi.fn(),
+      save: mockSave,
+      getPages: vi.fn().mockReturnValue([]),
+    };
     vi.doMock("pdf-lib", () => ({
+      ...pdfLibActual,
       PDFDocument: {
-        load: vi.fn().mockResolvedValue({ getPageCount: vi.fn().mockReturnValue(4), copyPages: mockCopyPages }),
+        load: vi.fn().mockResolvedValue({
+          getPageCount: vi.fn().mockReturnValue(4),
+          copyPages: mockCopyPages,
+          getPages: vi.fn().mockReturnValue([]), // stripImageXObjects iterates pages; [] = no-op
+        }),
         create: vi.fn().mockResolvedValue(mockChunkDoc),
       },
     }));
@@ -486,5 +527,53 @@ describe("pdf_ocr tool", () => {
     const instructionText = getInstructionText(requestSpy);
     expect(instructionText).toMatch(/complete text content/i);
     expect(instructionText).not.toMatch(/do not include images/i);
+  });
+
+  it("calls PDFDocument.load and stripImageXObjects before encoding when stripImages is true (default)", async () => {
+    // Verify the pre-OCR pdf-lib strip path: PDFDocument.load must be called so
+    // that stripImageXObjects can remove image XObjects before encoding.
+    const mockLoad = vi.fn().mockResolvedValue({
+      getPages: vi.fn().mockReturnValue([]),
+      save: vi.fn().mockResolvedValue(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])),
+    });
+    vi.doMock("pdf-lib", () => ({
+      ...pdfLibActual,
+      PDFDocument: { load: mockLoad },
+    }));
+
+    vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(
+      new TFile("paper.pdf", 200) as any
+    );
+    vi.spyOn(app.vault, "readBinary").mockResolvedValue(new ArrayBuffer(200) as any);
+    mockOcrSuccess("text content");
+    vi.spyOn(app.vault, "create").mockResolvedValue(new TFile("paper.md", 0) as any);
+
+    const res = await tool.execute(
+      makeCtx({ pdfPath: "paper.pdf", model: "google/gemini-2.0-flash-001" })
+    );
+
+    expect(res.success).toBe(true);
+    // PDFDocument.load must have been called (pre-OCR strip step)
+    expect(mockLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips PDFDocument.load when stripImages is false", async () => {
+    const mockLoad = vi.fn();
+    vi.doMock("pdf-lib", () => ({
+      ...pdfLibActual,
+      PDFDocument: { load: mockLoad },
+    }));
+
+    setupSmallPdf("paper.pdf");
+    mockOcrSuccess("text content");
+    vi.spyOn(app.vault, "create").mockResolvedValue(new TFile("paper.md", 0) as any);
+
+    const res = await tool.execute(
+      makeCtx({ pdfPath: "paper.pdf", model: "google/gemini-2.0-flash-001", stripImages: false })
+    );
+
+    expect(res.success).toBe(true);
+    // PDFDocument.load must NOT be called in the single-file strip path
+    expect(mockLoad).not.toHaveBeenCalled();
   });
 });

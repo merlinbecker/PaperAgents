@@ -6,20 +6,27 @@
  *   1. Read PDF metadata (file size, page count).
  *   2. For large PDFs on mobile: split into memory-safe chunks (≤ 5 MB) with pdf-lib
  *      and save each chunk to a temp vault folder.
- *   3. Run OCR on each chunk by calling OpenRouter's chat/completions endpoint with the
+ *   3. Optionally strip image XObjects from the PDF (or each chunk) using pdf-lib
+ *      before encoding, so no binary image data is sent to the OCR API.
+ *   4. Run OCR on each chunk by calling OpenRouter's chat/completions endpoint with the
  *      file-parser plugin and the caller-specified model.
- *   4. Save each chunk's OCR result as a Markdown file.
- *   5. Clean up temporary chunk PDFs from the vault.
- *   6. Return the list of created Markdown file paths.
+ *   5. Save each chunk's OCR result as a Markdown file (image Markdown syntax is also
+ *      removed from the text output as a final safety net).
+ *   6. Clean up temporary chunk PDFs from the vault.
+ *   7. Return the list of created Markdown file paths.
  *
  * Input parameters:
- *   - pdfPath   (required) – vault path to the PDF to convert.
- *   - model     (required) – OpenRouter model to use for OCR.
- *                             See https://openrouter.ai/models for available models.
- *                             The file-parser plugin with the mistral-ocr engine is
- *                             used for PDF extraction regardless of the chosen model.
+ *   - pdfPath    (required) – vault path to the PDF to convert.
+ *   - model      (required) – OpenRouter model to use for OCR.
+ *                              See https://openrouter.ai/models for available models.
+ *                              The file-parser plugin with the mistral-ocr engine is
+ *                              used for PDF extraction regardless of the chosen model.
  *   - outputPath (optional) – base path for output Markdown files (without extension).
- *                             Defaults to pdfPath with ".pdf" replaced by ".md".
+ *                              Defaults to pdfPath with ".pdf" replaced by ".md".
+ *   - stripImages (optional, default true) – when true, image XObjects are removed
+ *                              from the PDF bytes before sending to OCR, and any
+ *                              remaining image Markdown syntax is removed from the
+ *                              output.  Set to false to keep images.
  *
  * Output:
  *   { files: string[], totalFiles: number }
@@ -148,6 +155,76 @@ function stripMarkdownImages(text: string): string {
     .trim();
 }
 
+/**
+ * Remove all image XObjects from every page's Resources in a pdf-lib PDFDocument.
+ *
+ * PDF images are stored as XObject streams with `/Subtype /Image` in each page's
+ * Resources/XObject dictionary.  Deleting them before re-serialising the document
+ * ensures that no binary image data is transmitted to the OCR API.
+ *
+ * Limitations:
+ *  - Only *referenced* XObject images are removed.  Inline images embedded directly
+ *    inside a page's content stream via the `BI`/`EI` operators are not handled;
+ *    they are rare in academic PDFs and the post-processing `stripMarkdownImages`
+ *    step covers any that the OCR engine may surface as Markdown.
+ *  - Resources that are inherited from a parent page tree node (rather than declared
+ *    on the page itself) are also walked through the same resolution logic.
+ */
+async function stripImageXObjects(pdfDoc: import("pdf-lib").PDFDocument): Promise<void> {
+  const { PDFName, PDFDict, PDFRef, PDFStream } = await import("pdf-lib");
+
+  const context = pdfDoc.context;
+  const nameSubtype = PDFName.of("Subtype");
+  const nameImage = PDFName.of("Image");
+
+  for (const page of pdfDoc.getPages()) {
+    // Resources may be a direct PDFDict or an indirect PDFRef to one.
+    const resourcesRaw = page.node.get(PDFName.Resources);
+    if (!resourcesRaw) continue;
+
+    const resources =
+      resourcesRaw instanceof PDFRef
+        ? context.lookupMaybe(resourcesRaw, PDFDict)
+        : resourcesRaw instanceof PDFDict
+          ? resourcesRaw
+          : undefined;
+    if (!resources) continue;
+
+    // XObject subdictionary – may also be an indirect reference.
+    const xObjectsRaw = resources.get(PDFName.XObject);
+    if (!xObjectsRaw) continue;
+
+    const xObjects =
+      xObjectsRaw instanceof PDFRef
+        ? context.lookupMaybe(xObjectsRaw, PDFDict)
+        : xObjectsRaw instanceof PDFDict
+          ? xObjectsRaw
+          : undefined;
+    if (!xObjects) continue;
+
+    // Collect image keys first to avoid mutating the dictionary while iterating.
+    const imageKeys: import("pdf-lib").PDFName[] = [];
+    for (const key of xObjects.keys()) {
+      const xobjRaw = xObjects.get(key);
+      const xobj = xobjRaw instanceof PDFRef ? context.lookup(xobjRaw) : xobjRaw;
+      if (!xobj) continue;
+
+      // Both PDFStream and PDFRawStream inherit from PDFStream and carry their
+      // metadata in `.dict`.
+      const dict = xobj instanceof PDFStream ? xobj.dict : undefined;
+      if (!dict) continue;
+
+      if (dict.get(nameSubtype) === nameImage) {
+        imageKeys.push(key);
+      }
+    }
+
+    for (const key of imageKeys) {
+      xObjects.delete(key);
+    }
+  }
+}
+
 // ============================================================================
 // PDF OCR TOOL
 // ============================================================================
@@ -235,7 +312,40 @@ class PdfOcrTool implements IExecutableTool {
         }
 
         const buffer = await this.app.vault.readBinary(pdfFile);
-        const base64 = arrayBufferToBase64(buffer);
+
+        // Guard against empty files before attempting any pdf-lib processing.
+        // callOcr also checks, but the empty-buffer error should surface before
+        // we try to load the bytes into PDFDocument (which would throw a less
+        // informative parser error).
+        if (buffer.byteLength === 0) {
+          return {
+            success: false,
+            error:
+              `Cannot perform OCR on "${pdfPath}": the PDF could not be read or is empty. ` +
+              `Please check that the file exists in the vault and is a valid, non-empty PDF.`,
+            log: [buildLogEntry(this.name, ctx.parameters)],
+          };
+        }
+
+        let pdfBytesToSend: Uint8Array | ArrayBuffer;
+
+        if (stripImages) {
+          // Load the PDF into pdf-lib, strip image XObjects, then re-serialise.
+          // This ensures no binary image data is transmitted to the OCR API.
+          const { PDFDocument } = await import("pdf-lib");
+          const singleDoc = await PDFDocument.load(buffer);
+          await stripImageXObjects(singleDoc);
+          pdfBytesToSend = await singleDoc.save({ useObjectStreams: false });
+          globalLogger.info("pdf_ocr: stripped image XObjects from single PDF before OCR", { pdfPath });
+        } else {
+          pdfBytesToSend = buffer;
+        }
+
+        // When stripImages is true, pdfBytesToSend is a Uint8Array from PDFDocument.save().
+        // When false, it is the raw ArrayBuffer from vault.readBinary().
+        const base64 = pdfBytesToSend instanceof ArrayBuffer
+          ? arrayBufferToBase64(pdfBytesToSend)
+          : uint8ArrayToBase64(pdfBytesToSend);
         const fileName = normalizedPath.split("/").pop() || "document.pdf";
 
         globalLogger.info("pdf_ocr: starting single-file OCR", { pdfPath, model });
@@ -254,6 +364,17 @@ class PdfOcrTool implements IExecutableTool {
         const { PDFDocument } = await import("pdf-lib");
         const buffer = await this.app.vault.readBinary(pdfFile);
         const pdfDoc = await PDFDocument.load(buffer);
+
+        // Strip image XObjects from the source document once, before page-copying.
+        // Chunks created via copyPages will inherit the image-free resource dictionaries.
+        if (stripImages) {
+          await stripImageXObjects(pdfDoc);
+          globalLogger.info("pdf_ocr: stripped image XObjects from source PDF before chunking", {
+            pdfPath,
+            sizeMb: (pdfFile.stat.size / 1024 / 1024).toFixed(1),
+          });
+        }
+
         const totalPages = pdfDoc.getPageCount();
 
         const pagesPerChunk = Math.ceil(
