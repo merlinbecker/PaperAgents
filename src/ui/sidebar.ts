@@ -8,8 +8,12 @@ import { ToolMetadata, AgentDefinition, IToolRegistry } from "../types";
 import { TOOL_CATEGORIES, TOOL_ICONS } from "../utils/constants";
 import { globalLogger } from "../utils/logger";
 import { SIDEBAR_EXAMPLES, SidebarExample } from "./sidebar-examples";
+import { LogPanel } from "./log-panel";
 
 export const VIEW_TYPE_PAPER_AGENTS = "paper-agents-sidebar";
+
+/** Tabs in der Sidebar */
+type SidebarTab = "overview" | "logs";
 
 /**
  * Sidebar View für Paper Agents
@@ -20,6 +24,10 @@ export class PaperAgentsSidebar extends ItemView {
   private examplesContainer: HTMLElement | null = null;
   private statusContainer: HTMLElement | null = null;
   private countsContainer: HTMLElement | null = null;
+  private overviewTab: HTMLElement | null = null;
+  private logsTab: HTMLElement | null = null;
+  private logPanel: LogPanel | null = null;
+  private activeTab: SidebarTab = "overview";
   private readonly toolRegistry: IToolRegistry;
   private readonly onToolClick: (toolId: string) => void;
   private agents: AgentDefinition[] = [];
@@ -63,21 +71,26 @@ export class PaperAgentsSidebar extends ItemView {
     // Header
     this.renderHeader(container as HTMLElement);
 
-    // Counts bar
+    // Tab Navigation
+    this.renderTabNav(container as HTMLElement);
+
+    // Counts bar (nur für Overview-Tab relevant)
     this.countsContainer = container.createDiv({ cls: "pa-counts-bar" });
     this.renderCounts();
 
-    // Tools Section
-    this.toolsContainer = container.createDiv({ cls: "pa-tools-section" });
+    // Overview-Tab-Inhalt
+    this.overviewTab = container.createDiv({ cls: "pa-tab-content" });
+    this.toolsContainer = this.overviewTab.createDiv({ cls: "pa-tools-section" });
     this.renderTools();
-
-    // Agents Section
-    this.agentsContainer = container.createDiv({ cls: "pa-agents-section" });
+    this.agentsContainer = this.overviewTab.createDiv({ cls: "pa-agents-section" });
     this.renderAgents();
-
-    // Examples Section
-    this.examplesContainer = container.createDiv({ cls: "pa-examples-section" });
+    this.examplesContainer = this.overviewTab.createDiv({ cls: "pa-examples-section" });
     this.renderExamples();
+
+    // Logs-Tab-Inhalt
+    this.logsTab = container.createDiv({ cls: "pa-tab-content pa-hidden" });
+    this.logPanel = new LogPanel(this.logsTab, globalLogger);
+    this.logPanel.mount();
 
     // Status Section
     this.statusContainer = container.createDiv({ cls: "pa-status-section" });
@@ -87,6 +100,8 @@ export class PaperAgentsSidebar extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    this.logPanel?.unmount();
+    this.logPanel = null;
     globalLogger.debug("PaperAgentsSidebar closed");
   }
 
@@ -137,6 +152,48 @@ export class PaperAgentsSidebar extends ItemView {
       globalLogger.debug("Reload tools clicked");
     });
   }
+
+  /**
+   * Rendert die Tab-Navigation (Übersicht | Logs)
+   */
+  private renderTabNav(container: HTMLElement): void {
+    const nav = container.createDiv({ cls: "pa-tab-nav" });
+
+    const overviewBtn = nav.createEl("button", {
+      cls: "pa-tab-btn pa-tab-btn-active",
+      text: "📋 Übersicht",
+      attr: { "data-tab": "overview" },
+    });
+    overviewBtn.addEventListener("click", () => this.switchTab("overview", overviewBtn, logsBtn));
+
+    const logsBtn = nav.createEl("button", {
+      cls: "pa-tab-btn",
+      text: "📜 logs",
+      attr: { "data-tab": "logs" },
+    });
+    logsBtn.addEventListener("click", () => this.switchTab("logs", logsBtn, overviewBtn));
+  }
+
+  /**
+   * Wechselt den aktiven Tab
+   */
+  private switchTab(tab: SidebarTab, activeBtn: HTMLElement, inactiveBtn: HTMLElement): void {
+    this.activeTab = tab;
+
+    activeBtn.addClass("pa-tab-btn-active");
+    inactiveBtn.removeClass("pa-tab-btn-active");
+
+    if (tab === "overview") {
+      this.overviewTab?.removeClass("pa-hidden");
+      this.logsTab?.addClass("pa-hidden");
+      this.countsContainer?.removeClass("pa-hidden");
+    } else {
+      this.overviewTab?.addClass("pa-hidden");
+      this.logsTab?.removeClass("pa-hidden");
+      this.countsContainer?.addClass("pa-hidden");
+    }
+  }
+
 
   /**
    * Rendert Zähler für Agenten und Tools
@@ -194,7 +251,7 @@ export class PaperAgentsSidebar extends ItemView {
     }
     const fileExplorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
     if (fileExplorer?.view) {
-      this.app.workspace.revealLeaf(fileExplorer);
+      void this.app.workspace.revealLeaf(fileExplorer);
       // revealInFolder is an internal Obsidian API available on the file-explorer view
       (fileExplorer.view as { revealInFolder?: (f: unknown) => void }).revealInFolder?.(abstractFile);
     }
