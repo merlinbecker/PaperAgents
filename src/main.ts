@@ -43,6 +43,7 @@ export default class PaperAgents extends Plugin {
     logger.info("Paper Agents plugin loading...");
 
     await this.loadSettings();
+    this.applyLogLevel();
 
     this.toolRegistry = new ToolRegistry(this.app);
     this.conversationManager = new ConversationManager();
@@ -80,6 +81,12 @@ export default class PaperAgents extends Plugin {
           this.settings.customToolsPath || DEFAULT_PATHS.CUSTOM_TOOLS,
           this.settings.agentsPath || DEFAULT_PATHS.AGENTS
         );
+        // Persist the log panel filter level choice
+        sidebar.setLogPanelInitialLevel(this.settings.logPanelFilterLevel);
+        sidebar.setOnLogFilterLevelChange(async (level) => {
+          this.settings.logPanelFilterLevel = level;
+          await this.saveSettings();
+        });
         return sidebar;
       }
     );
@@ -392,5 +399,11 @@ export default class PaperAgents extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
+  }
+
+  /** Applies the configured minimum log level to the global logger. */
+  applyLogLevel(): void {
+    globalLogger.setLevel(this.settings.logMinLevel);
+    logger.debug("Log level applied", { level: this.settings.logMinLevel });
   }
 }

@@ -17,6 +17,8 @@ import { CanvasAgent } from "../core/canvas-agent";
 import { Orchestrator } from "../core/orchestrator";
 import { globalLogger } from "../utils/logger";
 
+const logger = globalLogger.createLogger("CanvasModal");
+
 export interface CanvasModalSettings {
   canvasMarkdownPath?: string;
   canvasSystemPromptFile?: string;
@@ -398,7 +400,7 @@ export class CanvasModal extends Modal {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       new Notice(`Canvas session failed: ${msg}`);
-      globalLogger.error("Canvas session error", { error: msg });
+      logger.error("Canvas session error", { error: msg });
 
       if (this.startBtn) {
         this.startBtn.disabled = false;
@@ -464,7 +466,7 @@ export class CanvasModal extends Modal {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       new Notice(`Multi-agent session failed: ${msg}`);
-      globalLogger.error("Multi-agent canvas error", { error: msg });
+      logger.error("Multi-agent canvas error", { error: msg });
     } finally {
       if (this.startBtn) {
         this.startBtn.disabled = false;
@@ -489,7 +491,7 @@ export class CanvasModal extends Modal {
     try {
       userCalloutText = await this.canvasAgent.appendUserCallout(this.activeFile, message);
     } catch (error) {
-      globalLogger.warn("Failed to append user callout", { error });
+      logger.warn("Failed to append user callout", { error });
     }
 
     this.addMessageToDisplay("user", message, userCalloutText);
@@ -539,7 +541,7 @@ export class CanvasModal extends Modal {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       new Notice(`Re-run failed: ${msg}`);
-      globalLogger.error("Canvas re-run error", { error: msg });
+      logger.error("Canvas re-run error", { error: msg });
     } finally {
       if (this.rerunBtn) {
         this.rerunBtn.disabled = false;
@@ -564,7 +566,7 @@ export class CanvasModal extends Modal {
       const stripped = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
       return stripped || null;
     } catch (error) {
-      globalLogger.warn("Failed to load canvas system prompt", { filePath, error });
+      logger.warn("Failed to load canvas system prompt", { filePath, error });
       return null;
     }
   }
@@ -626,7 +628,7 @@ export class CanvasModal extends Modal {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       new Notice(`Agent error: ${msg}`);
-      globalLogger.error("Canvas agent error", { error: msg });
+      logger.error("Canvas agent error", { error: msg });
     } finally {
       this.isStreaming = false;
       if (this.sendBtn) this.sendBtn.disabled = false;
@@ -678,7 +680,7 @@ export class CanvasModal extends Modal {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       new Notice(`Failed to remove callout: ${msg}`);
-      globalLogger.error("Canvas dismissal error", { error: msg });
+      logger.error("Canvas dismissal error", { error: msg });
     }
   }
 

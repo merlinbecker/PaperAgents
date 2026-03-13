@@ -2004,6 +2004,7 @@
 }
 
 .pa-log-scroll-btn,
+.pa-log-copy-btn,
 .pa-log-clear-btn {
   font-size: 0.8em;
   padding: 2px 8px;
@@ -2015,6 +2016,7 @@
 }
 
 .pa-log-scroll-btn:hover,
+.pa-log-copy-btn:hover,
 .pa-log-clear-btn:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);

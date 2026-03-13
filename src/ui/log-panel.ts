@@ -9,6 +9,9 @@ import { Logger, LogEntry, LogLevel } from "../utils/logger";
 /** Maximale Anzahl von Einträgen im DOM (verhindert DOM-Überlastung) */
 const MAX_DOM_ENTRIES = 200;
 
+/** Sentinel "all emitters" value */
+const EMITTER_ALL = "__all__";
+
 /** Menschenlesbare Label und CSS-Klassen pro Level */
 const LEVEL_META: Record<
   LogLevel,
@@ -20,20 +23,34 @@ const LEVEL_META: Record<
   [LogLevel.ERROR]: { label: "ERROR", cls: "pa-log-level-error", icon: "❌" },
 };
 
+export interface LogPanelOptions {
+  /** Initial log level filter (default: DEBUG) */
+  initialFilterLevel?: LogLevel;
+  /** Called when the user changes the level filter, so the caller can persist the choice */
+  onFilterLevelChange?: (level: LogLevel) => Promise<void> | void;
+}
+
 export class LogPanel {
   private readonly container: HTMLElement;
   private readonly logger: Logger;
+  private readonly options: LogPanelOptions;
   private unsubscribe: (() => void) | null = null;
 
   /** Aktuell ausgewählter Mindest-Level-Filter */
-  private filterLevel: LogLevel = LogLevel.DEBUG;
+  private filterLevel: LogLevel;
+
+  /** Aktuell ausgewählter Emitter-Filter */
+  private filterEmitter: string = EMITTER_ALL;
 
   private listEl: HTMLElement | null = null;
+  private emitterSelect: HTMLSelectElement | null = null;
   private autoScroll = true;
 
-  constructor(container: HTMLElement, logger: Logger) {
+  constructor(container: HTMLElement, logger: Logger, options: LogPanelOptions = {}) {
     this.container = container;
     this.logger = logger;
+    this.options = options;
+    this.filterLevel = options.initialFilterLevel ?? LogLevel.DEBUG;
   }
 
   /** Baut die Ansicht auf und abonniert den Logger */
@@ -50,6 +67,8 @@ export class LogPanel {
     // Event-Bus abonnieren
     this.unsubscribe = this.logger.subscribe((entry) => {
       this.appendEntry(entry);
+      // Emitter-Dropdown nach neuen Emittern aktualisieren
+      this.refreshEmitterOptions();
     });
   }
 
@@ -69,7 +88,7 @@ export class LogPanel {
     const filterGroup = toolbar.createDiv({ cls: "pa-log-filter-group" });
     filterGroup.createSpan({ cls: "pa-log-filter-label", text: "Level:" });
 
-    const select = filterGroup.createEl("select", { cls: "pa-log-level-select" });
+    const levelSelect = filterGroup.createEl("select", { cls: "pa-log-level-select" });
     const levels: Array<{ value: LogLevel; label: string }> = [
       { value: LogLevel.DEBUG, label: "Debug +" },
       { value: LogLevel.INFO,  label: "Info +"  },
@@ -77,12 +96,26 @@ export class LogPanel {
       { value: LogLevel.ERROR, label: "Error"   },
     ];
     for (const { value, label } of levels) {
-      const opt = select.createEl("option", { text: label });
+      const opt = levelSelect.createEl("option", { text: label });
       opt.value = String(value);
       if (value === this.filterLevel) opt.selected = true;
     }
-    select.addEventListener("change", () => {
-      this.filterLevel = Number(select.value) as LogLevel;
+    levelSelect.addEventListener("change", () => {
+      this.filterLevel = Number(levelSelect.value) as LogLevel;
+      void this.options.onFilterLevelChange?.(this.filterLevel);
+      this.renderAll();
+    });
+
+    // Emitter-Filter
+    const emitterGroup = toolbar.createDiv({ cls: "pa-log-filter-group" });
+    emitterGroup.createSpan({ cls: "pa-log-filter-label", text: "Emitter:" });
+
+    this.emitterSelect = emitterGroup.createEl("select", { cls: "pa-log-level-select" });
+    const allOpt = this.emitterSelect.createEl("option", { text: "All" });
+    allOpt.value = EMITTER_ALL;
+    this.refreshEmitterOptions();
+    this.emitterSelect.addEventListener("change", () => {
+      this.filterEmitter = this.emitterSelect?.value ?? EMITTER_ALL;
       this.renderAll();
     });
 
@@ -99,6 +132,16 @@ export class LogPanel {
       if (this.autoScroll) this.scrollToBottom();
     });
 
+    // Export/Copy-Button
+    const copyBtn = toolbar.createEl("button", {
+      cls: "pa-log-copy-btn",
+      text: "📋 copy logs",
+      attr: { title: "Copy visible log entries to clipboard" },
+    });
+    copyBtn.addEventListener("click", () => {
+      void this.copyLogsToClipboard(copyBtn);
+    });
+
     // Clear-Button
     const clearBtn = toolbar.createEl("button", {
       cls: "pa-log-clear-btn",
@@ -108,19 +151,73 @@ export class LogPanel {
     clearBtn.addEventListener("click", () => {
       this.logger.clear();
       this.listEl?.empty();
+      this.refreshEmitterOptions();
     });
   }
 
+  // ── Export ──────────────────────────────────────────────────────────────────
+
+  private async copyLogsToClipboard(btn: HTMLButtonElement): Promise<void> {
+    const entries = this.getFilteredEntries();
+    const text = entries
+      .map((e) => this.logger.formatEntry(e))
+      .join("\n");
+
+    try {
+      await navigator.clipboard.writeText(text);
+      const original = btn.textContent ?? "";
+      btn.textContent = "✅ copied!";
+      setTimeout(() => { btn.textContent = original; }, 2000);
+    } catch {
+      btn.textContent = "❌ failed";
+      setTimeout(() => { btn.textContent = "📋 copy logs"; }, 2000);
+    }
+  }
+
+  // ── Emitter-Dropdown ─────────────────────────────────────────────────────
+
+  /** Aktualisiert die Emitter-Optionen basierend auf dem aktuellen Ring-Buffer-Inhalt */
+  private refreshEmitterOptions(): void {
+    const select = this.emitterSelect;
+    if (!select) return;
+
+    const currentValue = select.value;
+    const emitters = [...new Set(this.logger.getLogs().map((e) => e.emitter))].sort();
+
+    // Vorhandene Optionen außer "All" entfernen
+    while (select.options.length > 1) {
+      select.remove(1);
+    }
+
+    for (const emitter of emitters) {
+      const opt = select.createEl("option", { text: emitter });
+      opt.value = emitter;
+      if (emitter === currentValue) opt.selected = true;
+    }
+
+    // Aktuellen Wert beibehalten
+    if (currentValue && currentValue !== EMITTER_ALL && emitters.includes(currentValue)) {
+      select.value = currentValue;
+    }
+  }
+
   // ── Rendering ───────────────────────────────────────────────────────────────
+
+  /** Gibt die gefilterten Einträge zurück */
+  private getFilteredEntries(): LogEntry[] {
+    return this.logger.getLogs().filter(
+      (e) =>
+        e.level >= this.filterLevel &&
+        (this.filterEmitter === EMITTER_ALL || e.emitter === this.filterEmitter),
+    );
+  }
 
   /** Rendert alle gespeicherten Einträge (nach Filter) */
   private renderAll(): void {
     if (!this.listEl) return;
     this.listEl.empty();
 
-    const entries = this.logger.getLogs().filter(
-      (e) => e.level >= this.filterLevel,
-    );
+    const entries = this.getFilteredEntries();
 
     // Nur die letzten MAX_DOM_ENTRIES anzeigen
     const visible = entries.slice(-MAX_DOM_ENTRIES);
@@ -134,6 +231,7 @@ export class LogPanel {
   /** Hängt einen neuen Eintrag ans Ende der Liste */
   private appendEntry(entry: LogEntry): void {
     if (entry.level < this.filterLevel) return;
+    if (this.filterEmitter !== EMITTER_ALL && entry.emitter !== this.filterEmitter) return;
     if (!this.listEl) return;
 
     // DOM-Limit einhalten: ältesten Eintrag entfernen

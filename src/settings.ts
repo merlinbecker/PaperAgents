@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting, Notice, requestUrl } from "obsidian";
 import PaperAgents from "./main";
 import { DEFAULT_PATHS, OPENROUTER_DEFAULTS } from "./utils/constants";
+import { LogLevel } from "./utils/logger";
 
 export interface PaperAgentsSettings {
   customToolsPath: string;
@@ -13,6 +14,10 @@ export interface PaperAgentsSettings {
   agentsPath: string;
   canvasMarkdownPath: string;
   canvasSystemPromptFile: string;
+  /** Minimum log level shown in the log panel and written to the logger (0=DEBUG, 1=INFO, 2=WARN, 3=ERROR) */
+  logMinLevel: LogLevel;
+  /** Log panel filter level — persisted so the user's filter choice survives reloads */
+  logPanelFilterLevel: LogLevel;
 }
 
 export const DEFAULT_SETTINGS: PaperAgentsSettings = {
@@ -26,6 +31,8 @@ export const DEFAULT_SETTINGS: PaperAgentsSettings = {
   agentsPath: DEFAULT_PATHS.AGENTS,
   canvasMarkdownPath: DEFAULT_PATHS.CANVAS_MARKDOWNS,
   canvasSystemPromptFile: "",
+  logMinLevel: LogLevel.INFO,
+  logPanelFilterLevel: LogLevel.INFO,
 };
 
 export class PaperAgentsSettingTab extends PluginSettingTab {
@@ -214,16 +221,39 @@ export class PaperAgentsSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName("Debug").setHeading();
 
-    // Debug Logging
+    // Minimum log level for the global logger
+    new Setting(containerEl)
+      .setName("Log level")
+      .setDesc("Minimum severity level recorded by the logger and shown in the sidebar log panel")
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption(String(LogLevel.DEBUG), "Debug (all)")
+          .addOption(String(LogLevel.INFO),  "Info")
+          .addOption(String(LogLevel.WARN),  "Warn")
+          .addOption(String(LogLevel.ERROR), "Error only")
+          .setValue(String(this.plugin.settings.logMinLevel))
+          .onChange(async (value) => {
+            const level = Number(value) as LogLevel;
+            this.plugin.settings.logMinLevel = level;
+            await this.plugin.saveSettings();
+            this.plugin.applyLogLevel();
+          });
+      });
+
+    // Debug Logging (legacy toggle — kept for backward compat, drives logMinLevel)
     new Setting(containerEl)
       .setName("Enable debug logging")
-      .setDesc("Enable detailed logging for troubleshooting (check console)")
+      .setDesc("Shortcut: sets log level to debug (all messages) when enabled, info otherwise")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.enableDebugLogging)
           .onChange(async (value) => {
             this.plugin.settings.enableDebugLogging = value;
+            this.plugin.settings.logMinLevel = value ? LogLevel.DEBUG : LogLevel.INFO;
             await this.plugin.saveSettings();
+            this.plugin.applyLogLevel();
+            // Re-render to keep the dropdown in sync
+            this.display();
           })
       );
 

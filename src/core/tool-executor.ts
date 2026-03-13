@@ -5,6 +5,8 @@
 
 import { ExecutionContext, ExecutionResult, Agent, Step, StepCondition, StepRetry, PlaceholderContext, ToolExecution, Parameter, IToolRegistry } from "../types";
 import { globalLogger } from "../utils/logger";
+
+const logger = globalLogger.createLogger("ToolExecutor");
 import { globalMetrics, TraceContext } from "../utils/metrics";
 import { QuickJSSandbox } from "./sandbox";
 import PlaceholderReplacer from "../parser/placeholder";
@@ -94,7 +96,7 @@ export class ToolExecutor {
     });
 
     try {
-      globalLogger.info(`Starting agent execution: ${agent.name}`, { executionId, traceId });
+      logger.info(`Starting agent execution: ${agent.name}`, { executionId, traceId });
 
       // Validiere Input-Parameter gegen Agent-Definition
       const validationErrors = this.validateInputParameters(agent.parameters, userParameters);
@@ -115,7 +117,7 @@ export class ToolExecutor {
           globalMetrics.endTrace(agentSpan, "success", { duration });
           globalMetrics.recordExecution(agent.name, duration, true);
 
-          globalLogger.info(`Agent execution completed: ${agent.name}`, {
+          logger.info(`Agent execution completed: ${agent.name}`, {
             executionId,
             traceId,
             duration,
@@ -158,7 +160,7 @@ export class ToolExecutor {
       globalMetrics.endTrace(agentSpan, "success", { duration, steps: (agent.steps?.length) || 0 });
       globalMetrics.recordExecution(agent.name, duration, true);
 
-      globalLogger.info(`Agent execution completed: ${agent.name}`, {
+      logger.info(`Agent execution completed: ${agent.name}`, {
         executionId,
         traceId,
         duration,
@@ -182,7 +184,7 @@ export class ToolExecutor {
       globalMetrics.endTrace(agentSpan, "error", { error: error instanceof Error ? error.message : "Unknown error" });
       globalMetrics.recordExecution(agent.name, duration, false);
 
-      globalLogger.error(`Agent execution failed: ${agent.name}`, {
+      logger.error(`Agent execution failed: ${agent.name}`, {
         executionId,
         traceId,
         error,
@@ -211,7 +213,7 @@ export class ToolExecutor {
       if (!step) continue;
 
       if (step.condition && !this.evaluateCondition(step.condition, stepOutputs, userParameters)) {
-        globalLogger.debug(`Step ${step.name} skipped: condition not met`, { traceId });
+        logger.debug(`Step ${step.name} skipped: condition not met`, { traceId });
         stepOutputs.set(step.name, { __skipped: true });
         continue;
       }
@@ -224,7 +226,7 @@ export class ToolExecutor {
         continue;
       }
 
-      globalLogger.debug(`Executing step ${i + 1}/${steps.length}: ${step.name}`, {
+      logger.debug(`Executing step ${i + 1}/${steps.length}: ${step.name}`, {
         stepIndex: i,
         traceId,
       });
@@ -261,7 +263,7 @@ export class ToolExecutor {
     } else if (step.continueOnError) {
       globalMetrics.endTrace(stepSpan, "error", { error: result.error });
       globalMetrics.recordExecution(step.name, stepSpan.duration || 0, false);
-      globalLogger.warn(`Step ${step.name} failed but continueOnError is set, continuing`, {
+      logger.warn(`Step ${step.name} failed but continueOnError is set, continuing`, {
         error: result.error,
       });
       stepOutputs.set(step.name, { __error: true, error: result.error || "Unknown error" });
@@ -295,7 +297,7 @@ export class ToolExecutor {
         const decision = await this.requestHITLApproval(step.name, tool.name, context.parameters);
 
         if (!decision.approved) {
-          globalLogger.info(`HITL decision: REJECTED`, {
+          logger.info(`HITL decision: REJECTED`, {
             stepName: step.name,
             reason: decision.reason,
           });
@@ -314,7 +316,7 @@ export class ToolExecutor {
           };
         }
 
-        globalLogger.info(`HITL decision: APPROVED`, { stepName: step.name });
+        logger.info(`HITL decision: APPROVED`, { stepName: step.name });
       }
 
       // Führe Tool aus
@@ -322,7 +324,7 @@ export class ToolExecutor {
 
       return result;
     } catch (error) {
-      globalLogger.error(`Step execution error: ${step.name}`, { error });
+      logger.error(`Step execution error: ${step.name}`, { error });
 
       return {
         success: false,
@@ -406,7 +408,7 @@ export class ToolExecutor {
           resolve(decision);
         }).catch(() => { resolve({ approved: false, tool: toolName, step: stepName, parameters }); });
       } else {
-        globalLogger.warn("No HITL callback registered, auto-rejecting", {
+        logger.warn("No HITL callback registered, auto-rejecting", {
           stepName,
         });
 
@@ -513,7 +515,7 @@ export class ToolExecutor {
     }
 
     if (!Array.isArray(items)) {
-      globalLogger.warn(`Loop source is not an array for step ${step.name}`);
+      logger.warn(`Loop source is not an array for step ${step.name}`);
       return [];
     }
 
@@ -570,7 +572,7 @@ export class ToolExecutor {
 
       if (attempt < maxAttempts) {
         const delay = backoffMs * Math.pow(2, attempt - 1);
-        globalLogger.debug(`Step ${step.name} failed, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`);
+        logger.debug(`Step ${step.name} failed, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -607,7 +609,7 @@ export class ToolExecutor {
       return { success: true, data: currentData, log };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
-      globalLogger.error("Single tool execution failed", { agent: agent.name, error: errorMsg });
+      logger.error("Single tool execution failed", { agent: agent.name, error: errorMsg });
       return { success: false, error: errorMsg, log };
     }
   }
@@ -618,7 +620,7 @@ export class ToolExecutor {
     log: ToolExecution[]
   ): Promise<ExecutionResult & { data: unknown }> {
     if (!agent.preprocess) return { success: true, data: currentData, log: [] };
-    globalLogger.debug("Executing pre-processing", { agent: agent.name });
+    logger.debug("Executing pre-processing", { agent: agent.name });
     try {
       const sandbox = new QuickJSSandbox();
       await sandbox.initialize();
@@ -627,7 +629,7 @@ export class ToolExecutor {
       return { success: true, data: result, log: [] };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Pre-processing failed";
-      globalLogger.error("Pre-processing failed", { agent: agent.name, error: errorMsg });
+      logger.error("Pre-processing failed", { agent: agent.name, error: errorMsg });
       return { success: false, error: `Pre-processing failed: ${errorMsg}`, data: currentData, log: [] };
     }
   }
@@ -639,7 +641,7 @@ export class ToolExecutor {
     log: ToolExecution[]
   ): Promise<ExecutionResult & { data: unknown }> {
     const toolDef = agent.toolDefinition!;
-    globalLogger.debug("Executing tool", { agent: agent.name, toolId: toolDef.toolId });
+    logger.debug("Executing tool", { agent: agent.name, toolId: toolDef.toolId });
     try {
       const tool = toolRegistry.getTool(toolDef.toolId);
       if (!tool) throw new Error(`Tool not found: ${toolDef.toolId}`);
@@ -685,7 +687,7 @@ export class ToolExecutor {
       return { success: true, data: toolResult.data, log: [] };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Tool execution failed";
-      globalLogger.error("Tool execution failed", { agent: agent.name, error: errorMsg });
+      logger.error("Tool execution failed", { agent: agent.name, error: errorMsg });
       return { success: false, error: `Tool execution failed: ${errorMsg}`, data: currentData, log: [] };
     }
   }
@@ -696,7 +698,7 @@ export class ToolExecutor {
     log: ToolExecution[]
   ): Promise<ExecutionResult & { data: unknown }> {
     if (!agent.postprocess) return { success: true, data: currentData, log: [] };
-    globalLogger.debug("Executing post-processing", { agent: agent.name });
+    logger.debug("Executing post-processing", { agent: agent.name });
     try {
       const sandbox = new QuickJSSandbox();
       await sandbox.initialize();
@@ -705,7 +707,7 @@ export class ToolExecutor {
       return { success: true, data: result, log: [] };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Post-processing failed";
-      globalLogger.error("Post-processing failed", { agent: agent.name, error: errorMsg });
+      logger.error("Post-processing failed", { agent: agent.name, error: errorMsg });
       return { success: false, error: `Post-processing failed: ${errorMsg}`, data: currentData, log: [] };
     }
   }

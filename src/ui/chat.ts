@@ -5,6 +5,8 @@ import { ConversationFileManager } from "../core/conversation-file-manager";
 import { Orchestrator, OrchestratorCallbacks, AgenticLoopCallbacks } from "../core/orchestrator";
 import { showHITLInputModal } from "./hitl-modal";
 import { globalLogger } from "../utils/logger";
+
+const logger = globalLogger.createLogger("Chat");
 import { PREDEFINED_TOOL_IDS } from "../utils/constants";
 
 /** Returns the wikilink display name for a vault file path (strips path segments and .md extension). */
@@ -186,11 +188,11 @@ export class PaperAgentsChatView extends ItemView {
       if (this.conversationSelect) this.conversationSelect.value = filePath;
       this.updateRunTaskButtonVisibility();
       this.restoreConversationUI(conv.id);
-      globalLogger.info(`Loaded conversation ${conv.id} from ${filePath}`);
+      logger.info(`Loaded conversation ${conv.id} from ${filePath}`);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
       new Notice(`Failed to load conversation: ${msg}`);
-      globalLogger.error("Failed to load conversation from file", { error });
+      logger.error("Failed to load conversation from file", { error });
     }
   }
 
@@ -344,9 +346,9 @@ export class PaperAgentsChatView extends ItemView {
       this.currentFilePath = filePath;
       this.refreshConversations();
       if (this.conversationSelect) this.conversationSelect.value = filePath;
-      globalLogger.info(`Created new conversation file: ${filePath}`);
+      logger.info(`Created new conversation file: ${filePath}`);
     } catch (error) {
-      globalLogger.error("Failed to create conversation file", { error });
+      logger.error("Failed to create conversation file", { error });
     }
   }
 
@@ -413,7 +415,7 @@ export class PaperAgentsChatView extends ItemView {
       this.streamingEl = null;
       this.restoreConversationUI(currentConversationId);
     } catch (error) {
-      globalLogger.error(errorContext, { error });
+      logger.error(errorContext, { error });
       this.addErrorMessage(error instanceof Error ? error : new Error(String(error)));
     } finally {
       this.finalizeStreaming();
@@ -507,7 +509,7 @@ export class PaperAgentsChatView extends ItemView {
       await this.app.vault.create(filePath, reportContent);
       this.addSystemMessage(`Report saved: ${filePath}`);
     } catch (error) {
-      globalLogger.error("Failed to save loop report", { error });
+      logger.error("Failed to save loop report", { error });
     }
   }
 
@@ -548,7 +550,7 @@ export class PaperAgentsChatView extends ItemView {
       await this.fileManager.saveConversation(this.currentFilePath, this.currentConversationId);
     } catch (error) {
       new Notice("Failed to save conversation to file");
-      globalLogger.error("Failed to save conversation", { error });
+      logger.error("Failed to save conversation", { error });
     } finally {
       this.isSaving = false;
     }

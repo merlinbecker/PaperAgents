@@ -80,11 +80,16 @@ Der Log-Viewer ist keine eigene `ItemView`, sondern eine einfache **Klasse**
 | Datei | Änderung |
 |-------|----------|
 | `src/utils/logger.ts` | Ring-Buffer, Event-Bus, `createLogger()`, `LogEntry.emitter` |
-| `src/ui/log-panel.ts` | Neue Log-Anzeige-Komponente |
-| `src/ui/sidebar.ts` | Tab-Navigation (Übersicht / Logs), LogPanel eingebettet |
-| `src/main.ts` | Scoped Logger `createLogger("Plugin")` |
-| `styles.css` | Styles für Tabs und Log-Panel |
+| `src/ui/log-panel.ts` | Log-Anzeige: Level-Filter, Emitter-Filter, Export/Copy, Auto-Scroll |
+| `src/ui/sidebar.ts` | Tab-Navigation (Übersicht / Logs), LogPanel eingebettet, Filter-Persistenz |
+| `src/main.ts` | Scoped Logger `createLogger("Plugin")`, `applyLogLevel()` |
+| `src/settings.ts` | `logMinLevel` + `logPanelFilterLevel` Settings, Log-Level-Dropdown |
+| `styles.css` | Styles für Tabs, Log-Panel und Copy-Button |
 | `tests/unit/core/logger.spec.ts` | 23 Unit-Tests für RingBuffer, Logger, Event-Bus |
+| `src/core/*.ts` | Emitter-Migration (7 Dateien) |
+| `src/ui/*.ts` | Emitter-Migration (5 Dateien) |
+| `src/tools/*.ts` | Emitter-Migration (2 Dateien) |
+| `src/utils/metrics.ts` | Emitter-Migration |
 
 ---
 
@@ -117,12 +122,15 @@ Der Log-Viewer ist keine eigene `ItemView`, sondern eine einfache **Klasse**
 
 ## Offene Arbeiten / TODOs
 
-- [ ] **Emitter-Migration**: Alle Komponenten auf `createLogger(emitter)` umstellen
-  (Orchestrator, Sandbox, CanvasModal, ChatView, etc.)
-- [ ] **Level-Filter persistieren**: Letzten ausgewählten Level in Plugin-Settings speichern
-- [ ] **Export-Funktion im Log-Panel**: Button „Als Text kopieren" / „In Datei exportieren"
-- [ ] **Emitter-Filter**: Dropdown zum Filtern nach Emitter (z. B. nur „Orchestrator")
-- [ ] **Log-Level-Einstellung in Settings**: Globales Minimum-Level über Plugin-Einstellungen konfigurierbar
+- [x] **Emitter-Migration**: Alle Komponenten auf `createLogger(emitter)` umgestellt
+  (Orchestrator, Sandbox, CanvasModal, ChatView, Forms, HITLModal, ToolExecutor, ToolRegistry,
+  OpenRouter, History, ConversationFileManager, Persistence, Metrics, PredefinedTools, PdfOcr, Sidebar)
+- [x] **Level-Filter persistieren**: Letzten ausgewählten Level wird in Plugin-Settings gespeichert
+  (`logPanelFilterLevel` in `PaperAgentsSettings`)
+- [x] **Export-Funktion im Log-Panel**: Button „📋 copy logs" kopiert gefilterte Einträge in die Zwischenablage
+- [x] **Emitter-Filter**: Dropdown zum Filtern nach Emitter (z.B. nur „Orchestrator") – automatisch befüllt
+- [x] **Log-Level-Einstellung in Settings**: Globales Minimum-Level konfigurierbar (Dropdown: Debug/Info/Warn/Error)
+  – verbunden mit Legacy-Toggle für Rückwärtskompatibilität
 - [ ] **Persistenz**: Logs nach Neustart des Plugins wieder laden (optionale Datei-Persistenz)
 
 ## Herausforderungen

@@ -7,6 +7,8 @@ import { Modal, App } from "obsidian";
 import { HITLDecision } from "../core/tool-executor";
 import { globalLogger } from "../utils/logger";
 
+const logger = globalLogger.createLogger("HITLModal");
+
 /**
  * HITL Approval Modal
  */
@@ -47,7 +49,7 @@ export class HITLModal extends Modal {
     // Buttons
     this.renderButtons(contentEl);
 
-    globalLogger.info("HITL Modal opened", {
+    logger.info("HITL Modal opened", {
       tool: this.decision.tool,
       step: this.decision.step,
     });
@@ -59,7 +61,7 @@ export class HITLModal extends Modal {
       this.decision.approved = false;
       this.decision.reason = "Modal closed without decision";
       this.onDecision(this.decision);
-      globalLogger.warn("HITL Modal closed without decision - auto-rejecting");
+      logger.warn("HITL Modal closed without decision - auto-rejecting");
     }
 
     const { contentEl } = this;
@@ -233,7 +235,7 @@ export class HITLModal extends Modal {
     this.decision.reason = "User approved";
     this.resolved = true;
 
-    globalLogger.info("HITL approved", {
+    logger.info("HITL approved", {
       tool: this.decision.tool,
       step: this.decision.step,
     });
@@ -250,7 +252,7 @@ export class HITLModal extends Modal {
     this.decision.reason = "User rejected";
     this.resolved = true;
 
-    globalLogger.info("HITL rejected", {
+    logger.info("HITL rejected", {
       tool: this.decision.tool,
       step: this.decision.step,
     });
@@ -354,13 +356,13 @@ export class HITLInputModal extends Modal {
     // Focus the textarea
     this.inputEl.focus();
 
-    globalLogger.info("HITLInputModal opened", { question: this.question.slice(0, 80) });
+    logger.info("HITLInputModal opened", { question: this.question.slice(0, 80) });
   }
 
   onClose(): void {
     if (!this.resolved) {
       this.onSubmit("");
-      globalLogger.warn("HITLInputModal closed without answer – returning empty string");
+      logger.warn("HITLInputModal closed without answer – returning empty string");
     }
     this.contentEl.empty();
   }
@@ -368,14 +370,14 @@ export class HITLInputModal extends Modal {
   private handleSubmit(): void {
     const answer = this.inputEl?.value.trim() ?? "";
     this.resolved = true;
-    globalLogger.info("HITLInputModal: user submitted answer");
+    logger.info("HITLInputModal: user submitted answer");
     this.onSubmit(answer);
     this.close();
   }
 
   private handleCancel(): void {
     this.resolved = true;
-    globalLogger.info("HITLInputModal: user cancelled");
+    logger.info("HITLInputModal: user cancelled");
     this.onSubmit("");
     this.close();
   }

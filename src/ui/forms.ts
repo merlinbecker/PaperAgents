@@ -8,6 +8,8 @@ import { Parameter, ToolMetadata } from "../types";
 import ParameterValidator from "../parser/validator";
 import { globalLogger } from "../utils/logger";
 
+const logger = globalLogger.createLogger("Forms");
+
 /**
  * Form Modal für Tool-Ausführung
  */
@@ -47,7 +49,7 @@ export class ToolFormModal extends Modal {
     // Buttons
     this.renderButtons(contentEl);
 
-    globalLogger.debug(`Opened form for tool: ${this.tool.id}`);
+    logger.debug(`Opened form for tool: ${this.tool.id}`);
   }
 
   onClose(): void {
@@ -87,7 +89,7 @@ export class ToolFormModal extends Modal {
         // onChange Handler
         text.onChange((value) => {
           this.formValues[param.name] = this.parseValue(value, param.type);
-          globalLogger.debug(`Parameter ${param.name} changed: ${value}`);
+          logger.debug(`Parameter ${param.name} changed: ${value}`);
         });
 
         return text;
@@ -224,11 +226,11 @@ export class ToolFormModal extends Modal {
     if (!validation.valid) {
       const errorMessages = validation.errors.map(e => `${e.field}: ${e.message}`);
       this.showValidationError(errorMessages);
-      globalLogger.warn("Form validation failed", { errors: validation.errors });
+      logger.warn("Form validation failed", { errors: validation.errors });
       return;
     }
 
-    globalLogger.info(`Form submitted for tool: ${this.tool.id}`, {
+    logger.info(`Form submitted for tool: ${this.tool.id}`, {
       parameters: this.formValues,
     });
 

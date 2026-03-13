@@ -1,5 +1,7 @@
 import { ExecutionResult } from "../types";
 import { globalLogger } from "../utils/logger";
+
+const logger = globalLogger.createLogger("History");
 import { randomId } from "../utils/constants";
 
 export interface HistoryEntry {
@@ -50,10 +52,10 @@ export class ExecutionHistory {
       if (data) {
         const parsed = JSON.parse(data) as HistoryEntry[];
         this.entries = Array.isArray(parsed) ? parsed : [];
-        globalLogger.info("Execution history loaded", { count: this.entries.length });
+        logger.info("Execution history loaded", { count: this.entries.length });
       }
     } catch (error) {
-      globalLogger.warn("Failed to load execution history", { error: String(error) });
+      logger.warn("Failed to load execution history", { error: String(error) });
     }
   }
 
@@ -157,7 +159,7 @@ export class ExecutionHistory {
     try {
       await this.persistCallback(JSON.stringify(this.entries));
     } catch (error) {
-      globalLogger.warn("Failed to persist execution history", { error: String(error) });
+      logger.warn("Failed to persist execution history", { error: String(error) });
     }
   }
 

@@ -1,4 +1,6 @@
 import { globalLogger } from "./logger";
+
+const logger = globalLogger.createLogger("Metrics");
 import { randomId } from "./constants";
 
 export interface TraceContext {
@@ -71,7 +73,7 @@ export class MetricsCollector {
       if (oldest) this.traces.delete(oldest);
     }
 
-    globalLogger.debug(`Trace started: ${operationName}`, {
+    logger.debug(`Trace started: ${operationName}`, {
       traceId,
       spanId: span.spanId,
     });
@@ -96,7 +98,7 @@ export class MetricsCollector {
       status,
     });
 
-    globalLogger.debug(`Trace ended: ${span.operationName}`, {
+    logger.debug(`Trace ended: ${span.operationName}`, {
       traceId: span.traceId,
       spanId: span.spanId,
       duration: span.duration,

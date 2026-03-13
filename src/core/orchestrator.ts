@@ -3,6 +3,8 @@ import { ConversationManager } from "./conversation";
 import { OpenRouterClient, LLMMessage, LLMToolDefinition, LLMToolCall, StreamCallbacks, OpenRouterConfig, ContentPart, ContentTextPart, extractTextContent } from "./openrouter";
 import ToolRegistry from "./tool-registry";
 import { globalLogger } from "../utils/logger";
+
+const logger = globalLogger.createLogger("Orchestrator");
 import { globalMetrics } from "../utils/metrics";
 import { PREDEFINED_TOOL_IDS, randomId } from "../utils/constants";
 
@@ -124,7 +126,7 @@ export class Orchestrator {
       return finalContent;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      globalLogger.error("Orchestrator error", { error: errorMsg, traceId });
+      logger.error("Orchestrator error", { error: errorMsg, traceId });
       globalMetrics.endTrace(span, "error", { error: errorMsg });
       globalMetrics.recordExecution("orchestrator.continueConversation", Date.now() - span.startTime, false);
 
@@ -187,7 +189,7 @@ export class Orchestrator {
     try {
       params = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
     } catch {
-      globalLogger.warn("Failed to parse tool call arguments", {
+      logger.warn("Failed to parse tool call arguments", {
         toolName,
         args: toolCall.function.arguments,
       });
