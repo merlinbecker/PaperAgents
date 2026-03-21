@@ -182,7 +182,7 @@ export class LogPanel {
     if (!select) return;
 
     const currentValue = select.value;
-    const emitters = [...new Set(this.logger.getLogs().map((e) => e.emitter))].sort();
+    const emitters = [...new Set(this.logger.getLogs().map((e) => e.emitter))].sort((a, b) => a.localeCompare(b));
 
     // Vorhandene Optionen außer "All" entfernen
     while (select.options.length > 1) {

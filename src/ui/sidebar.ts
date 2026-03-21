@@ -264,7 +264,7 @@ export class PaperAgentsSidebar extends ItemView {
     }
     const fileExplorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
     if (fileExplorer?.view) {
-      void this.app.workspace.revealLeaf(fileExplorer);
+      this.app.workspace.revealLeaf(fileExplorer);
       // revealInFolder is an internal Obsidian API available on the file-explorer view
       (fileExplorer.view as { revealInFolder?: (f: unknown) => void }).revealInFolder?.(abstractFile);
     }
