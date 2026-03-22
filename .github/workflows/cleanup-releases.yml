@@ -1,0 +1,106 @@
+name: Cleanup Old Releases and Tags
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run every Sunday at 02:00 UTC
+    - cron: "0 2 * * 0"
+  release:
+    types: [published]
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Cleanup old releases and tags
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          KEEP_LATEST_MINOR: "7"
+          KEEP_OLDER_MINOR: "1"
+        run: |
+          set -euo pipefail
+
+          echo "Fetching all releases..."
+          # Get all release tag names (newest first as returned by gh)
+          ALL_TAGS=$(gh release list --repo "$GH_REPO" --limit 500 --json tagName --jq '.[].tagName')
+
+          if [ -z "$ALL_TAGS" ]; then
+            echo "No releases found. Nothing to do."
+            exit 0
+          fi
+
+          # Filter to only semver tags matching MAJOR.MINOR.PATCH (no suffixes)
+          SEMVER_TAGS=$(echo "$ALL_TAGS" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true)
+
+          if [ -z "$SEMVER_TAGS" ]; then
+            echo "No semver releases found. Nothing to do."
+            exit 0
+          fi
+
+          echo "All semver tags found:"
+          echo "$SEMVER_TAGS"
+
+          # Sort descending by version (highest first)
+          SORTED_TAGS=$(echo "$SEMVER_TAGS" | sort -t. -k1,1nr -k2,2nr -k3,3nr)
+
+          # Determine the latest minor series (from the highest version)
+          LATEST_TAG=$(echo "$SORTED_TAGS" | head -1)
+          LATEST_MAJOR=$(echo "$LATEST_TAG" | cut -d. -f1)
+          LATEST_MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
+          LATEST_SERIES="${LATEST_MAJOR}.${LATEST_MINOR}"
+
+          echo ""
+          echo "Latest minor series: ${LATEST_SERIES}"
+
+          # Separate tags into current series and older series
+          CURRENT_SERIES_TAGS=$(echo "$SORTED_TAGS" | grep -E "^${LATEST_SERIES}\." || true)
+          OLDER_SERIES_TAGS=$(echo "$SORTED_TAGS"  | grep -vE "^${LATEST_SERIES}\." || true)
+
+          # Determine which tags to DELETE from the current series
+          # Keep the first N (highest patch numbers), delete the rest
+          CURRENT_TO_DELETE=$(echo "$CURRENT_SERIES_TAGS" | tail -n +$((KEEP_LATEST_MINOR + 1)) || true)
+
+          # Determine which tags to DELETE from older series
+          # For each older minor series, keep only the 1 highest patch, delete the rest
+          OLDER_TO_DELETE=""
+          if [ -n "$OLDER_SERIES_TAGS" ]; then
+            # Get distinct older minor series
+            OLDER_MINOR_SERIES=$(echo "$OLDER_SERIES_TAGS" | sed 's/\.[0-9]*$//' | sort -u)
+            for series in $OLDER_MINOR_SERIES; do
+              SERIES_TAGS=$(echo "$OLDER_SERIES_TAGS" | grep -E "^${series}\." | sort -t. -k3,3nr)
+              # Keep first KEEP_OLDER_MINOR, delete the rest
+              TO_DELETE=$(echo "$SERIES_TAGS" | tail -n +$((KEEP_OLDER_MINOR + 1)) || true)
+              if [ -n "$TO_DELETE" ]; then
+                OLDER_TO_DELETE="${OLDER_TO_DELETE}${TO_DELETE}"$'\n'
+              fi
+            done
+          fi
+
+          ALL_TO_DELETE=$(printf "%s\n%s" "$CURRENT_TO_DELETE" "$OLDER_TO_DELETE" | grep -v '^$' | sort -u || true)
+
+          if [ -z "$ALL_TO_DELETE" ]; then
+            echo ""
+            echo "Nothing to delete. All releases are within retention limits."
+            exit 0
+          fi
+
+          echo ""
+          echo "Releases to delete:"
+          echo "$ALL_TO_DELETE"
+          echo ""
+
+          # Delete each release and its tag
+          for tag in $ALL_TO_DELETE; do
+            echo "Deleting release: $tag"
+            gh release delete "$tag" --repo "$GH_REPO" --yes || echo "  Warning: could not delete release $tag (may not exist)"
+
+            echo "Deleting tag: $tag"
+            gh api --method DELETE "/repos/${GH_REPO}/git/refs/tags/${tag}" || echo "  Warning: could not delete tag $tag (may not exist)"
+          done
+
+          echo ""
+          echo "Cleanup complete."
