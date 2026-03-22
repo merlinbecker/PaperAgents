@@ -39,7 +39,6 @@ export class CanvasModal extends Modal {
   private conversationId: string | null = null;
   private isStreaming = false;
   private originalDocumentContent: string | null = null;
-  private sessionStarted = false;
 
   // UI elements
   private agentSelectEl: HTMLSelectElement | null = null;
@@ -346,6 +345,35 @@ export class CanvasModal extends Modal {
   // Session logic
   // ============================================================================
 
+  /**
+   * Builds the prompt that is sent to the LLM when starting or re-running a
+   * canvas session.  When the editor has a text selection, a selection-scoped
+   * prompt is returned; otherwise the full document content is used.
+   */
+  private async buildDocumentPrompt(file: TFile): Promise<string> {
+    if (this.activeSelection) {
+      return this.canvasAgent.buildSelectionPrompt(this.activeSelection);
+    }
+
+    const content = await this.canvasAgent.readFile(file);
+    this.originalDocumentContent = content;
+    const docContext = this.canvasAgent.buildDocumentContext(content);
+    const systemPrompt = await this.loadSystemPrompt();
+    return systemPrompt
+      ? this.canvasAgent.buildInitialPromptWithSystem(docContext, systemPrompt)
+      : this.canvasAgent.buildInitialPrompt(docContext);
+  }
+
+  /**
+   * Shows the conversation panel and renders the diff toggle button.
+   */
+  private showConversationPanel(): void {
+    if (this.conversationPanel) {
+      this.conversationPanel.style.display = "block";
+    }
+    this.renderDiffButton();
+  }
+
   private async startSession(): Promise<void> {
     const orchestrator = this.getOrchestrator();
 
@@ -371,31 +399,15 @@ export class CanvasModal extends Modal {
     }
 
     try {
-      let initialPrompt: string;
-      if (this.activeSelection) {
-        initialPrompt = this.canvasAgent.buildSelectionPrompt(this.activeSelection);
-      } else {
-        const content = await this.canvasAgent.readFile(this.activeFile);
-        this.originalDocumentContent = content;
-        const docContext = this.canvasAgent.buildDocumentContext(content);
-        const systemPrompt = await this.loadSystemPrompt();
-        initialPrompt = systemPrompt
-          ? this.canvasAgent.buildInitialPromptWithSystem(docContext, systemPrompt)
-          : this.canvasAgent.buildInitialPrompt(docContext);
-      }
+      const initialPrompt = await this.buildDocumentPrompt(this.activeFile);
 
       // Create conversation
       const conversation = this.conversationManager.createConversation(this.selectedAgent.id);
       this.conversationId = conversation.id;
 
-      // Show conversation panel and diff button
-      if (this.conversationPanel) {
-        this.conversationPanel.style.display = "block";
-      }
-      this.renderDiffButton();
+      this.showConversationPanel();
 
       await this.sendToAgent(orchestrator, initialPrompt);
-      this.sessionStarted = true;
       if (this.rerunBtn) this.rerunBtn.style.display = "block";
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -437,19 +449,12 @@ export class CanvasModal extends Modal {
     }
 
     try {
-      const content = await this.canvasAgent.readFile(this.activeFile);
-      this.originalDocumentContent = content;
-      const docContext = this.canvasAgent.buildDocumentContext(content);
+      const initialPrompt = await this.buildDocumentPrompt(this.activeFile);
 
-      // Show conversation panel
-      if (this.conversationPanel) {
-        this.conversationPanel.style.display = "block";
-      }
-      this.renderDiffButton();
+      this.showConversationPanel();
 
       // Run each selected agent sequentially
       for (const agent of this.selectedAgents) {
-        const initialPrompt = this.canvasAgent.buildInitialPrompt(docContext);
         const conversation = this.conversationManager.createConversation(agent.id);
         this.conversationId = conversation.id;
         this.selectedAgent = agent;
@@ -519,12 +524,7 @@ export class CanvasModal extends Modal {
     }
 
     try {
-      const content = await this.canvasAgent.readFile(this.activeFile);
-      const docContext = this.canvasAgent.buildDocumentContext(content);
-      const systemPrompt = await this.loadSystemPrompt();
-      const followUpPrompt = systemPrompt
-        ? this.canvasAgent.buildInitialPromptWithSystem(docContext, systemPrompt)
-        : this.canvasAgent.buildInitialPrompt(docContext);
+      const followUpPrompt = await this.buildDocumentPrompt(this.activeFile);
 
       // Create a new conversation for the follow-up pass
       const conversation = this.conversationManager.createConversation(this.selectedAgent.id);
