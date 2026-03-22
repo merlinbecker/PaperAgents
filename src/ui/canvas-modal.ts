@@ -349,6 +349,9 @@ export class CanvasModal extends Modal {
    * Builds the prompt that is sent to the LLM when starting or re-running a
    * canvas session.  When the editor has a text selection, a selection-scoped
    * prompt is returned; otherwise the full document content is used.
+   *
+   * Side effect: sets {@link originalDocumentContent} to the raw file content
+   * so the diff view can compare original vs. annotated state.
    */
   private async buildDocumentPrompt(file: TFile): Promise<string> {
     if (this.activeSelection) {
