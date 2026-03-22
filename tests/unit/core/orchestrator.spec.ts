@@ -145,6 +145,48 @@ describe("Orchestrator", () => {
     expect(messagesAfter[messagesAfter.length - 1]?.role).toBe("assistant");
   });
 
+  // ── Canvas document context (memory fallback) ────────────────────────────────
+
+  it("includes user message in LLM request even when agent memory type is none", async () => {
+    mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("Analysis done") as never);
+
+    const agent: AgentDefinition = {
+      ...makeAgent(),
+      memory: { type: "none" },
+    };
+    const convId = "conv-canvas-none";
+    conversationManager.createConversation(agent.id, convId);
+
+    const documentContent = "=== DOCUMENT ===\nThis is the document body.\n=== END ===";
+    await orchestrator.sendMessage(agent, convId, documentContent);
+
+    const body = getRequestBody();
+    const messages = body.messages as Array<{ role: string; content: string }>;
+    const userMsg = messages.find((m) => m.role === "user");
+    expect(userMsg).toBeDefined();
+    expect(userMsg?.content).toContain("This is the document body.");
+  });
+
+  it("includes user message when token budget is exceeded by a large document", async () => {
+    mockRequestUrl.mockResolvedValueOnce(makeStreamResponse("Done") as never);
+
+    const agent: AgentDefinition = {
+      ...makeAgent(),
+      memory: { type: "conversation", maxMessages: 50, maxTokens: 10 },
+    };
+    const convId = "conv-canvas-large";
+    conversationManager.createConversation(agent.id, convId);
+
+    const largeDocument = "=== DOCUMENT ===\n" + "A".repeat(500) + "\n=== END ===";
+    await orchestrator.sendMessage(agent, convId, largeDocument);
+
+    const body = getRequestBody();
+    const messages = body.messages as Array<{ role: string; content: string }>;
+    const userMsg = messages.find((m) => m.role === "user");
+    expect(userMsg).toBeDefined();
+    expect(userMsg?.content).toContain("A".repeat(500));
+  });
+
   // ── Client delegation ────────────────────────────────────────────────────────
 
   it("testConnection delegates to client", async () => {

@@ -322,11 +322,24 @@ export class Orchestrator {
   }
 
   private buildLLMMessages(agent: AgentDefinition, conversationId: string): LLMMessage[] {
-    const contextMessages = this.conversationManager.getMessagesForContext(
+    let contextMessages = this.conversationManager.getMessagesForContext(
       conversationId,
       agent.memory,
       agent.systemPrompt
     );
+
+    // Guarantee that conversation messages reach the LLM even when the memory
+    // configuration filtered them out (e.g. type "none" or token budget
+    // exceeded).  Without this fallback the current user message – such as the
+    // canvas document content – would be silently dropped from the POST request.
+    // This is safe for long conversations: the fallback only triggers when
+    // getMessagesForContext returns zero messages (typically at the start of a
+    // new conversation).  Once the conversation has at least one message that
+    // fits the token budget, getMessagesForContext returns a non-empty array
+    // and the fallback is never reached.
+    if (contextMessages.length === 0) {
+      contextMessages = this.conversationManager.getMessages(conversationId);
+    }
 
     const formatted: LLMMessage[] = [
       { role: "system", content: agent.systemPrompt },
