@@ -1914,3 +1914,235 @@
   margin: 8px 0;
   font-style: italic;
 }
+
+/* ============================================================================
+   TAB NAVIGATION (Sidebar)
+   ============================================================================ */
+
+.pa-tab-nav {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 4px;
+}
+
+.pa-tab-btn {
+  padding: 4px 12px;
+  cursor: pointer;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px 4px 0 0;
+  font-size: 0.85em;
+  color: var(--text-muted);
+  transition: background 0.15s;
+}
+
+.pa-tab-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.pa-tab-btn-active {
+  background: var(--interactive-accent);
+  color: white;
+  border-color: var(--interactive-accent);
+}
+
+.pa-tab-btn-active:hover {
+  background: var(--interactive-accent-hover);
+  color: white;
+}
+
+.pa-tab-content {
+  min-height: 0;
+}
+
+.pa-hidden {
+  display: none !important;
+}
+
+/* ============================================================================
+   LOG PANEL
+   ============================================================================ */
+
+.pa-log-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: calc(100vh - 200px);
+}
+
+.pa-log-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.pa-log-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pa-log-filter-label {
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+
+.pa-log-level-select {
+  font-size: 0.8em;
+  padding: 2px 4px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  color: var(--text-normal);
+}
+
+.pa-log-scroll-btn,
+.pa-log-copy-btn,
+.pa-log-clear-btn {
+  font-size: 0.8em;
+  padding: 2px 8px;
+  cursor: pointer;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  color: var(--text-muted);
+}
+
+.pa-log-scroll-btn:hover,
+.pa-log-copy-btn:hover,
+.pa-log-clear-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.pa-log-scroll-active {
+  background: var(--interactive-accent) !important;
+  color: white !important;
+  border-color: var(--interactive-accent) !important;
+}
+
+.pa-log-list {
+  flex: 1;
+  overflow-y: auto;
+  font-family: var(--font-monospace);
+  font-size: 0.78em;
+  line-height: 1.5;
+}
+
+/* Log entries */
+.pa-log-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: 3px;
+  border-bottom: 1px solid var(--background-modifier-border-hover);
+  flex-wrap: wrap;
+}
+
+.pa-log-entry:last-child {
+  border-bottom: none;
+}
+
+.pa-log-ts {
+  color: var(--text-faint);
+  white-space: nowrap;
+  min-width: 72px;
+}
+
+.pa-log-badge {
+  font-size: 0.8em;
+  padding: 1px 5px;
+  border-radius: 8px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Level-spezifische Farben */
+.pa-log-level-debug {
+  background: transparent;
+}
+
+.pa-log-level-debug-badge {
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+.pa-log-level-info {
+  background: transparent;
+}
+
+.pa-log-level-info-badge {
+  background: #2563eb22;
+  color: #3b82f6;
+}
+
+.pa-log-level-warn {
+  background: #f59e0b0d;
+}
+
+.pa-log-level-warn-badge {
+  background: #f59e0b22;
+  color: #d97706;
+}
+
+.pa-log-level-error {
+  background: #ef44440d;
+}
+
+.pa-log-level-error-badge {
+  background: #ef444422;
+  color: #ef4444;
+}
+
+.pa-log-emitter {
+  color: var(--interactive-accent);
+  font-size: 0.85em;
+  white-space: nowrap;
+  min-width: 60px;
+  font-weight: 600;
+}
+
+.pa-log-msg {
+  flex: 1;
+  color: var(--text-normal);
+  word-break: break-word;
+}
+
+.pa-log-ctx-toggle {
+  cursor: pointer;
+  color: var(--text-faint);
+  font-size: 0.8em;
+  padding: 0 3px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.pa-log-ctx-toggle:hover {
+  color: var(--text-muted);
+}
+
+.pa-log-ctx {
+  width: 100%;
+  white-space: pre-wrap;
+  font-size: 0.85em;
+  color: var(--text-muted);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+  padding: 4px 6px;
+  margin-top: 2px;
+  overflow-x: auto;
+}
+
+.pa-log-ctx.pa-hidden {
+  display: none !important;
+}

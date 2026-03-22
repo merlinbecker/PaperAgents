@@ -24,6 +24,8 @@ import { App, TFile, TFolder } from "obsidian";
 import type { Conversation, Message, PdfChunkResult } from "../types";
 import { ConversationManager } from "./conversation";
 import { globalLogger } from "../utils/logger";
+
+const logger = globalLogger.createLogger("ConversationFileManager");
 import { PREDEFINED_TOOL_IDS } from "../utils/constants";
 
 export class ConversationFileManager {
@@ -52,7 +54,7 @@ export class ConversationFileManager {
       await this.app.vault.create(filePath, content);
     }
 
-    globalLogger.debug(`Conversation saved to ${filePath}`);
+    logger.debug(`Conversation saved to ${filePath}`);
   }
 
   /**
@@ -71,14 +73,14 @@ export class ConversationFileManager {
     const conversation = this.conversationManager.loadFromConversationFile(content);
 
     if (!conversation) {
-      globalLogger.debug(`File is not a conversation file: ${filePath}`);
+      logger.debug(`File is not a conversation file: ${filePath}`);
       return null;
     }
 
     // Restore base64 payloads that were stripped during serialization
     await this.restoreBinaryResults(conversation);
 
-    globalLogger.debug(`Conversation loaded from ${filePath}: ${conversation.id}`);
+    logger.debug(`Conversation loaded from ${filePath}: ${conversation.id}`);
     return conversation;
   }
 
@@ -100,7 +102,7 @@ export class ConversationFileManager {
         const binaryPath = result._binaryRef as string;
         const binaryFile = this.app.vault.getAbstractFileByPath(binaryPath);
         if (!(binaryFile instanceof TFile)) {
-          globalLogger.warn(`Binary file not found when restoring conversation: ${binaryPath}`);
+          logger.warn(`Binary file not found when restoring conversation: ${binaryPath}`);
           continue;
         }
 
@@ -110,7 +112,7 @@ export class ConversationFileManager {
           const { _binaryRef: _omit, ...cleanResult } = result;
           msg.toolCall.result = { ...cleanResult, base64 };
         } catch (err) {
-          globalLogger.warn(`Failed to restore binary ${binaryPath}`, {
+          logger.warn(`Failed to restore binary ${binaryPath}`, {
             error: err instanceof Error ? err.message : String(err),
           });
         }
@@ -139,7 +141,7 @@ export class ConversationFileManager {
     const binaryPath = chunks[0]._binaryRef as string;
     const binaryFile = this.app.vault.getAbstractFileByPath(binaryPath);
     if (!(binaryFile instanceof TFile)) {
-      globalLogger.warn(`PDF not found when restoring split chunks: ${binaryPath}`);
+      logger.warn(`PDF not found when restoring split chunks: ${binaryPath}`);
       return;
     }
 
@@ -167,7 +169,7 @@ export class ConversationFileManager {
 
       msg.toolCall!.result = isArray ? restoredChunks : restoredChunks[0];
     } catch (err) {
-      globalLogger.warn(`Failed to restore PDF chunks for ${binaryPath}`, {
+      logger.warn(`Failed to restore PDF chunks for ${binaryPath}`, {
         error: err instanceof Error ? err.message : String(err),
       });
     }
@@ -201,7 +203,7 @@ export class ConversationFileManager {
 
     await this.saveConversation(filePath, conversationId);
 
-    globalLogger.info(`Created conversation file: ${filePath}`);
+    logger.info(`Created conversation file: ${filePath}`);
     return filePath;
   }
 

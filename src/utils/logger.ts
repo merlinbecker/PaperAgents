@@ -1,6 +1,7 @@
 /**
- * Logger - Debug-Logging für das Plugin
- * Kann später erweitert werden für File-Logging
+ * Logger - Debug-Logging für das Plugin mit Ring-Buffer und Event-Bus-Pattern.
+ * Alle Log-Einträge werden in einem Ring-Buffer gespeichert und an Subscriber
+ * weitergegeben, damit die Sidebar-Log-Ansicht in Echtzeit aktualisiert werden kann.
  */
 
 export enum LogLevel {
@@ -13,118 +14,209 @@ export enum LogLevel {
 export interface LogEntry {
   level: LogLevel;
   timestamp: number;
+  /** Die Komponente oder das Tool, das den Log-Eintrag erzeugt hat */
+  emitter: string;
   message: string;
   context?: Record<string, unknown>;
 }
 
+/** Listener-Typ für den Event-Bus */
+export type LogListener = (entry: LogEntry) => void;
+
+/**
+ * Kreisförmiger Puffer fester Größe (Ring-Buffer).
+ * Älteste Einträge werden überschrieben, sobald die Kapazität erschöpft ist.
+ */
+export class RingBuffer<T> {
+  private readonly buffer: Array<T | undefined>;
+  private head = 0;
+  private size = 0;
+
+  constructor(private readonly capacity: number) {
+    this.buffer = Array.from({ length: capacity });
+  }
+
+  /** Fügt ein Element ein. Überschreibt das älteste bei voller Kapazität. */
+  push(item: T): void {
+    const pos = (this.head + this.size) % this.capacity;
+    this.buffer[pos] = item;
+    if (this.size < this.capacity) {
+      this.size++;
+    } else {
+      // Puffer voll: ältestes Element verdrängen
+      this.head = (this.head + 1) % this.capacity;
+    }
+  }
+
+  /** Gibt alle gespeicherten Elemente in Einfügereihenfolge zurück. */
+  toArray(): T[] {
+    const result: T[] = [];
+    for (let i = 0; i < this.size; i++) {
+      const item = this.buffer[(this.head + i) % this.capacity];
+      if (item !== undefined) result.push(item);
+    }
+    return result;
+  }
+
+  /** Aktuelle Anzahl der gespeicherten Elemente */
+  get length(): number {
+    return this.size;
+  }
+
+  /** Löscht den Puffer */
+  clear(): void {
+    this.head = 0;
+    this.size = 0;
+    for (let i = 0; i < this.capacity; i++) {
+      this.buffer[i] = undefined;
+    }
+  }
+}
+
+/**
+ * Komponentenspezifischer Logger, der immer denselben Emitter-Namen verwendet.
+ * Erstellt mit `Logger.createLogger(emitter)`.
+ */
+export interface ComponentLogger {
+  debug(message: string, context?: Record<string, unknown>): void;
+  info(message: string, context?: Record<string, unknown>): void;
+  warn(message: string, context?: Record<string, unknown>): void;
+  error(message: string, context?: Record<string, unknown>): void;
+}
+
 export class Logger {
-  private logs: LogEntry[] = [];
-  private readonly maxLogs = 1000;
+  private readonly ringBuffer: RingBuffer<LogEntry>;
+  private readonly listeners = new Set<LogListener>();
   private minLevel: LogLevel = LogLevel.DEBUG;
 
-  constructor(minLevel: LogLevel = LogLevel.DEBUG) {
+  constructor(
+    minLevel: LogLevel = LogLevel.DEBUG,
+    bufferSize = 500,
+  ) {
     this.minLevel = minLevel;
+    this.ringBuffer = new RingBuffer<LogEntry>(bufferSize);
   }
 
-  /**
-   * Log auf DEBUG-Level
-   */
+  // ── Öffentliche Log-Methoden ────────────────────────────────────────────────
+
+  /** Log auf DEBUG-Level */
   debug(message: string, context?: Record<string, unknown>): void {
-    this.log(LogLevel.DEBUG, message, context);
+    this.log(LogLevel.DEBUG, message, "Plugin", context);
   }
 
-  /**
-   * Log auf INFO-Level
-   */
+  /** Log auf INFO-Level */
   info(message: string, context?: Record<string, unknown>): void {
-    this.log(LogLevel.INFO, message, context);
+    this.log(LogLevel.INFO, message, "Plugin", context);
   }
 
-  /**
-   * Log auf WARN-Level
-   */
+  /** Log auf WARN-Level */
   warn(message: string, context?: Record<string, unknown>): void {
-    this.log(LogLevel.WARN, message, context);
+    this.log(LogLevel.WARN, message, "Plugin", context);
   }
 
-  /**
-   * Log auf ERROR-Level
-   */
+  /** Log auf ERROR-Level */
   error(message: string, context?: Record<string, unknown>): void {
-    this.log(LogLevel.ERROR, message, context);
+    this.log(LogLevel.ERROR, message, "Plugin", context);
   }
 
-  /**
-   * Internal Log-Funktion
-   */
-  private log(level: LogLevel, message: string, context?: Record<string, unknown>): void {
-    if (level < this.minLevel) {
-      return; // Skip
-    }
+  // ── Event-Bus ───────────────────────────────────────────────────────────────
 
-    const entry: LogEntry = {
-      level,
-      timestamp: Date.now(),
-      message,
-      context,
+  /**
+   * Registriert einen Listener, der bei jedem neuen Log-Eintrag aufgerufen wird.
+   * Gibt eine Funktion zurück, mit der der Listener wieder abgemeldet werden kann.
+   */
+  subscribe(listener: LogListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  // ── Komponentenspezifischer Logger ─────────────────────────────────────────
+
+  /**
+   * Erstellt einen Logger, der alle Einträge mit dem gegebenen Emitter-Namen versieht.
+   * Empfohlen für alle Komponenten und Tools, um die Herkunft der Logs zu identifizieren.
+   *
+   * @example
+   * const logger = globalLogger.createLogger("Sidebar");
+   * logger.info("Sidebar wurde geöffnet");
+   */
+  createLogger(emitter: string): ComponentLogger {
+    return {
+      debug: (msg, ctx) => this.log(LogLevel.DEBUG, msg, emitter, ctx),
+      info: (msg, ctx) => this.log(LogLevel.INFO, msg, emitter, ctx),
+      warn: (msg, ctx) => this.log(LogLevel.WARN, msg, emitter, ctx),
+      error: (msg, ctx) => this.log(LogLevel.ERROR, msg, emitter, ctx),
     };
-
-    this.logs.push(entry);
-
-    // Begrenze Log-Größe
-    if (this.logs.length > this.maxLogs) {
-      this.logs.shift();
-    }
-
-    // Konsole ausgeben (für Development)
-    const levelName = LogLevel[level];
-    const contextStr = context ? JSON.stringify(context) : "";
-    console.debug(`[${levelName}] ${message}`, contextStr);
   }
 
-  /**
-   * Gibt alle Logs zurück
-   */
+  // ── Abfrage-Methoden ────────────────────────────────────────────────────────
+
+  /** Gibt alle gespeicherten Log-Einträge zurück (älteste zuerst) */
   getLogs(): LogEntry[] {
-    return [...this.logs];
+    return this.ringBuffer.toArray();
   }
 
-  /**
-   * Gibt Logs ab einem bestimmten Level zurück
-   */
+  /** Gibt alle Log-Einträge ab dem angegebenen Level zurück */
   getLogsSince(level: LogLevel): LogEntry[] {
-    return this.logs.filter((log) => log.level >= level);
+    return this.ringBuffer.toArray().filter((e) => e.level >= level);
   }
 
-  /**
-   * Löscht alle Logs
-   */
+  /** Löscht alle gespeicherten Logs */
   clear(): void {
-    this.logs = [];
+    this.ringBuffer.clear();
   }
 
-  /**
-   * Setzt Minimum-Log-Level
-   */
+  /** Setzt den minimalen Log-Level */
   setLevel(level: LogLevel): void {
     this.minLevel = level;
   }
 
-  /**
-   * Formatiert einen Log-Eintrag als String
-   */
+  /** Formatiert einen Log-Eintrag als lesbaren String */
   formatEntry(entry: LogEntry): string {
     const date = new Date(entry.timestamp).toISOString();
     const level = LogLevel[entry.level];
     const context = entry.context ? ` | ${JSON.stringify(entry.context)}` : "";
-    return `[${date}] ${level}: ${entry.message}${context}`;
+    return `[${date}] [${entry.emitter}] ${level}: ${entry.message}${context}`;
   }
 
-  /**
-   * Exportiert alle Logs als formatierter String
-   */
+  /** Exportiert alle Logs als formatierter String */
   export(): string {
-    return this.logs.map((log) => this.formatEntry(log)).join("\n");
+    return this.ringBuffer.toArray().map((log) => this.formatEntry(log)).join("\n");
+  }
+
+  // ── Interne Logik ───────────────────────────────────────────────────────────
+
+  private log(
+    level: LogLevel,
+    message: string,
+    emitter: string,
+    context?: Record<string, unknown>,
+  ): void {
+    if (level < this.minLevel) return;
+
+    const entry: LogEntry = {
+      level,
+      timestamp: Date.now(),
+      emitter,
+      message,
+      context,
+    };
+
+    this.ringBuffer.push(entry);
+
+    // Alle Subscriber benachrichtigen (Event-Bus)
+    for (const listener of this.listeners) {
+      try {
+        listener(entry);
+      } catch {
+        // Listener-Fehler dürfen das Logging nicht unterbrechen
+      }
+    }
+
+    // Konsolenausgabe für Entwicklung
+    const levelName = LogLevel[level];
+    const contextStr = context ? JSON.stringify(context) : "";
+    console.debug(`[${levelName}] [${emitter}] ${message}`, contextStr);
   }
 }
 

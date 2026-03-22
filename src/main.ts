@@ -29,6 +29,8 @@ import { registerCommands } from "./commands";
 import { globalLogger } from "./utils/logger";
 import { DEFAULT_PATHS, OPENROUTER_DEFAULTS, randomId } from "./utils/constants";
 
+const logger = globalLogger.createLogger("Plugin");
+
 export default class PaperAgents extends Plugin {
   settings: PaperAgentsSettings;
   toolRegistry: ToolRegistry;
@@ -38,9 +40,10 @@ export default class PaperAgents extends Plugin {
   orchestrator: Orchestrator | null = null;
 
   async onload() {
-    globalLogger.info("Paper Agents plugin loading...");
+    logger.info("Paper Agents plugin loading...");
 
     await this.loadSettings();
+    this.applyLogLevel();
 
     this.toolRegistry = new ToolRegistry(this.app);
     this.conversationManager = new ConversationManager();
@@ -55,7 +58,7 @@ export default class PaperAgents extends Plugin {
     try {
       await customJSExecutor.initialize();
     } catch (err) {
-      globalLogger.warn("QuickJS sandbox unavailable – custom-js tools will not work", { error: String(err) });
+      logger.warn("QuickJS sandbox unavailable – custom-js tools will not work", { error: String(err) });
       new Notice("Sandbox could not be initialized. Custom JavaScript tools are disabled.");
     }
 
@@ -78,6 +81,12 @@ export default class PaperAgents extends Plugin {
           this.settings.customToolsPath || DEFAULT_PATHS.CUSTOM_TOOLS,
           this.settings.agentsPath || DEFAULT_PATHS.AGENTS
         );
+        // Persist the log panel filter level choice
+        sidebar.setLogPanelInitialLevel(this.settings.logPanelFilterLevel);
+        sidebar.setOnLogFilterLevelChange(async (level) => {
+          this.settings.logPanelFilterLevel = level;
+          await this.saveSettings();
+        });
         return sidebar;
       }
     );
@@ -105,21 +114,21 @@ export default class PaperAgents extends Plugin {
 
     this.registerHITLCallbacks();
 
-    globalLogger.info("Paper Agents plugin loaded successfully");
+    logger.info("Paper Agents plugin loaded successfully");
   }
 
   onunload() {
-    globalLogger.info("Paper Agents plugin unloading...");
+    logger.info("Paper Agents plugin unloading...");
 
     void customJSExecutor.destroy();
 
-    globalLogger.info("Paper Agents plugin unloaded");
+    logger.info("Paper Agents plugin unloaded");
   }
 
   initializeOrchestrator(): void {
     const apiKey = this.settings.openRouterApiKey;
     if (!apiKey) {
-      globalLogger.info("OpenRouter API key not set, orchestrator disabled");
+      logger.info("OpenRouter API key not set, orchestrator disabled");
       this.orchestrator = null;
       return;
     }
@@ -138,7 +147,7 @@ export default class PaperAgents extends Plugin {
       this.toolRegistry
     );
 
-    globalLogger.info("Orchestrator initialized");
+    logger.info("Orchestrator initialized");
   }
 
   private registerPredefinedTools(): void {
@@ -157,7 +166,7 @@ export default class PaperAgents extends Plugin {
     this.toolRegistry.registerPredefined(
       createPdfOcrFactory(() => this.settings.openRouterApiKey)
     );
-    globalLogger.info("Predefined tools registered", { count: 11 });
+    logger.info("Predefined tools registered", { count: 11 });
   }
 
   async loadCustomToolsFromVault(): Promise<void> {
@@ -169,7 +178,7 @@ export default class PaperAgents extends Plugin {
       this.toolRegistry.registerCustomBatch(result.successful);
       this.sidebar?.refreshTools();
 
-      globalLogger.info("Custom tools loaded", {
+      logger.info("Custom tools loaded", {
         loaded: result.successful.length,
         failed: result.failed.length,
       });
@@ -178,7 +187,7 @@ export default class PaperAgents extends Plugin {
         new Notice(`Loaded ${result.successful.length} tools, ${result.failed.length} failed`);
       }
     } catch (error) {
-      globalLogger.error("Failed to load custom tools", { error });
+      logger.error("Failed to load custom tools", { error });
       new Notice("Failed to load custom tools");
     }
   }
@@ -189,7 +198,7 @@ export default class PaperAgents extends Plugin {
       const folder = this.app.vault.getAbstractFileByPath(agentsPath);
 
       if (!folder || !("children" in folder)) {
-        globalLogger.info(`Agents folder not found: ${agentsPath}`);
+        logger.info(`Agents folder not found: ${agentsPath}`);
         this.loadedAgents = [];
         return;
       }
@@ -224,7 +233,7 @@ export default class PaperAgents extends Plugin {
 
       this.loadedAgents = result.successful;
 
-      globalLogger.info("Agents loaded", {
+      logger.info("Agents loaded", {
         loaded: result.successful.length,
         failed: result.failed.length,
       });
@@ -235,7 +244,7 @@ export default class PaperAgents extends Plugin {
 
       this.sidebar?.setAgents(this.loadedAgents);
     } catch (error) {
-      globalLogger.error("Failed to load agents", { error });
+      logger.error("Failed to load agents", { error });
       new Notice("Failed to load agents");
     }
   }
@@ -368,7 +377,7 @@ export default class PaperAgents extends Plugin {
 
       this.sidebar?.showError(errorMsg);
       new Notice(`${toolName} failed: ${errorMsg}`);
-      globalLogger.error("Tool execution failed", { error });
+      logger.error("Tool execution failed", { error });
     }
   }
 
@@ -378,7 +387,7 @@ export default class PaperAgents extends Plugin {
         return showHITLModal(this.app, toolName, stepName, parameters);
       }
     );
-    globalLogger.debug("HITL callbacks registered");
+    logger.debug("HITL callbacks registered");
   }
 
   async loadSettings() {
@@ -390,5 +399,11 @@ export default class PaperAgents extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
+  }
+
+  /** Applies the configured minimum log level to the global logger. */
+  applyLogLevel(): void {
+    globalLogger.setLevel(this.settings.logMinLevel);
+    logger.debug("Log level applied", { level: this.settings.logMinLevel });
   }
 }

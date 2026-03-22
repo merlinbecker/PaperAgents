@@ -1,5 +1,7 @@
 import { requestUrl, RequestUrlParam } from "obsidian";
 import { globalLogger } from "../utils/logger";
+
+const logger = globalLogger.createLogger("OpenRouter");
 import type { WebSearchAnnotation } from "../types";
 import { randomFloat } from "../utils/constants";
 
@@ -228,7 +230,7 @@ export class OpenRouterClient {
     if (this.requestTimestamps.length >= RATE_LIMIT_RPM) {
       const oldestInWindow = this.requestTimestamps[0]!;
       const waitMs = RATE_LIMIT_WINDOW_MS - (now - oldestInWindow) + 100;
-      globalLogger.info(`Rate limit approaching, waiting ${waitMs}ms`);
+      logger.info(`Rate limit approaching, waiting ${waitMs}ms`);
       await this.sleep(waitMs);
     }
 
@@ -257,7 +259,7 @@ export class OpenRouterClient {
 
     if (response.status >= 200 && response.status < 300) {
       const data = response.json as OpenRouterResponse;
-      globalLogger.debug("OpenRouter response received", {
+      logger.debug("OpenRouter response received", {
         model: data.model,
         usage: data.usage,
       });
@@ -296,7 +298,7 @@ export class OpenRouterClient {
     if (error instanceof OpenRouterError) {
       if (!error.retryable || attempt >= MAX_RETRIES) throw error;
       const delay = this.getRetryDelay(attempt);
-      globalLogger.warn(`OpenRouter ${error.statusCode}, retrying in ${delay}ms`, {
+      logger.warn(`OpenRouter ${error.statusCode}, retrying in ${delay}ms`, {
         attempt: attempt + 1,
         maxRetries: MAX_RETRIES,
       });
@@ -309,7 +311,7 @@ export class OpenRouterClient {
       );
     } else {
       const delay = this.getRetryDelay(attempt);
-      globalLogger.warn("OpenRouter request error, retrying", {
+      logger.warn("OpenRouter request error, retrying", {
         attempt: attempt + 1,
         error: String(error),
       });
@@ -430,7 +432,7 @@ export class OpenRouterClient {
           this.processStreamChoice(choice, state, callbacks);
         }
       } catch {
-        globalLogger.debug("Skipping unparseable SSE chunk", { data });
+        logger.debug("Skipping unparseable SSE chunk", { data });
       }
     }
 

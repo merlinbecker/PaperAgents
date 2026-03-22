@@ -7,6 +7,8 @@ import { TFile, Vault } from "obsidian";
 import { executionHistory } from "./history";
 import { globalLogger } from "../utils/logger";
 
+const logger = globalLogger.createLogger("Persistence");
+
 const PLUGIN_FOLDER_NAME = "plugins/paper-agents";
 const HISTORY_FILE = "history.json";
 
@@ -56,5 +58,5 @@ export async function initializeHistoryPersistence(vault: Vault): Promise<void> 
   );
 
   await executionHistory.loadFromStorage();
-  globalLogger.debug("History persistence initialized");
+  logger.debug("History persistence initialized");
 }

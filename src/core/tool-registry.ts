@@ -7,6 +7,8 @@
 import { Agent, IExecutableTool, ToolMetadata, IToolFactory } from "../types";
 import { TOOL_CATEGORIES, TOOL_ICONS } from "../utils/constants";
 import { globalLogger } from "../utils/logger";
+
+const logger = globalLogger.createLogger("ToolRegistry");
 import type { App } from "obsidian";
 
 export class ToolRegistry {
@@ -19,7 +21,7 @@ export class ToolRegistry {
     if (app) {
       this.app = app;
     }
-    globalLogger.info("ToolRegistry initialized");
+    logger.info("ToolRegistry initialized");
   }
 
   /**
@@ -34,7 +36,7 @@ export class ToolRegistry {
    */
   registerPredefined(factory: IToolFactory): void {
     this.predefinedTools.set(factory.name, factory);
-    globalLogger.debug(`Registered predefined tool: ${factory.name}`);
+    logger.debug(`Registered predefined tool: ${factory.name}`);
   }
 
   /**
@@ -44,7 +46,7 @@ export class ToolRegistry {
     for (const factory of factories) {
       this.registerPredefined(factory);
     }
-    globalLogger.info(`Registered ${factories.length} predefined tools`);
+    logger.info(`Registered ${factories.length} predefined tools`);
   }
 
   /**
@@ -52,7 +54,7 @@ export class ToolRegistry {
    */
   registerCustom(agent: Agent): void {
     this.customTools.set(agent.id, agent);
-    globalLogger.debug(`Registered custom tool: ${agent.id}`);
+    logger.debug(`Registered custom tool: ${agent.id}`);
   }
 
   /**
@@ -62,7 +64,7 @@ export class ToolRegistry {
     for (const agent of agents) {
       this.registerCustom(agent);
     }
-    globalLogger.info(`Registered ${agents.length} custom tools`);
+    logger.info(`Registered ${agents.length} custom tools`);
   }
 
   /**
@@ -83,7 +85,7 @@ export class ToolRegistry {
         this.executableTools.set(id, tool);
         return tool;
       } catch (error) {
-        globalLogger.error(`Failed to create predefined tool: ${id}`, { error });
+        logger.error(`Failed to create predefined tool: ${id}`, { error });
         return null;
       }
     }
@@ -96,12 +98,12 @@ export class ToolRegistry {
         this.executableTools.set(id, tool);
         return tool;
       } catch (error) {
-        globalLogger.error(`Failed to create custom tool: ${id}`, { error });
+        logger.error(`Failed to create custom tool: ${id}`, { error });
         return null;
       }
     }
 
-    globalLogger.warn(`Tool not found: ${id}`);
+    logger.warn(`Tool not found: ${id}`);
     return null;
   }
 
@@ -185,7 +187,7 @@ export class ToolRegistry {
     const removed = this.customTools.delete(id);
     if (removed) {
       this.executableTools.delete(id);
-      globalLogger.debug(`Removed tool: ${id}`);
+      logger.debug(`Removed tool: ${id}`);
     }
     return removed;
   }
@@ -197,7 +199,7 @@ export class ToolRegistry {
     const count = this.customTools.size;
     this.customTools.clear();
     this.executableTools.clear();
-    globalLogger.info(`Cleared ${count} custom tools`);
+    logger.info(`Cleared ${count} custom tools`);
   }
 
   /**
@@ -245,7 +247,7 @@ export class ToolRegistry {
     this.predefinedTools.clear();
     this.customTools.clear();
     this.executableTools.clear();
-    globalLogger.debug("ToolRegistry reset");
+    logger.debug("ToolRegistry reset");
   }
 }
 

@@ -38,6 +38,8 @@ import type { IExecutableTool, IToolFactory, Parameter, ExecutionContext, Execut
 import { PREDEFINED_TOOL_IDS } from "../utils/constants";
 import { globalLogger } from "../utils/logger";
 
+const logger = globalLogger.createLogger("PdfOcr");
+
 // ============================================================================
 // CONSTANTS
 // ============================================================================
@@ -509,7 +511,7 @@ class PdfOcrTool implements IExecutableTool {
           await stripImageXObjects(singleDoc);
           await stripInlineImages(singleDoc);
           pdfBytesToSend = await singleDoc.save({ useObjectStreams: false });
-          globalLogger.info("pdf_ocr: stripped images from single PDF before OCR", { pdfPath });
+          logger.info("pdf_ocr: stripped images from single PDF before OCR", { pdfPath });
         } else {
           pdfBytesToSend = buffer;
         }
@@ -521,7 +523,7 @@ class PdfOcrTool implements IExecutableTool {
           : uint8ArrayToBase64(pdfBytesToSend);
         const fileName = normalizedPath.split("/").pop() || "document.pdf";
 
-        globalLogger.info("pdf_ocr: starting single-file OCR", { pdfPath, model });
+        logger.info("pdf_ocr: starting single-file OCR", { pdfPath, model });
         const ocrText = await this.callOcr(base64, fileName, model, apiKey, stripImages);
 
         const mdPath = `${outputBase}.md`;
@@ -529,7 +531,7 @@ class PdfOcrTool implements IExecutableTool {
         createdFiles.push(mdPath);
       } else {
         // ── Multi-chunk path (mobile, large PDF) ──────────────────────────────
-        globalLogger.info("pdf_ocr: large PDF on mobile – splitting into chunks", {
+        logger.info("pdf_ocr: large PDF on mobile – splitting into chunks", {
           pdfPath,
           sizeMb: (pdfFile.stat.size / 1024 / 1024).toFixed(1),
         });
@@ -544,7 +546,7 @@ class PdfOcrTool implements IExecutableTool {
         if (stripImages) {
           await stripImageXObjects(pdfDoc);
           await stripInlineImages(pdfDoc);
-          globalLogger.info("pdf_ocr: stripped images from source PDF before chunking", {
+          logger.info("pdf_ocr: stripped images from source PDF before chunking", {
             pdfPath,
             sizeMb: (pdfFile.stat.size / 1024 / 1024).toFixed(1),
           });
@@ -609,7 +611,7 @@ class PdfOcrTool implements IExecutableTool {
           const base64 = uint8ArrayToBase64(chunkBuffer);
           const chunkFileNameForOcr = `${baseName}_chunk_${i + 1}.pdf`;
 
-          globalLogger.info("pdf_ocr: OCR-ing chunk", {
+          logger.info("pdf_ocr: OCR-ing chunk", {
             chunkIndex: i,
             totalChunks,
             startPage: startPage + 1,
@@ -624,7 +626,7 @@ class PdfOcrTool implements IExecutableTool {
             // Record the failure but continue with remaining chunks so the caller
             // receives partial results rather than nothing.
             const msg = chunkErr instanceof Error ? chunkErr.message : String(chunkErr);
-            globalLogger.warn("pdf_ocr: OCR failed for chunk – skipping", {
+            logger.warn("pdf_ocr: OCR failed for chunk – skipping", {
               chunkIndex: i,
               startPage: startPage + 1,
               endPage: endPage + 1,
@@ -663,7 +665,7 @@ class PdfOcrTool implements IExecutableTool {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      globalLogger.error("pdf_ocr tool error", { error: message, pdfPath });
+      logger.error("pdf_ocr tool error", { error: message, pdfPath });
       return {
         success: false,
         error: message,
@@ -727,7 +729,7 @@ class PdfOcrTool implements IExecutableTool {
     }
 
     const estimatedKb = Math.round((base64.length * 3) / 4 / 1024); // base64 is ~4/3× the original binary size
-    globalLogger.info("pdf_ocr: sending file to OpenRouter for OCR", { filename, estimatedKb });
+    logger.info("pdf_ocr: sending file to OpenRouter for OCR", { filename, estimatedKb });
 
     const dataUrl = `data:application/pdf;base64,${base64}`;
 

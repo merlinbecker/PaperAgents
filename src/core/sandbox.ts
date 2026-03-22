@@ -8,6 +8,8 @@ import { newQuickJSWASMModuleFromVariant, QuickJSContext, QuickJSRuntime } from 
 import RELEASE_SYNC from "@jitl/quickjs-singlefile-cjs-release-sync";
 import { ExecutionContext, ExecutionResult } from "../types";
 import { globalLogger } from "../utils/logger";
+
+const logger = globalLogger.createLogger("Sandbox");
 import { randomId } from "../utils/constants";
 
 /**
@@ -41,12 +43,12 @@ export class QuickJSSandbox {
       
       this.context = this.runtime.newContext();
 
-      globalLogger.debug("QuickJS Sandbox initialized", {
+      logger.debug("QuickJS Sandbox initialized", {
         memoryLimit: this.memoryLimit,
         timeout: this.executionTimeout,
       });
     } catch (error) {
-      globalLogger.error("Failed to initialize QuickJS", { error: String(error) });
+      logger.error("Failed to initialize QuickJS", { error: String(error) });
       throw new Error("QuickJS initialization failed");
     }
   }
@@ -71,14 +73,14 @@ export class QuickJSSandbox {
       // Execute code
       const returnValue = this.executeCode(code, "user-script.js");
 
-      globalLogger.debug("Custom-JS executed", { 
+      logger.debug("Custom-JS executed", { 
         code: code.substring(0, 50),
         executionTime: Date.now() - startTime,
       });
 
       return returnValue;
     } catch (error) {
-      globalLogger.error("Custom-JS execution error", { error });
+      logger.error("Custom-JS execution error", { error });
       throw error;
     }
   }
@@ -226,7 +228,7 @@ export class QuickJSSandbox {
 
       return returnValue as Record<string, unknown>;
     } catch (error) {
-      globalLogger.error("Pre-processing execution failed", { error, code });
+      logger.error("Pre-processing execution failed", { error, code });
       throw new Error(`Pre-processing failed: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
@@ -258,7 +260,7 @@ export class QuickJSSandbox {
       // Execute code
       return this.executeCode(code, "postprocess.js");
     } catch (error) {
-      globalLogger.error("Post-processing execution failed", { error, code });
+      logger.error("Post-processing execution failed", { error, code });
       throw new Error(`Post-processing failed: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
@@ -276,9 +278,9 @@ export class QuickJSSandbox {
         this.runtime.dispose();
         this.runtime = null;
       }
-      globalLogger.debug("QuickJS Sandbox destroyed");
+      logger.debug("QuickJS Sandbox destroyed");
     } catch (error) {
-      globalLogger.error("Error destroying QuickJS", { error });
+      logger.error("Error destroying QuickJS", { error });
     }
   }
 
@@ -345,7 +347,7 @@ export class CustomJSExecutor {
 
       // Führe Code aus
       const output = await this.sandbox.execute(toolCode, ctx);
-      globalLogger.debug("Custom-JS raw output", { output });
+      logger.debug("Custom-JS raw output", { output });
 
       // Wenn Skript bereits ein ExecutionResult liefert, uebernehme es direkt
       if (output && typeof output === "object" && "success" in output) {
@@ -372,7 +374,7 @@ export class CustomJSExecutor {
         ],
       };
     } catch (error) {
-      globalLogger.error("Custom-JS tool execution failed", { error });
+      logger.error("Custom-JS tool execution failed", { error });
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",

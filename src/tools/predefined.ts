@@ -8,6 +8,8 @@ import type { IExecutableTool, IToolFactory, Parameter, ExecutionContext, Execut
 import { PREDEFINED_TOOL_IDS } from "../utils/constants";
 import { globalLogger } from "../utils/logger";
 
+const logger = globalLogger.createLogger("PredefinedTools");
+
 // ============================================================================
 // SHARED HELPERS
 // ============================================================================
@@ -143,7 +145,7 @@ class SearchFilesTool implements IExecutableTool {
       const content = await this.app.vault.read(file);
       return content.toLowerCase().includes(lowerQuery);
     } catch (err) {
-      globalLogger.debug("search_files: could not read file", { path: file.path, error: err instanceof Error ? err.message : String(err) });
+      logger.debug("search_files: could not read file", { path: file.path, error: err instanceof Error ? err.message : String(err) });
       return false;
     }
   }
@@ -189,7 +191,7 @@ class SearchFilesTool implements IExecutableTool {
         log: [buildLogEntry(this.name, ctx.parameters, { results, count: results.length })],
       };
     } catch (error) {
-      globalLogger.error("search_files tool error", { error });
+      logger.error("search_files tool error", { error });
       return buildErrorResult(this.name, ctx.parameters, error);
     }
   }
@@ -238,7 +240,7 @@ class ReadFileTool implements IExecutableTool {
         log: [buildLogEntry(this.name, ctx.parameters, { size: file.stat.size })],
       };
     } catch (error) {
-      globalLogger.error("read_file tool error", { error });
+      logger.error("read_file tool error", { error });
       return buildErrorResult(this.name, ctx.parameters, error);
     }
   }
@@ -291,7 +293,7 @@ class WriteFileTool implements IExecutableTool {
         log: [buildLogEntry(this.name, ctx.parameters, { filePath, size: content.length })],
       };
     } catch (error) {
-      globalLogger.error("write_file tool error", { error });
+      logger.error("write_file tool error", { error });
       return buildErrorResult(this.name, ctx.parameters, error);
     }
   }
@@ -342,7 +344,7 @@ class RestRequestTool implements IExecutableTool {
         log: [buildLogEntry(this.name, ctx.parameters, { status: response.status })],
       };
     } catch (error) {
-      globalLogger.error("rest_request tool error", { error });
+      logger.error("rest_request tool error", { error });
       return buildErrorResult(this.name, ctx.parameters, error);
     }
   }
@@ -540,7 +542,7 @@ class ReadBinaryFileTool implements IExecutableTool {
         log: [buildLogEntry(this.name, ctx.parameters, { filePath, size: buffer.byteLength })],
       };
     } catch (error) {
-      globalLogger.error("read_binary_file tool error", { error });
+      logger.error("read_binary_file tool error", { error });
       return buildErrorResult(this.name, ctx.parameters, error);
     }
   }
@@ -876,7 +878,7 @@ class SplitAndReadPdfTool implements IExecutableTool {
         })],
       };
     } catch (error) {
-      globalLogger.error("split_and_read_pdf tool error", { error });
+      logger.error("split_and_read_pdf tool error", { error });
       return buildErrorResult(this.name, ctx.parameters, error);
     }
   }

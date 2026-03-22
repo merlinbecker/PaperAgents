@@ -6,10 +6,16 @@
 import { ItemView, WorkspaceLeaf, Modal, App, Notice } from "obsidian";
 import { ToolMetadata, AgentDefinition, IToolRegistry } from "../types";
 import { TOOL_CATEGORIES, TOOL_ICONS } from "../utils/constants";
-import { globalLogger } from "../utils/logger";
+import { globalLogger, LogLevel } from "../utils/logger";
 import { SIDEBAR_EXAMPLES, SidebarExample } from "./sidebar-examples";
+import { LogPanel, LogPanelOptions } from "./log-panel";
+
+const logger = globalLogger.createLogger("Sidebar");
 
 export const VIEW_TYPE_PAPER_AGENTS = "paper-agents-sidebar";
+
+/** Tabs in der Sidebar */
+type SidebarTab = "overview" | "logs";
 
 /**
  * Sidebar View für Paper Agents
@@ -20,6 +26,10 @@ export class PaperAgentsSidebar extends ItemView {
   private examplesContainer: HTMLElement | null = null;
   private statusContainer: HTMLElement | null = null;
   private countsContainer: HTMLElement | null = null;
+  private overviewTab: HTMLElement | null = null;
+  private logsTab: HTMLElement | null = null;
+  private logPanel: LogPanel | null = null;
+  private activeTab: SidebarTab = "overview";
   private readonly toolRegistry: IToolRegistry;
   private readonly onToolClick: (toolId: string) => void;
   private agents: AgentDefinition[] = [];
@@ -27,6 +37,8 @@ export class PaperAgentsSidebar extends ItemView {
   private onOpenChat: (() => void) | null = null;
   private onOpenCanvas: (() => void) | null = null;
   private onReloadTools: (() => Promise<void>) | null = null;
+  private onLogFilterLevelChange: ((level: LogLevel) => Promise<void> | void) | null = null;
+  private logPanelInitialLevel: LogLevel = LogLevel.INFO;
   private examplesExpanded = true;
   private toolsPath = "";
   private agentsPath = "";
@@ -63,31 +75,47 @@ export class PaperAgentsSidebar extends ItemView {
     // Header
     this.renderHeader(container as HTMLElement);
 
-    // Counts bar
+    // Tab Navigation
+    this.renderTabNav(container as HTMLElement);
+
+    // Counts bar (nur für Overview-Tab relevant)
     this.countsContainer = container.createDiv({ cls: "pa-counts-bar" });
     this.renderCounts();
 
-    // Tools Section
-    this.toolsContainer = container.createDiv({ cls: "pa-tools-section" });
+    // Overview-Tab-Inhalt
+    this.overviewTab = container.createDiv({ cls: "pa-tab-content" });
+    this.toolsContainer = this.overviewTab.createDiv({ cls: "pa-tools-section" });
     this.renderTools();
-
-    // Agents Section
-    this.agentsContainer = container.createDiv({ cls: "pa-agents-section" });
+    this.agentsContainer = this.overviewTab.createDiv({ cls: "pa-agents-section" });
     this.renderAgents();
-
-    // Examples Section
-    this.examplesContainer = container.createDiv({ cls: "pa-examples-section" });
+    this.examplesContainer = this.overviewTab.createDiv({ cls: "pa-examples-section" });
     this.renderExamples();
+
+    // Logs-Tab-Inhalt
+    this.logsTab = container.createDiv({ cls: "pa-tab-content pa-hidden" });
+    const logOptions: LogPanelOptions = {
+      initialFilterLevel: this.logPanelInitialLevel,
+      onFilterLevelChange: (level) => {
+        this.logPanelInitialLevel = level;
+        if (this.onLogFilterLevelChange) {
+          void this.onLogFilterLevelChange(level);
+        }
+      },
+    };
+    this.logPanel = new LogPanel(this.logsTab, globalLogger, logOptions);
+    this.logPanel.mount();
 
     // Status Section
     this.statusContainer = container.createDiv({ cls: "pa-status-section" });
     this.renderStatus("Ready");
 
-    globalLogger.debug("PaperAgentsSidebar opened");
+    logger.debug("PaperAgentsSidebar opened");
   }
 
   async onClose(): Promise<void> {
-    globalLogger.debug("PaperAgentsSidebar closed");
+    this.logPanel?.unmount();
+    this.logPanel = null;
+    logger.debug("PaperAgentsSidebar closed");
   }
 
   /**
@@ -109,7 +137,7 @@ export class PaperAgentsSidebar extends ItemView {
       if (this.onOpenChat) {
         this.onOpenChat();
       }
-      globalLogger.debug("Open chat clicked");
+      logger.debug("Open chat clicked");
     });
 
     const canvasBtn = actions.createEl("button", { text: "🖊️" });
@@ -120,7 +148,7 @@ export class PaperAgentsSidebar extends ItemView {
       if (this.onOpenCanvas) {
         this.onOpenCanvas();
       }
-      globalLogger.debug("Open canvas clicked");
+      logger.debug("Open canvas clicked");
     });
 
     const reloadBtn = actions.createEl("button", { text: "↻" });
@@ -134,9 +162,51 @@ export class PaperAgentsSidebar extends ItemView {
           reloadBtn.disabled = false;
         });
       }
-      globalLogger.debug("Reload tools clicked");
+      logger.debug("Reload tools clicked");
     });
   }
+
+  /**
+   * Rendert die Tab-Navigation (Übersicht | Logs)
+   */
+  private renderTabNav(container: HTMLElement): void {
+    const nav = container.createDiv({ cls: "pa-tab-nav" });
+
+    const overviewBtn = nav.createEl("button", {
+      cls: "pa-tab-btn pa-tab-btn-active",
+      text: "📋 Übersicht",
+      attr: { "data-tab": "overview" },
+    });
+    overviewBtn.addEventListener("click", () => this.switchTab("overview", overviewBtn, logsBtn));
+
+    const logsBtn = nav.createEl("button", {
+      cls: "pa-tab-btn",
+      text: "📜 logs",
+      attr: { "data-tab": "logs" },
+    });
+    logsBtn.addEventListener("click", () => this.switchTab("logs", logsBtn, overviewBtn));
+  }
+
+  /**
+   * Wechselt den aktiven Tab
+   */
+  private switchTab(tab: SidebarTab, activeBtn: HTMLElement, inactiveBtn: HTMLElement): void {
+    this.activeTab = tab;
+
+    activeBtn.addClass("pa-tab-btn-active");
+    inactiveBtn.removeClass("pa-tab-btn-active");
+
+    if (tab === "overview") {
+      this.overviewTab?.removeClass("pa-hidden");
+      this.logsTab?.addClass("pa-hidden");
+      this.countsContainer?.removeClass("pa-hidden");
+    } else {
+      this.overviewTab?.addClass("pa-hidden");
+      this.logsTab?.removeClass("pa-hidden");
+      this.countsContainer?.addClass("pa-hidden");
+    }
+  }
+
 
   /**
    * Rendert Zähler für Agenten und Tools
@@ -231,7 +301,7 @@ export class PaperAgentsSidebar extends ItemView {
       }
     }
 
-    globalLogger.debug(`Rendered ${tools.length} tools in sidebar`);
+    logger.debug(`Rendered ${tools.length} tools in sidebar`);
   }
 
   /**
@@ -337,7 +407,7 @@ export class PaperAgentsSidebar extends ItemView {
       toolItem.addEventListener("click", () => {
         this.onToolClick(tool.id);
         this.updateStatus(`Opening ${tool.name}...`);
-        globalLogger.info(`Tool clicked: ${tool.id}`);
+        logger.info(`Tool clicked: ${tool.id}`);
       });
     }
 
@@ -411,7 +481,7 @@ export class PaperAgentsSidebar extends ItemView {
       this.renderAgentItem(categoryDiv, agent);
     }
 
-    globalLogger.debug(`Rendered ${this.agents.length} agents in sidebar`);
+    logger.debug(`Rendered ${this.agents.length} agents in sidebar`);
   }
 
   private renderAgentItem(container: HTMLElement, agent: AgentDefinition): void {
@@ -440,7 +510,7 @@ export class PaperAgentsSidebar extends ItemView {
         this.onAgentClick(agent.id);
       }
       this.updateStatus(`Selected agent: ${agent.name}`);
-      globalLogger.info(`Agent clicked: ${agent.id}`);
+      logger.info(`Agent clicked: ${agent.id}`);
     });
 
     this.addHoverEffect(toolItem);
@@ -466,6 +536,14 @@ export class PaperAgentsSidebar extends ItemView {
 
   public setOnReloadTools(callback: () => Promise<void>): void {
     this.onReloadTools = callback;
+  }
+
+  public setOnLogFilterLevelChange(callback: (level: LogLevel) => Promise<void> | void): void {
+    this.onLogFilterLevelChange = callback;
+  }
+
+  public setLogPanelInitialLevel(level: LogLevel): void {
+    this.logPanelInitialLevel = level;
   }
 
   public setFolderPaths(toolsPath: string, agentsPath: string): void {
